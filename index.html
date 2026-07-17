@@ -6476,7 +6476,7 @@ function readRomHiScore(){
   try{
     if(!w.FS || !w.FS.readFile){ romStatus("boot","GAME BOOTING\u2026"); return 0; }
     const fixed=readFixedScores(w);
-    if(fixed>=0){ persistRomTable(w); romStatus("linked","OK \u2713"); return fixed; }
+    if(fixed>=0){ romStatus("linked","OK \u2713"); return fixed; }
     const ini=readRomIniScore(w);
     const mem=scanHeapScore(w);
     if(mem>=0){ romStatus("linked","OK \u2713 (live)"); return Math.max(ini,mem); }
@@ -6485,8 +6485,9 @@ function readRomHiScore(){
     return 0;
   }catch(e){ romStatus("error",String(e.name||e)); return 0; }
 }
-function syncRomScore(){
+function syncRomScore(persist){
   if(!activeGame || !activeGame.external) return;
+  if(persist){ try{ const w=frame.contentWindow; if(w&&w.FS) persistRomTable(w); }catch(e){} }
   const s=readRomHiScore();
   if(s<=0) return;
   liveScore.textContent=s.toLocaleString();
@@ -6530,8 +6531,8 @@ $("#hsClose").onclick=()=>$("#hiScoresModal").classList.remove("open");
 $("#hiScoresModal").onclick=e=>{ if(e.target.id==="hiScoresModal") $("#hiScoresModal").classList.remove("open"); };
 
 /* Catch tab close / hide while a ROM is open */
-addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") syncRomScore(); });
-addEventListener("pagehide",syncRomScore);
+addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") syncRomScore(true); });
+addEventListener("pagehide",()=>syncRomScore(true));
 
 function launch(entry){
   activeGame=entry;
@@ -6567,7 +6568,7 @@ function launch(entry){
 function closeStage(){
   $("#hiScoresModal").classList.remove("open");
   clearInterval(romPoll); romPoll=null;
-  syncRomScore(); // capture final score before tearing down the frame
+  syncRomScore(true); // capture + persist final score before tearing down the frame
   stage.classList.remove("open");
   document.body.classList.remove("in-game");
   frame.srcdoc=""; frame.removeAttribute("src");
