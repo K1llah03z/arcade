@@ -6415,6 +6415,35 @@ function readFixedScores(w){
   if(live>0&&live<MAX_SCORE&&live%5===0&&live>best) best=live;
   return best;
 }
+/* Write the in-memory table back into the game's ini (FS + localStorage
+   mirror) so the IN-GAME high-score list survives reloads. The game itself
+   only writes this file on a clean exit that never happens in an iframe. */
+let _lastPersist=-1;
+function persistRomTable(w){
+  try{
+    const H=w.HEAP32,U=w.HEAPU8; if(!H||!U) return;
+    let top=0; const rows=[];
+    for(let k=0;k<PB_SLOTS;k++){
+      const base=PB_TBL-32+k*PB_STRIDE, v=H[(base+32)>>2];
+      if(v!==-999&&(v<0||v>MAX_SCORE)) return;      /* stale layout — abort */
+      let name="";
+      for(let b=0;b<31;b++){ const c=U[base+b]; if(!c) break;
+        if(c<32||c>126){ name=""; break; } name+=String.fromCharCode(c); }
+      rows.push([name,v]); if(v>top) top=v;
+    }
+    if(top<=0||top===_lastPersist) return;
+    const path="/libsdl/SpaceCadetPinball/imgui_pb.ini";
+    let txt=new TextDecoder().decode(w.FS.readFile(path));
+    for(const [k,[name,v]] of rows.entries()){
+      txt=txt.replace(new RegExp("^"+k+"\\.Name=.*$","m"),k+".Name="+name)
+             .replace(new RegExp("^"+k+"\\.Score=.*$","m"),k+".Score="+v);
+    }
+    w.FS.writeFile(path,txt);
+    try{ localStorage.setItem("spaceCadet.imgui_pb.ini",txt); }catch(e){}
+    _lastPersist=top;
+    console.log("[ROM-link] table persisted, top="+top);
+  }catch(e){ console.log("[ROM-link] persist failed: "+e); }
+}
 function readRomHiScore(){
   let w;
   try{ w=frame.contentWindow; void w.location.href; }
@@ -6422,7 +6451,7 @@ function readRomHiScore(){
   try{
     if(!w.FS || !w.FS.readFile){ romStatus("boot","GAME BOOTING\u2026"); return 0; }
     const fixed=readFixedScores(w);
-    if(fixed>=0){ romStatus("linked","OK \u2713"); return fixed; }
+    if(fixed>=0){ persistRomTable(w); romStatus("linked","OK \u2713"); return fixed; }
     const ini=readRomIniScore(w);
     const mem=scanHeapScore(w);
     if(mem>=0){ romStatus("linked","OK \u2713 (live)"); return Math.max(ini,mem); }

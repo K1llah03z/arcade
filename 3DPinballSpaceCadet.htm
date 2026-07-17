@@ -45,6 +45,8 @@
 			.touch_flipper{width:34vw;max-width:180px;height:110px;font-size:15px;line-height:110px}
 			.touch_mid{display:flex;flex-direction:column;gap:8px;align-items:center}
 			.touch_small{width:24vw;max-width:130px;height:48px;font-size:13px;line-height:48px}
+			.newgame_btn{position:fixed;top:8px;left:8px;z-index:210;background:rgba(255,255,255,0.10);border:2px solid rgba(255,255,255,0.45);color:#fff;border-radius:12px;padding:6px 14px;font-family:Arial,sans-serif;font-weight:bold;font-size:13px;cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;display:none}
+			.newgame_btn:active{background:rgba(255,255,255,0.35)}
 			@media (hover:none) and (pointer:coarse){
 				.touch_controls{display:block}
 				.gui_controls{display:none}
@@ -54,6 +56,7 @@
 	<body>
 		<div class="pleasewait"><div class="lds-spinner"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div>
 		<canvas id="canvas"></canvas>
+		<div class="newgame_btn" id="newGameBtn">NEW GAME</div>
 		<div class="gui_container">
 			<div class="gui_background"></div>
 			<div class="gui_controls"><span class="gui_controls_key">LEFT FLIPPER = </span>Z&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="gui_controls_key">RIGHT FLIPPER = </span>C<br><span class="gui_controls_key">TILT FLIPPER TABLE = </span>X&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="gui_controls_key">LAUNCH BALL = </span>SPACE<br><span class="gui_controls_key">RESTART GAME = </span>R&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="gui_controls_key">ENABLE/DISABLE SOUND = </span>T</div>
@@ -64,6 +67,7 @@
 			<div class="touch_row">
 				<div class="touch_btn touch_flipper" data-key="z">LEFT</div>
 				<div class="touch_mid">
+					<div class="touch_btn touch_small" data-key="F2">NEW GAME</div>
 					<div class="touch_btn touch_small" data-key="x">TILT</div>
 					<div class="touch_btn touch_small" data-key=" ">LAUNCH</div>
 				</div>
@@ -191,7 +195,8 @@
 					"z": { key: "z", code: "KeyZ",  keyCode: 90 },
 					"x": { key: "x", code: "KeyX",  keyCode: 88 },
 					"/": { key: "/", code: "Slash", keyCode: 191 },
-					" ": { key: " ", code: "Space", keyCode: 32 }
+					" ": { key: " ", code: "Space", keyCode: 32 },
+					"F2": { key: "F2", code: "F2", keyCode: 113 }
 					};
 
 				function sendKey(type, k)
@@ -218,6 +223,14 @@
 						btn.addEventListener("mouseleave", up);
 						})(btns[i]);
 					}
+
+				// Always-visible NEW GAME button (desktop + touch). Shown once the
+				// game starts; fires the same F2 the game already listens for.
+				var ngBtn = document.getElementById("newGameBtn");
+				function ngFire(e){ e.preventDefault(); sendKey("keydown","F2"); setTimeout(function(){ sendKey("keyup","F2"); }, 60); }
+				ngBtn.addEventListener("click", ngFire);
+				ngBtn.addEventListener("touchstart", ngFire, { passive: false });
+				document.getElementsByClassName("gui_start")[0].addEventListener("click", function(){ ngBtn.style.display = "block"; });
 
 				// Prevent double-tap zoom / scroll while playing on touch devices
 				document.addEventListener("touchmove", function(e)
