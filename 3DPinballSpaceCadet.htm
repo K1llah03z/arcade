@@ -51,11 +51,17 @@
 				body.playing .touch_controls{display:block}
 				.gui_controls{display:none}
 			}
+			#glLost{position:fixed;inset:0;z-index:400;display:none;align-items:center;justify-content:center;background:rgba(5,3,12,.92);font-family:Arial,sans-serif}
+			#glLost .gl-box{text-align:center;color:#fff;padding:22px 26px;border:2px solid #7b4dff;border-radius:14px;background:#140a2b;max-width:86vw}
+			#glLost b{display:block;font-size:16px;margin-bottom:8px;color:#0ff}
+			#glLost span{display:block;font-size:13px;opacity:.8;margin-bottom:14px}
+			#glLost button{padding:9px 20px;border-radius:9px;border:1px solid #7b4dff;background:transparent;color:#0ff;font-size:13px;cursor:pointer}
 		</style>
 	</head>
 	<body>
 		<div class="pleasewait"><div class="lds-spinner"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div>
 		<canvas id="canvas"></canvas>
+		<div id="glLost"><div class="gl-box"><b>Graphics context lost</b><span>The browser dropped the display. Your score is saved.</span><button type="button" onclick="location.reload()">Reload game</button></div></div>
 		<div class="newgame_btn" id="newGameBtn">NEW GAME</div>
 		<div class="gui_container">
 			<div class="gui_background"></div>
@@ -78,7 +84,21 @@
 			function getBooleanSetting(settingName){try{var name = "pinballspacecadet" + settingName;var nameEQ = name + "=";var ca = document.cookie.split(";");for(var i=0;i < ca.length;i++){var c = ca[i];while (c.charAt(0)==" "){c = c.substring(1,c.length);}if (c.indexOf(nameEQ) == 0){if (c.substring(nameEQ.length,c.length)=="true"){return true;}else{return false;}}}}catch(err){}return true;}
 			function setBooleanSetting(settingName,settingValue){try{var name = "pinballspacecadet" + settingName;var value = String(settingValue);var days = 999;var expires = "";if (days){var date = new Date();date.setTime(date.getTime() + (days*24*60*60*1000));expires = "; expires=" + date.toUTCString() + "; SameSite=Lax";}document.cookie = name + "=" + (value || "")  + expires + "; Secure; path=/";}catch(err){}}
 
-			var Module={preRun:[],postRun:[],print:function(){}(),printErr:function(e){},canvas:function(){var e=document.getElementById("canvas");return e.addEventListener("webglcontextlost",(function(e){}),!1),e}(),setStatus:function(e){},totalDependencies:0,monitorRunDependencies:function(e){}};
+			var Module={preRun:[],postRun:[],print:function(){}(),printErr:function(e){},canvas:function(){
+				var e=document.getElementById("canvas");
+				/* The stock handler was empty and never called preventDefault(), which
+				   makes a lost GL context permanently unrecoverable -> black screen.
+				   Mobile drops the context under memory pressure / backgrounding, so
+				   we preventDefault (allowing restore) and recover by reloading. The
+				   hub has already mirrored the score to localStorage by then. */
+				e.addEventListener("webglcontextlost",function(ev){
+					ev.preventDefault();
+					try{ if(window.SNAPSHOT_INI) window.SNAPSHOT_INI(); }catch(err){}
+					var b=document.getElementById("glLost"); if(b) b.style.display="flex";
+					},!1);
+				e.addEventListener("webglcontextrestored",function(){ location.reload(); },!1);
+				return e;
+				}(),setStatus:function(e){},totalDependencies:0,monitorRunDependencies:function(e){}};
 
 			// ===== HIGH SCORE PERSISTENCE =====
 			// The game keeps scores/settings in /imgui_pb.ini on an in-memory FS,
@@ -102,6 +122,7 @@
 						if (txt) localStorage.setItem(INI_KEY, txt);
 					}catch(err){/* not written yet */}
 				}
+				window.SNAPSHOT_INI = snapshot;
 				setInterval(snapshot, 3000);
 				addEventListener("pagehide", snapshot);
 				addEventListener("visibilitychange", function(){ if (document.visibilityState === "hidden") snapshot(); });
