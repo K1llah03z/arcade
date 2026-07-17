@@ -6626,6 +6626,9 @@ function closeStage(){
 }
 $("#closeBtn").onclick=closeStage;
 /* Return focus to the game after any stage-bar click (except Exit) */
+/* Middle-click on hub chrome shouldn't start autoscroll either, but never
+   touch the game frame — middle-click is the plunger and must reach it. */
+$("#stageBar").addEventListener("auxclick", e=>{ if(e.button===1) e.preventDefault(); });
 $("#stageBar").addEventListener("click", e=>{
   if(e.target.closest("#closeBtn")) return;
   setTimeout(refocusGame, 0);

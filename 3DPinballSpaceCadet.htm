@@ -186,6 +186,23 @@
 				event.preventDefault();
 				});
 
+			// Middle-click is the plunger, but it also triggers Chrome/Edge
+			// autoscroll, which hijacks the pointer and leaves the game looking
+			// frozen (renders fine, ignores all input). preventDefault() on the
+			// mousedown suppresses autoscroll while STILL letting the game receive
+			// the button — plunger keeps working, autoscroll never starts.
+			(function(){
+				var cv = document.getElementById("canvas");
+				cv.addEventListener("mousedown", function(e){
+					if (e.button === 1) e.preventDefault();
+					}, false);
+				// auxclick is what actually opens autoscroll in some builds; it is
+				// not used by SDL, so it is safe to cancel outright.
+				cv.addEventListener("auxclick", function(e){
+					if (e.button === 1) e.preventDefault();
+					}, false);
+				})();
+
 			window.addEventListener("load", function()
 				{
 				document.getElementById("canvas").style.height = (window.innerHeight + 20) + "px";
