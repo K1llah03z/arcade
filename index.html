@@ -6277,25 +6277,40 @@ const NATIVE_CLASSIC = new Set(["neon-chess","pyramid-13","mine-sweeper","freece
    WASM ports (e.g. Space Cadet) keep their high-score table in an ini
    file inside their Emscripten FS. The iframe runs same-origin, so we
    can read it directly and mirror the best score into the hub store. */
-let romPoll=null, romLinkLogged=false;
+let romPoll=null, romLinkState="";
+function romStatus(state,msg){
+  if(state===romLinkState) return;
+  romLinkState=state;
+  liveLevel.parentElement.firstChild.textContent="LINK ";
+  liveLevel.textContent=msg;
+  console.log("[ROM-link] "+state+": "+msg);
+  if(state==="blocked") notify("Score link blocked — "+msg);
+}
 function readRomHiScore(){
+  let w;
+  try{ w=frame.contentWindow; void w.location.href; }
+  catch(e){
+    romStatus("blocked","BLOCKED — serve over http(s), not file://");
+    return 0;
+  }
   try{
-    const w=frame.contentWindow;
-    if(!w || !w.FS || !w.FS.readFile) return 0;
-    if(!romLinkLogged){ romLinkLogged=true; console.log("[ROM-link] FS reachable in iframe"); }
+    if(!w.FS || !w.FS.readFile){ romStatus("boot","GAME BOOTING\u2026"); return 0; }
     let txt="";
     for(const p of ["/imgui_pb.ini","imgui_pb.ini","/imgui.ini","imgui.ini"]){
-      try{ txt=new TextDecoder().decode(w.FS.readFile(p)); if(txt){ console.log("[ROM-link] read "+p+" ("+txt.length+" bytes)"); break; } }
+      try{ txt=new TextDecoder().decode(w.FS.readFile(p)); if(txt) break; }
       catch(e){/* not written yet — game saves after a game ends */}
     }
+    if(!txt){ romStatus("waiting","WAITING (finish a game)"); return 0; }
     let best=0;
     txt.split(/\r?\n/).forEach(l=>{
       if(/high\s*score/i.test(l) && !/name/i.test(l)){
         (l.match(/-?\d+/g)||[]).forEach(n=>{ n=+n; if(n>best) best=n; });
       }
     });
+    if(best>0) romStatus("linked","OK \u2713");
+    else romStatus("nokey","INI FOUND, NO SCORE KEY");
     return best;
-  }catch(e){ console.warn("[ROM-link]",e); return 0; }
+  }catch(e){ romStatus("error",String(e.name||e)); return 0; }
 }
 function syncRomScore(){
   if(!activeGame || !activeGame.external) return;
@@ -6317,6 +6332,8 @@ function launch(entry){
   activeGame=entry;
   stageTitle.textContent=entry.title;
   liveScore.textContent="0"; liveLevel.textContent="1";
+  liveLevel.parentElement.firstChild.textContent="LEVEL ";
+  romLinkState="";
   liveBest.textContent=Store.best(entry.id).toLocaleString();
   const gid = entry.src.startsWith("embedded:") ? entry.src.slice(9) : entry.id;
   frame.classList.toggle("mono-classic", !NATIVE_CLASSIC.has(gid));
@@ -6400,7 +6417,12 @@ addEventListener("message",(e)=>{
 /* ---------- Wipe ---------- */
 $("#wipeBtn").onclick=()=>{
   if(confirm("Erase every high score and achievement?")){
-    Store.wipe(); renderStats(); renderBoard(); renderGrid();
+    Store.wipe();
+    /* Also wipe external ROM saves so their in-game tables reset too.
+       Close a running ROM first, else its autosave re-writes the key. */
+    if(activeGame && activeGame.external) closeStage();
+    try{ localStorage.removeItem("spaceCadet.imgui_pb.ini"); }catch(e){}
+    renderStats(); renderBoard(); renderGrid();
     notify("Memory core wiped.");
   }
 };
