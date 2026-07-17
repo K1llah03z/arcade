@@ -6227,18 +6227,139 @@ const AudioFX=(function(){
     f.type="lowpass";f.frequency.setValueAtTime(2200,t);f.frequency.exponentialRampToValueAtTime(100,t+dur);
     s.buffer=buf;g.gain.value=vol;s.connect(f).connect(g).connect(a.destination);s.start(t);
   }
+  function whoosh(dur,f0,f1,vol){ /* filtered-noise sweep */
+    const a=actx(),t=a.currentTime,len=a.sampleRate*dur,buf=a.createBuffer(1,len,a.sampleRate),d=buf.getChannelData(0);
+    for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.sin(Math.PI*i/len);
+    const s=a.createBufferSource(),g=a.createGain(),f=a.createBiquadFilter();
+    f.type="bandpass";f.Q.value=1.4;
+    f.frequency.setValueAtTime(f0,t);f.frequency.exponentialRampToValueAtTime(f1,t+dur);
+    s.buffer=buf;g.gain.value=vol;s.connect(f).connect(g).connect(a.destination);s.start(t);
+  }
+  function chime(base,vol,chain){ /* gem break: bright chord, pitch rises with chain */
+    const a=actx(),t=a.currentTime,k=Math.pow(1.09,Math.min(chain||1,9));
+    [1,1.5,2].forEach((m,i)=>{
+      const o=a.createOscillator(),g=a.createGain();
+      o.type=i===0?"triangle":"sine";o.frequency.value=base*m*k;
+      g.gain.setValueAtTime(0.0001,t+i*0.012);
+      g.gain.exponentialRampToValueAtTime(vol*(1-i*0.28),t+i*0.012+0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+i*0.012+0.34);
+      o.connect(g).connect(a.destination);o.start(t+i*0.012);o.stop(t+i*0.012+0.4);
+    });
+    whoosh(0.12,3000,6000,0.05); /* glassy sparkle layer */
+  }
+  /* ---- FX bus: feedback delay + soft lowpass = spacious modern tail ---- */
+  let bus=null;
+  function fxBus(){
+    const a=actx();
+    if(bus)return bus;
+    bus=a.createGain();bus.gain.value=1;
+    const dry=a.createGain();dry.gain.value=1;
+    const wet=a.createGain();wet.gain.value=0.34;
+    const dl=a.createDelay(1);dl.delayTime.value=0.16;
+    const fb=a.createGain();fb.gain.value=0.42;
+    const damp=a.createBiquadFilter();damp.type="lowpass";damp.frequency.value=2600;
+    bus.connect(dry).connect(a.destination);
+    bus.connect(dl);dl.connect(damp);damp.connect(fb);fb.connect(dl);
+    damp.connect(wet).connect(a.destination);
+    return bus;
+  }
+  function sub(t,f0,f1,dur,vol){ /* sub-bass drop */
+    const a=actx(),o=a.createOscillator(),g=a.createGain();
+    o.type="sine";o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+dur);
+    g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g).connect(a.destination);o.start(t);o.stop(t+dur+0.05);
+  }
+  function crackle(t,dur,vol,fc0,fc1,q){ /* shaped noise burst through resonant filter */
+    const a=actx(),len=a.sampleRate*dur,buf=a.createBuffer(1,len,a.sampleRate),d=buf.getChannelData(0);
+    for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,1.6);
+    const s=a.createBufferSource(),g=a.createGain(),f=a.createBiquadFilter();
+    f.type="bandpass";f.Q.value=q||0.9;
+    f.frequency.setValueAtTime(fc0,t);f.frequency.exponentialRampToValueAtTime(fc1,t+dur);
+    s.buffer=buf;g.gain.value=vol;s.connect(f).connect(g).connect(fxBus());s.start(t);
+  }
+  function metalRing(t,f,dur,vol){ /* FM bell partials = metallic shrapnel ring */
+    const a=actx();
+    [1,2.76,5.4].forEach((m,i)=>{
+      const o=a.createOscillator(),g=a.createGain();
+      o.type="sine";o.frequency.value=f*m*(1+(Math.random()-0.5)*0.01);
+      g.gain.setValueAtTime(0.0001,t);
+      g.gain.exponentialRampToValueAtTime(vol/(i+1),t+0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+dur/(i*0.7+1));
+      o.connect(g).connect(fxBus());o.start(t);o.stop(t+dur+0.1);
+    });
+  }
+  function grain(t,f,vol){ /* single sparkle grain */
+    const a=actx(),o=a.createOscillator(),g=a.createGain();
+    o.type="sine";o.frequency.value=f;
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol,t+0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.14);
+    o.connect(g).connect(fxBus());o.start(t);o.stop(t+0.2);
+  }
+  /* RADIANT: cinematic concussive blast — click, sub drop, debris, metal ring */
+  function boomRadiant(){
+    const a=actx(),t=a.currentTime;
+    blip(3200,200,0.03,"square",0.16);            /* transient click */
+    sub(t,150,34,0.5,0.55);                       /* chest thump */
+    crackle(t,0.45,0.5,1800,140,0.8);             /* explosion body */
+    crackle(t+0.05,0.6,0.22,5000,600,0.6);        /* airy debris */
+    metalRing(t+0.03,720,0.9,0.10);               /* gem shrapnel ring */
+  }
+  /* CROSS: electric — charged zap dive, laser sweep both ways, arc sizzle */
+  function zapCross(){
+    const a=actx(),t=a.currentTime;
+    for(const det of [0,7]){                      /* detuned dual saw dive */
+      const o=a.createOscillator(),g=a.createGain(),f=a.createBiquadFilter();
+      o.type="sawtooth";o.frequency.setValueAtTime(1400+det*20,t);
+      o.frequency.exponentialRampToValueAtTime(90,t+0.32);
+      f.type="lowpass";f.frequency.setValueAtTime(6000,t);f.frequency.exponentialRampToValueAtTime(500,t+0.32);
+      g.gain.setValueAtTime(0.14,t);g.gain.exponentialRampToValueAtTime(0.0001,t+0.36);
+      o.connect(f).connect(g).connect(fxBus());o.start(t);o.stop(t+0.4);
+    }
+    whoosh(0.22,900,7000,0.16);                   /* beam racing out */
+    whoosh(0.22,7000,900,0.12);
+    crackle(t,0.3,0.25,6500,2500,3.5);            /* electric sizzle */
+    sub(t,110,45,0.3,0.3);
+    /* arc after-sparks */
+    for(let i=0;i<5;i++)grain(t+0.18+i*0.045,2500+Math.random()*3500,0.06);
+  }
+  /* PRISM: magical supernova — riser, glass bloom chord, sub bloom, long sparkle rain */
+  function novaPrism(){
+    const a=actx(),t=a.currentTime;
+    /* riser into the hit */
+    const o=a.createOscillator(),g=a.createGain();
+    o.type="sawtooth";o.frequency.setValueAtTime(220,t);o.frequency.exponentialRampToValueAtTime(1760,t+0.22);
+    g.gain.setValueAtTime(0.0001,t);g.gain.linearRampToValueAtTime(0.1,t+0.2);g.gain.exponentialRampToValueAtTime(0.0001,t+0.26);
+    o.connect(g).connect(fxBus());o.start(t);o.stop(t+0.3);
+    const hit=t+0.22;
+    sub(hit,160,30,0.7,0.5);
+    crackle(hit,0.5,0.4,2400,200,0.7);
+    /* glass bloom: wide major-ish stack */
+    [523.25,659.25,783.99,1046.5,1318.5].forEach((f,i)=>{
+      const oo=a.createOscillator(),gg=a.createGain();
+      oo.type=i<2?"triangle":"sine";oo.frequency.value=f;
+      gg.gain.setValueAtTime(0.0001,hit+i*0.015);
+      gg.gain.exponentialRampToValueAtTime(0.09,hit+i*0.015+0.02);
+      gg.gain.exponentialRampToValueAtTime(0.0001,hit+i*0.015+1.1);
+      oo.connect(gg).connect(fxBus());oo.start(hit+i*0.015);oo.stop(hit+i*0.015+1.2);
+    });
+    /* sparkle rain tail */
+    for(let i=0;i<14;i++)grain(hit+0.1+i*0.055+Math.random()*0.03,1800+Math.random()*4800,0.05);
+  }
+  function prismSweep(){ shimmer(); whoosh(0.6,600,5200,0.22);
+    setTimeout(()=>whoosh(0.4,5200,300,0.15),260); }
   return{
     ctx:actx, unlock:actx,
-    swap: ()=>blip(300,440,0.07,"triangle",0.14),
-    bad:  ()=>blip(200,120,0.15,"sawtooth",0.1),
-    match:(chain)=>blip(520*Math.pow(1.1,Math.min(chain,8)),980*Math.pow(1.1,Math.min(chain,8)),0.12,"sine",0.16),
-    special:()=>{boomNoise(0.35,0.35);blip(180,60,0.3,"sawtooth",0.2);},
-    prism: shimmer,
-    drop: ()=>blip(180,120,0.05,"sine",0.06),
+    swap: ()=>whoosh(0.11,700,2400,0.10),
+    bad:  ()=>{blip(200,120,0.15,"sawtooth",0.1);whoosh(0.12,1200,300,0.06);},
+    match:(chain)=>chime(523,0.15,chain),
+    boomRadiant, zapCross, novaPrism,
+    prism: prismSweep,
+    drop: ()=>blip(150+Math.random()*70,110,0.05,"sine",0.05),
     tick: ()=>blip(880,880,0.05,"square",0.08),
-    shuffle:()=>{blip(400,600,0.15,"triangle",0.12);setTimeout(()=>blip(600,400,0.15,"triangle",0.12),120);},
-    level:()=>{blip(523,1046,0.12,"triangle",0.18);setTimeout(()=>blip(659,1318,0.12,"triangle",0.18),90);setTimeout(()=>blip(784,1568,0.18,"triangle",0.18),180);},
-    over: ()=>blip(300,50,0.7,"sawtooth",0.18)
+    shuffle:()=>{whoosh(0.35,400,2400,0.12);setTimeout(()=>whoosh(0.3,2400,400,0.1),180);},
+    level:()=>{blip(523,1046,0.12,"triangle",0.18);setTimeout(()=>blip(659,1318,0.12,"triangle",0.18),90);setTimeout(()=>blip(784,1568,0.18,"triangle",0.18),180);whoosh(0.5,800,5000,0.1);},
+    over: ()=>{blip(300,50,0.7,"sawtooth",0.18);whoosh(0.7,2000,150,0.12);}
   };
 })();
 
@@ -6330,6 +6451,7 @@ let grid=[],spec=[],offY=[],vel=[],state="menu",sel=null,swapA=null,swapB=null,s
 let clearing=new Set(),clearT=0,chain=0,score=0,level=1,progress=0,goal=1500,hintAt=0,hintCell=null,shineT=0;
 let particles=[],overT=0,overStamp=0;
 let mode="classic",timeLeft=0,lastTick=-1,shuffleFlash=0;
+let fx=[]; /* transient detonation effects: rings, beams, novas */
 const MODES=[
   {id:"classic",name:"CLASSIC",desc:"Endless — ends when no moves remain"},
   {id:"timed",  name:"TIMED",  desc:"90 seconds — matches add time"},
@@ -6342,9 +6464,12 @@ function layout(){
   const topH=Math.max(58,H*0.09), pad=10;
   CS=Math.floor(Math.min((W-pad*2)/N,(H-topH-pad*2)/N));
   BX=Math.floor((W-CS*N)/2); BY=Math.floor(topH+(H-topH-CS*N)/2);
-  muteBtn={x:W-26,y:H-26,r:18};
-  hintBtn={x:W-72,y:H-26,r:18};
-  menuBtn={x:26,y:H-26,r:18};
+  /* pin controls just under the board, but never inside the bottom 56px
+     (mobile browser chrome / home-indicator zone) */
+  const btnY=Math.min(H-56, BY+CS*N+34);
+  muteBtn={x:W-26,y:btnY,r:18};
+  hintBtn={x:W-72,y:btnY,r:18};
+  menuBtn={x:26,y:btnY,r:18};
   menuBtns=MODES.map((m,i)=>({...m,x:W/2-130,y:H*0.34+i*74,w:260,h:58}));
 }
 function rnd(n){return Math.floor(Math.random()*n);}
@@ -6418,6 +6543,7 @@ function findMatchRuns(){
 
 function detonate(cells){
   let boom=false;
+  const fired=new Set();
   const queue=[...cells];
   while(queue.length){
     const i=queue.pop();
@@ -6425,7 +6551,11 @@ function detonate(cells){
     if(!s)continue;
     spec[i]=0;
     const x=i%N,y=(i/N)|0;
-    boom=true;
+    boom=true;fired.add(s);
+    const cx=BX+x*CS+CS/2, cy=BY+y*CS+CS/2;
+    if(s===1)fx.push({type:"ring",x:cx,y:cy,t:0,life:0.5});
+    else if(s===2){fx.push({type:"beamH",y:BY+y*CS,t:0,life:0.38});fx.push({type:"beamV",x:BX+x*CS,t:0,life:0.38});}
+    else if(s===3)fx.push({type:"nova",x:cx,y:cy,t:0,life:0.7});
     if(s===1){
       for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
         const nx=x+dx,ny=y+dy;
@@ -6444,7 +6574,7 @@ function detonate(cells){
       for(let j=0;j<N*N;j++)if(grid[j]===t&&!cells.has(j)){cells.add(j);queue.push(j);}
     }
   }
-  return boom;
+  return fired;
 }
 
 function findMove(){
@@ -6479,12 +6609,15 @@ function commitSwap(){
 }
 function beginClear(cells,specials){
   chain++;
-  const boom=detonate(cells);
+  const fired=detonate(cells);
   score+=cells.size*10*chain*level;
   progress+=cells.size*10*chain;
   if(mode==="timed")timeLeft=Math.min(120,timeLeft+cells.size*0.45*Math.max(1,chain*0.7));
   GameBridge.reportScore(score);
-  if(boom)AudioFX.special();else AudioFX.match(chain);
+  if(fired.has(3))AudioFX.novaPrism();          /* prism chained into a blast */
+  else if(fired.has(2))AudioFX.zapCross();      /* row+col zap */
+  else if(fired.has(1))AudioFX.boomRadiant();   /* 3x3 concussion */
+  else AudioFX.match(chain);
   for(const sd of (specials||[]))cells.delete(sd.i);
   clearing=cells;clearT=0;state="clear";
   for(const sd of (specials||[])){spec[sd.i]=sd.sp;if(sd.sp===3)grid[sd.i]=PRISM;burst(BX+(sd.i%N)*CS+CS/2,BY+((sd.i/N)|0)*CS+CS/2,"#ffffff",16);}
@@ -6587,7 +6720,7 @@ cvs.addEventListener("pointerup",()=>{dragFrom=null;});
 
 function startGame(m){
   mode=m;
-  score=0;level=1;progress=0;goal=1500;chain=0;sel=null;particles=[];swapA=swapB=null;
+  score=0;level=1;progress=0;goal=1500;chain=0;sel=null;particles=[];fx=[];swapA=swapB=null;
   timeLeft=(mode==="timed")?90:0;lastTick=-1;
   GameBridge.reportScore(0);
   newBoard();
@@ -6609,38 +6742,121 @@ function gemPath(cx,cy,r,shape){
     case "kite":ctx.moveTo(cx,cy-r*1.1);ctx.lineTo(cx+r*0.75,cy-r*0.15);ctx.lineTo(cx,cy+r*1.05);ctx.lineTo(cx-r*0.75,cy-r*0.15);ctx.closePath();break;
   }
 }
-function drawGem(x,y,s,t,sp,glow){
-  const cx=x+s/2,cy=y+s/2,r=s*0.36;
+function shade(hex,f){ /* lighten (f>0) or darken (f<0) a #rrggbb color */
+  const n=parseInt(hex.slice(1),16);
+  let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  if(f>0){r+=(255-r)*f;g+=(255-g)*f;b+=(255-b)*f;}else{r*=1+f;g*=1+f;b*=1+f;}
+  return "rgb("+(r|0)+","+(g|0)+","+(b|0)+")";
+}
+function drawGem(x,y,s,t,sp,glow,rot){
+  const cx=x+s/2,cy=y+s/2,r=s*0.37;
   ctx.save();
+  if(rot){ctx.translate(cx,cy);ctx.rotate(rot);ctx.translate(-cx,-cy);}
+  /* ---- prism: rotating rainbow orb with orbiting sparks ---- */
   if(t===PRISM){
     const p=(Math.sin(shineT*4)+1)/2;
-    const g=ctx.createRadialGradient(cx,cy,1,cx,cy,r*1.15);
-    g.addColorStop(0,"#ffffff");
-    g.addColorStop(0.5,`hsl(${(shineT*90)%360},90%,65%)`);
-    g.addColorStop(1,`hsl(${(shineT*90+120)%360},90%,45%)`);
-    ctx.shadowColor="#ffffff";ctx.shadowBlur=10+p*10;
-    ctx.fillStyle=g;
-    ctx.beginPath();ctx.arc(cx,cy,r*1.05,0,Math.PI*2);ctx.fill();
+    const hue=(shineT*120)%360;
+    const grad=ctx.createRadialGradient(cx-r*0.3,cy-r*0.35,1,cx,cy,r*1.15);
+    grad.addColorStop(0,"#ffffff");
+    grad.addColorStop(0.45,`hsl(${hue},95%,68%)`);
+    grad.addColorStop(0.8,`hsl(${(hue+140)%360},95%,52%)`);
+    grad.addColorStop(1,`hsl(${(hue+220)%360},90%,38%)`);
+    ctx.shadowColor=`hsl(${hue},100%,70%)`;ctx.shadowBlur=12+p*14;
+    ctx.fillStyle=grad;
+    ctx.beginPath();ctx.arc(cx,cy,r*1.02,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
+    /* spinning facet lines */
+    ctx.strokeStyle="rgba(255,255,255,0.5)";ctx.lineWidth=1;
+    for(let k=0;k<3;k++){
+      const a=shineT*1.5+k*Math.PI/3;
+      ctx.beginPath();ctx.ellipse(cx,cy,r*0.9,r*0.35,a,0,Math.PI*2);ctx.stroke();
+    }
+    /* orbiting sparks */
+    for(let k=0;k<4;k++){
+      const a=shineT*3+k*Math.PI/2, sx=cx+Math.cos(a)*r*1.25, sy=cy+Math.sin(a)*r*1.25;
+      ctx.fillStyle="rgba(255,255,255,"+(0.5+0.5*Math.sin(shineT*8+k))+")";
+      ctx.beginPath();ctx.arc(sx,sy,1.8,0,Math.PI*2);ctx.fill();
+    }
+    ctx.fillStyle="rgba(255,255,255,0.9)";
+    ctx.beginPath();ctx.ellipse(cx-r*0.3,cy-r*0.35,r*0.22,r*0.13,-0.6,0,Math.PI*2);ctx.fill();
     ctx.restore();return;
   }
   const g=GEMS[t];
+  /* ---- power aura behind radiant / cross gems ---- */
+  if(sp===1||sp===2){
+    const p=(Math.sin(shineT*5)+1)/2;
+    const aura=ctx.createRadialGradient(cx,cy,r*0.2,cx,cy,r*1.5);
+    aura.addColorStop(0,"rgba(255,255,255,"+(0.25+p*0.25)+")");
+    aura.addColorStop(1,"rgba(255,255,255,0)");
+    ctx.fillStyle=aura;
+    ctx.beginPath();ctx.arc(cx,cy,r*1.5,0,Math.PI*2);ctx.fill();
+  }
   if(glow||sp){ctx.shadowColor=sp?"#ffffff":g.c;ctx.shadowBlur=NG_CLASSIC()?6:14;}
-  ctx.fillStyle=g.c;ctx.strokeStyle="rgba(0,0,0,0.35)";ctx.lineWidth=Math.max(1,s*0.03);
+  /* ---- faceted body: vertical light->dark gradient ---- */
+  const body=ctx.createLinearGradient(cx,cy-r*1.1,cx,cy+r*1.1);
+  body.addColorStop(0,shade(g.c,0.45));
+  body.addColorStop(0.5,g.c);
+  body.addColorStop(1,shade(g.c,-0.45));
+  ctx.fillStyle=body;
+  ctx.strokeStyle=shade(g.c,-0.6);ctx.lineWidth=Math.max(1,s*0.035);
   gemPath(cx,cy,r,g.shape);
   ctx.fill();ctx.stroke();
   ctx.shadowBlur=0;
-  ctx.fillStyle=g.hl;ctx.globalAlpha=0.85;
-  ctx.beginPath();ctx.ellipse(cx-r*0.32,cy-r*0.38,r*0.26,r*0.16,-0.6,0,Math.PI*2);ctx.fill();
-  ctx.globalAlpha=1;
-  if(sp===1){
+  /* ---- inner table facet (smaller, brighter copy) ---- */
+  const fg=ctx.createLinearGradient(cx,cy-r*0.6,cx,cy+r*0.6);
+  fg.addColorStop(0,shade(g.c,0.75));
+  fg.addColorStop(1,shade(g.c,0.1));
+  ctx.fillStyle=fg;ctx.globalAlpha=0.9;
+  gemPath(cx,cy+r*0.03,r*0.58,g.shape);
+  ctx.fill();ctx.globalAlpha=1;
+  /* facet edge line */
+  ctx.strokeStyle="rgba(255,255,255,0.35)";ctx.lineWidth=1;
+  gemPath(cx,cy+r*0.03,r*0.58,g.shape);ctx.stroke();
+  /* ---- specular gleam sweeping periodically ---- */
+  ctx.fillStyle="rgba(255,255,255,0.9)";
+  ctx.beginPath();ctx.ellipse(cx-r*0.34,cy-r*0.42,r*0.22,r*0.12,-0.6,0,Math.PI*2);ctx.fill();
+  const sweep=((shineT*0.35+t*0.13)%1);
+  if(sweep<0.18){ /* moving diagonal glint */
+    const gp=(sweep/0.18)*2-1;
+    ctx.save();
+    gemPath(cx,cy,r,g.shape);ctx.clip();
+    const gl=ctx.createLinearGradient(cx+gp*r*2-r*0.4,cy-r,cx+gp*r*2+r*0.4,cy+r);
+    gl.addColorStop(0,"rgba(255,255,255,0)");
+    gl.addColorStop(0.5,"rgba(255,255,255,0.55)");
+    gl.addColorStop(1,"rgba(255,255,255,0)");
+    ctx.fillStyle=gl;ctx.fillRect(cx-r*1.2,cy-r*1.2,r*2.4,r*2.4);
+    ctx.restore();
+  }
+  /* ---- special markers ---- */
+  if(sp===1){ /* radiant: blazing core + orbiting sparks */
     const p=(Math.sin(shineT*6)+1)/2;
-    ctx.fillStyle="rgba(255,255,255,"+(0.55+p*0.4)+")";
-    ctx.beginPath();ctx.arc(cx,cy,r*0.32,0,Math.PI*2);ctx.fill();
-  } else if(sp===2){
-    const p=(Math.sin(shineT*6)+1)/2;
-    ctx.fillStyle="rgba(255,255,255,"+(0.6+p*0.35)+")";
-    ctx.fillRect(cx-r*0.85,cy-r*0.12,r*1.7,r*0.24);
-    ctx.fillRect(cx-r*0.12,cy-r*0.85,r*0.24,r*1.7);
+    const core=ctx.createRadialGradient(cx,cy,0,cx,cy,r*0.42);
+    core.addColorStop(0,"rgba(255,255,255,1)");
+    core.addColorStop(0.6,"rgba(255,255,240,"+(0.5+p*0.4)+")");
+    core.addColorStop(1,"rgba(255,255,255,0)");
+    ctx.fillStyle=core;
+    ctx.beginPath();ctx.arc(cx,cy,r*0.42,0,Math.PI*2);ctx.fill();
+    for(let k=0;k<3;k++){
+      const a=shineT*4+k*2.09, sx=cx+Math.cos(a)*r*0.95, sy=cy+Math.sin(a)*r*0.95;
+      ctx.fillStyle="#ffffff";
+      ctx.beginPath();
+      ctx.moveTo(sx,sy-2.6);ctx.lineTo(sx+2.6,sy);ctx.lineTo(sx,sy+2.6);ctx.lineTo(sx-2.6,sy);
+      ctx.closePath();ctx.fill();
+    }
+  } else if(sp===2){ /* cross: energy bars with travelling shimmer */
+    const off=(shineT*2.2)%2-1;
+    for(const horiz of [true,false]){
+      const bl=ctx.createLinearGradient(
+        horiz?cx-r*0.9:cx, horiz?cy:cy-r*0.9,
+        horiz?cx+r*0.9:cx, horiz?cy:cy+r*0.9);
+      const mid=Math.min(1,Math.max(0,(off+1)/2));
+      bl.addColorStop(0,"rgba(255,255,255,0.45)");
+      bl.addColorStop(mid,"rgba(255,255,255,1)");
+      bl.addColorStop(1,"rgba(255,255,255,0.45)");
+      ctx.fillStyle=bl;
+      if(horiz)ctx.fillRect(cx-r*0.9,cy-r*0.13,r*1.8,r*0.26);
+      else ctx.fillRect(cx-r*0.13,cy-r*0.9,r*0.26,r*1.8);
+    }
   }
   ctx.restore();
 }
@@ -6774,8 +6990,9 @@ function frame(now){
       if(x===swapA.x&&y===swapA.y){px+=ax;py+=ay;}
       else if(x===swapB.x&&y===swapB.y){px+=bx2;py+=by2;}
     }
+    let rot=0;
     if(state==="clear"&&clearing.has(i)){
-      const k=1-clearT;s=CS*k;px+=(CS-s)/2;py+=(CS-s)/2;glow=true;
+      const k=1-clearT;s=CS*k;px+=(CS-s)/2;py+=(CS-s)/2;glow=true;rot=clearT*5;
       if(s<2)continue;
     }
     if(sel&&sel.x===x&&sel.y===y){
@@ -6788,7 +7005,41 @@ function frame(now){
       ctx.strokeStyle="rgba(255,225,77,"+(0.3+p*0.6)+")";ctx.lineWidth=3;
       ctx.strokeRect(BX+x*CS+2,BY+y*CS+2,CS-4,CS-4);
     }
-    drawGem(px,py,s,t,spec[i],glow);
+    drawGem(px,py,s,t,spec[i],glow,rot);
+  }
+  /* ---- detonation FX: shockwave rings, row/col beams, prism nova ---- */
+  for(let i=fx.length-1;i>=0;i--){
+    const f=fx[i];f.t+=dt;
+    const k=f.t/f.life;
+    if(k>=1){fx.splice(i,1);continue;}
+    if(f.type==="ring"){
+      ctx.strokeStyle="rgba(255,220,140,"+(1-k)+")";
+      ctx.lineWidth=6*(1-k)+1;
+      ctx.beginPath();ctx.arc(f.x,f.y,CS*0.3+k*CS*2.1,0,Math.PI*2);ctx.stroke();
+      ctx.strokeStyle="rgba(255,255,255,"+(1-k)*0.8+")";
+      ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(f.x,f.y,CS*0.2+k*CS*1.6,0,Math.PI*2);ctx.stroke();
+    } else if(f.type==="beamH"||f.type==="beamV"){
+      const a=(1-k);
+      const bl=f.type==="beamH"
+        ?ctx.createLinearGradient(0,f.y,0,f.y+CS)
+        :ctx.createLinearGradient(f.x,0,f.x+CS,0);
+      bl.addColorStop(0,"rgba(255,255,255,0)");
+      bl.addColorStop(0.5,"rgba(255,255,255,"+a*0.9+")");
+      bl.addColorStop(1,"rgba(255,255,255,0)");
+      ctx.fillStyle=bl;
+      if(f.type==="beamH")ctx.fillRect(BX-6,f.y,CS*N+12,CS);
+      else ctx.fillRect(f.x,BY-6,CS,CS*N+12);
+    } else if(f.type==="nova"){
+      const hue=(shineT*180)%360;
+      ctx.strokeStyle=`hsla(${hue},95%,65%,${1-k})`;
+      ctx.lineWidth=8*(1-k)+1;
+      ctx.beginPath();ctx.arc(f.x,f.y,k*CS*4.5,0,Math.PI*2);ctx.stroke();
+      ctx.strokeStyle=`hsla(${(hue+120)%360},95%,70%,${(1-k)*0.7})`;
+      ctx.lineWidth=3;
+      ctx.beginPath();ctx.arc(f.x,f.y,k*CS*3.2,0,Math.PI*2);ctx.stroke();
+      if(k<0.25){ctx.fillStyle="rgba(255,255,255,"+(1-k/0.25)*0.5+")";ctx.fillRect(BX-6,BY-6,CS*N+12,CS*N+12);}
+    }
   }
   ctx.restore();
 
