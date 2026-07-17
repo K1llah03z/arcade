@@ -6,7 +6,17 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.3.0";
+const APP_VERSION = "1.3.1";
+/* ── RELEASE NOTES ────────────────────────────────────────
+   Shown in the update banner. Keep 2-4 short lines; newest
+   version only (users see the notes for the update they're
+   about to install). Update these alongside APP_VERSION. */
+const RELEASE_NOTES = [
+  "NEW: Gem Drop — classic match-3 with special gems",
+  "NEW: 3 game modes — Classic, Timed & Zen",
+  "NEW: Ambient soundtrack + hint button",
+  "FIX: Gems no longer freeze mid-air on new game"
+];
 const CACHE = "neon-grid-" + APP_VERSION;
 const ASSETS = [
   "./",
@@ -60,4 +70,5 @@ self.addEventListener("message", e => {
   if (!e.data) return;
   if (e.data.type === "SKIP_WAITING") self.skipWaiting();
   if (e.data.type === "GET_VERSION" && e.ports[0]) e.ports[0].postMessage(APP_VERSION);
+  if (e.data.type === "GET_INFO" && e.ports[0]) e.ports[0].postMessage({ version: APP_VERSION, notes: RELEASE_NOTES });
 });

@@ -7421,7 +7421,10 @@ renderTabs(); renderGrid(); renderBoard(); renderStats();
   padding:12px 18px;display:flex;align-items:center;gap:14px;font-family:ui-monospace,Menlo,Consolas,monospace;
   font-size:14px;box-shadow:0 8px 30px rgba(0,0,0,.35);
   opacity:0;transition:transform .35s ease,opacity .35s ease;pointer-events:none">
-  <span>&#128377;&#65039; New version available</span><span id="swNewVer" style="color:var(--neon-cyan);font-weight:700"></span>
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:320px">
+    <div><span>&#128377;&#65039; New version available</span> <span id="swNewVer" style="color:var(--neon-cyan);font-weight:700"></span></div>
+    <ul id="swNotes" style="margin:0;padding-left:18px;font-size:12px;line-height:1.55;color:var(--ink-dim);display:none"></ul>
+  </div>
   <button id="swUpdateBtn" style="background:transparent;border:1px solid var(--neon-magenta);color:var(--neon-magenta);border-radius:8px;
     padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.04em">UPDATE</button>
   <button id="swDismissBtn" style="background:transparent;border:1px solid var(--ink-dim);color:var(--ink-dim);border-radius:8px;
@@ -7463,6 +7466,14 @@ const askVersion = worker => new Promise(res => {
   mc.port1.onmessage = e => res(e.data);
   worker.postMessage({ type: "GET_VERSION" }, [mc.port2]);
 });
+/* version + release notes; resolves version-only for workers that predate GET_INFO */
+const askInfo = worker => new Promise(res => {
+  const mc = new MessageChannel();
+  const t = setTimeout(() => askVersion(worker).then(v => res({ version: v, notes: [] })), 800);
+  mc.port1.onmessage = e => { clearTimeout(t);
+    res(typeof e.data === "object" && e.data ? e.data : { version: e.data, notes: [] }); };
+  worker.postMessage({ type: "GET_INFO" }, [mc.port2]);
+});
 if ("serviceWorker" in navigator) {
   // footer + badge show the version of the worker currently running
   navigator.serviceWorker.ready.then(reg => { if (reg.active) askVersion(reg.active).then(setVersion); });
@@ -7470,7 +7481,19 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").then(reg => {
       const banner = document.getElementById("swUpdateBanner");
       const showBanner = worker => {
-        askVersion(worker).then(v => { document.getElementById("swNewVer").textContent = "v" + v; });
+        askInfo(worker).then(info => {
+          document.getElementById("swNewVer").textContent = "v" + info.version;
+          const list = document.getElementById("swNotes");
+          list.innerHTML = "";
+          if (info.notes && info.notes.length) {
+            for (const n of info.notes) {
+              const li = document.createElement("li");
+              li.textContent = n;          // textContent: notes render as plain text
+              list.appendChild(li);
+            }
+            list.style.display = "block";
+          } else { list.style.display = "none"; }
+        });
         banner.style.opacity = "1";
         banner.style.transform = "translateX(-50%) translateY(0)";
         banner.style.pointerEvents = "auto";
