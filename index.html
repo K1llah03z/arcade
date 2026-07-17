@@ -247,6 +247,17 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
   filter:grayscale(1) sepia(1) hue-rotate(55deg) saturate(3) brightness(1.02) contrast(1.12);
 }
 [data-theme="light"] .toast{box-shadow:0 4px 14px rgba(15,56,15,.3)}
+#hiScoresModal{position:absolute;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(5,3,12,.72);backdrop-filter:blur(2px)}
+#hiScoresModal.open{display:flex}
+#hiScoresModal .hs-panel{background:#140a2b;border:2px solid #7b4dff;border-radius:14px;padding:18px 20px;min-width:min(340px,86vw);box-shadow:0 0 30px rgba(123,77,255,.45);font-family:inherit}
+#hiScoresModal h3{margin:0 0 12px;color:#0ff;letter-spacing:.08em;font-size:15px}
+#hiScoresModal table{width:100%;border-collapse:collapse;font-size:14px}
+#hiScoresModal td{padding:6px 4px;border-bottom:1px solid rgba(123,77,255,.25);color:#e8e0ff}
+#hiScoresModal td.rank{color:#7b4dff;width:2.2em}
+#hiScoresModal td.score{text-align:right;color:#ffd24d;font-weight:bold}
+#hiScoresModal td.empty{color:#5a4a80;font-style:italic}
+#hiScoresModal button{margin-top:14px;width:100%;padding:9px;border-radius:9px;border:1px solid #7b4dff;background:transparent;color:#0ff;font-family:inherit;font-size:13px;cursor:pointer}
+#hiScoresModal button:active{background:rgba(123,77,255,.25)}
 </style>
 </head>
 <body>
@@ -294,9 +305,17 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
       <span>BEST <b id="liveBest">0</b></span>
     </span>
     <button class="theme-toggle" id="stageThemeToggle" type="button" aria-label="Switch color theme" style="margin-top:0">&#9788; Classic</button>
+    <button class="theme-toggle" id="hiScoresBtn" type="button" style="margin-top:0;display:none">&#9733; Scores</button>
     <button class="close" id="closeBtn" type="button">Exit [ESC]</button>
   </div>
   <div class="framewrap"><iframe id="gameFrame" title="Active game" sandbox="allow-scripts"></iframe></div>
+  <div id="hiScoresModal" role="dialog" aria-modal="true" aria-label="High scores">
+    <div class="hs-panel">
+      <h3>&#9733; High Scores</h3>
+      <table id="hsTable"></table>
+      <button type="button" id="hsClose">Close</button>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -6478,6 +6497,38 @@ function syncRomScore(){
     notify("New high score linked: "+s.toLocaleString());
   }
 }
+/* ---------- In-game high-score table viewer ----------
+   Reads the same validated addresses persistRomTable uses, so it works on
+   any device without the game's own (mouse-only) ImGui menu. */
+function readRomTable(){
+  const out=[];
+  try{
+    const w=frame.contentWindow, H=w.HEAP32, U=w.HEAPU8;
+    if(!H||!U) return out;
+    for(let k=0;k<PB_SLOTS;k++){
+      const base=PB_TBL-32+k*PB_STRIDE, v=H[(base+32)>>2];
+      let name="";
+      for(let b=0;b<31;b++){ const c=U[base+b]; if(!c) break;
+        if(c<32||c>126){ name=""; break; } name+=String.fromCharCode(c); }
+      out.push({name:name, score:(v>0&&v<=MAX_SCORE)?v:0});
+    }
+  }catch(e){}
+  return out;
+}
+function showRomTable(){
+  const rows=readRomTable(), t=$("#hsTable");
+  t.innerHTML = rows.length
+    ? rows.map((r,i)=> r.score>0
+        ? '<tr><td class="rank">'+(i+1)+'</td><td>'+(r.name||"Player")+'</td><td class="score">'+r.score.toLocaleString()+'</td></tr>'
+        : '<tr><td class="rank">'+(i+1)+'</td><td class="empty" colspan="2">&mdash; empty &mdash;</td></tr>'
+      ).join("")
+    : '<tr><td class="empty">Table unavailable &mdash; start the game first.</td></tr>';
+  $("#hiScoresModal").classList.add("open");
+}
+$("#hiScoresBtn").onclick=showRomTable;
+$("#hsClose").onclick=()=>$("#hiScoresModal").classList.remove("open");
+$("#hiScoresModal").onclick=e=>{ if(e.target.id==="hiScoresModal") $("#hiScoresModal").classList.remove("open"); };
+
 /* Catch tab close / hide while a ROM is open */
 addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") syncRomScore(); });
 addEventListener("pagehide",syncRomScore);
@@ -6502,8 +6553,9 @@ function launch(entry){
     frame.removeAttribute("srcdoc"); frame.src=entry.src;
     clearInterval(romPoll);
     Scan.prev=null; Scan.c.clear(); Scan.addr=-1; Scan.v=0; Scan.cursor=0;
-    romPoll=setInterval(syncRomScore,1000);
+    romPoll=setInterval(syncRomScore,5000);
   }
+  $("#hiScoresBtn").style.display = entry.external ? "" : "none";
   stage.classList.add("open");
   document.body.classList.add("in-game");
   frame.onload = () => {
@@ -6513,6 +6565,7 @@ function launch(entry){
   frame.focus();
 }
 function closeStage(){
+  $("#hiScoresModal").classList.remove("open");
   clearInterval(romPoll); romPoll=null;
   syncRomScore(); // capture final score before tearing down the frame
   stage.classList.remove("open");
