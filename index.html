@@ -6238,7 +6238,7 @@ function renderGrid(){
     card.innerHTML=
       '<div class="genre">'+r.genre+"</div>"+
       "<h3>"+r.title+"</h3>"+
-      '<div class="hs">'+(r.src?(r.external?"LOCAL ROM &middot; NO SCORE LINK":"HIGH SCORE <b>"+best.toLocaleString()+"</b>"):"AWAITING ROM UPLOAD")+"</div>"+
+      '<div class="hs">'+(r.src?((r.external?"LOCAL ROM &middot; ":"")+"HIGH SCORE <b>"+best.toLocaleString()+"</b>"):"AWAITING ROM UPLOAD")+"</div>"+
       '<button class="go" type="button" '+(r.src?"":"disabled")+">"+(r.src?"Insert coin":"Locked")+"</button>";
     if(r.src) card.querySelector(".go").onclick=()=>launch(r);
     gridEl.appendChild(card);
@@ -6273,6 +6273,41 @@ addEventListener("message",e=>{
 /* Games that ship their own full classic skin; all others get the CRT filter */
 const NATIVE_CLASSIC = new Set(["neon-chess","pyramid-13","mine-sweeper","freecell","neon-solitaire","neon-mahjong","word-search","gridfall","maze-runner","photon-pop","boilerplate","space-cadet"]);
 
+/* ---------- External ROM score link ----------
+   WASM ports (e.g. Space Cadet) keep their high-score table in an ini
+   file inside their Emscripten FS. The iframe runs same-origin, so we
+   can read it directly and mirror the best score into the hub store. */
+let romPoll=null;
+function readRomHiScore(){
+  try{
+    const w=frame.contentWindow;
+    if(!w || !w.FS || !w.FS.readFile) return 0;
+    let txt="";
+    for(const p of ["/imgui_pb.ini","imgui_pb.ini","/imgui.ini","imgui.ini"]){
+      try{ txt=new TextDecoder().decode(w.FS.readFile(p)); if(txt) break; }
+      catch(e){/* file not written yet */}
+    }
+    let best=0;
+    txt.split(/\r?\n/).forEach(l=>{
+      if(/high\s*score/i.test(l) && !/name/i.test(l)){
+        (l.match(/-?\d+/g)||[]).forEach(n=>{ n=+n; if(n>best) best=n; });
+      }
+    });
+    return best;
+  }catch(e){ return 0; }
+}
+function syncRomScore(){
+  if(!activeGame || !activeGame.external) return;
+  const s=readRomHiScore();
+  if(s<=0) return;
+  liveScore.textContent=s.toLocaleString();
+  if(s>Store.best(activeGame.id)){
+    Store.submit(activeGame.id,s);
+    liveBest.textContent=s.toLocaleString();
+    notify("New high score linked: "+s.toLocaleString());
+  }
+}
+
 function launch(entry){
   activeGame=entry;
   stageTitle.textContent=entry.title;
@@ -6289,6 +6324,8 @@ function launch(entry){
        so they can fetch their own .js/.wasm assets. */
     frame.setAttribute("sandbox","allow-scripts allow-same-origin allow-pointer-lock");
     frame.removeAttribute("srcdoc"); frame.src=entry.src;
+    clearInterval(romPoll);
+    romPoll=setInterval(syncRomScore,4000);
   }
   stage.classList.add("open");
   document.body.classList.add("in-game");
@@ -6299,6 +6336,8 @@ function launch(entry){
   frame.focus();
 }
 function closeStage(){
+  clearInterval(romPoll); romPoll=null;
+  syncRomScore(); // capture final score before tearing down the frame
   stage.classList.remove("open");
   document.body.classList.remove("in-game");
   frame.srcdoc=""; frame.removeAttribute("src");
