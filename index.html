@@ -297,7 +297,7 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 
 <!-- ===================== GAME STAGE (modal) ===================== -->
 <div class="stage" id="stage" role="dialog" aria-modal="true" aria-label="Game window">
-  <div class="stage-bar">
+  <div class="stage-bar" id="stageBar">
     <span class="title" id="stageTitle">GAME</span>
     <span class="live">
       <span>SCORE <b id="liveScore">0</b></span>
@@ -6526,9 +6526,22 @@ function showRomTable(){
     : '<tr><td class="empty">Table unavailable &mdash; start the game first.</td></tr>';
   $("#hiScoresModal").classList.add("open");
 }
+/* ---------- Focus guard ----------
+   Clicking any hub chrome (Scores, theme, bar) pulls focus out of the game
+   iframe; SDL then stops processing input and the game appears frozen.
+   Hand focus straight back to the canvas after any such interaction. */
+function refocusGame(){
+  if(!activeGame || !stage.classList.contains("open")) return;
+  if($("#hiScoresModal").classList.contains("open")) return; /* modal wants focus */
+  try{
+    frame.focus();
+    const d=frame.contentDocument, c=d&&d.getElementById("canvas");
+    if(c){ c.setAttribute("tabindex","-1"); c.focus({preventScroll:true}); }
+  }catch(e){ try{ frame.focus(); }catch(_){} }
+}
 $("#hiScoresBtn").onclick=showRomTable;
-$("#hsClose").onclick=()=>$("#hiScoresModal").classList.remove("open");
-$("#hiScoresModal").onclick=e=>{ if(e.target.id==="hiScoresModal") $("#hiScoresModal").classList.remove("open"); };
+$("#hsClose").onclick=()=>{ $("#hiScoresModal").classList.remove("open"); refocusGame(); };
+$("#hiScoresModal").onclick=e=>{ if(e.target.id==="hiScoresModal"){ $("#hiScoresModal").classList.remove("open"); refocusGame(); } };
 
 /* Catch tab close / hide while a ROM is open */
 addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") syncRomScore(true); });
@@ -6576,6 +6589,11 @@ function closeStage(){
   renderGrid(); renderBoard(); renderStats();
 }
 $("#closeBtn").onclick=closeStage;
+/* Return focus to the game after any stage-bar click (except Exit) */
+$("#stageBar").addEventListener("click", e=>{
+  if(e.target.closest("#closeBtn")) return;
+  setTimeout(refocusGame, 0);
+});
 addEventListener("keydown",e=>{ if(e.key==="Escape"&&stage.classList.contains("open")) closeStage(); });
 
 /* ---------- GameBridge host (postMessage protocol v1) ---------- */
