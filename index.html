@@ -6437,33 +6437,56 @@ function readFixedScores(w){
 /* Write the in-memory table back into the game's ini (FS + localStorage
    mirror) so the IN-GAME high-score list survives reloads. The game itself
    only writes this file on a clean exit that never happens in an iframe. */
+function parseIniScores(txt){
+  const rows=[];
+  for(let k=0;k<PB_SLOTS;k++){
+    const n=txt.match(new RegExp("^"+k+"\\.Name=(.*)$","m"));
+    const s=txt.match(new RegExp("^"+k+"\\.Score=(-?\\d+)","m"));
+    const v=s?+s[1]:-999;
+    rows.push({name:n?n[1].trim():"", score:(v>0&&v<=MAX_SCORE)?v:0});
+  }
+  return rows;
+}
+function writeIniScores(txt,rows){
+  rows.forEach((r,k)=>{
+    txt=txt.replace(new RegExp("^"+k+"\\.Name=.*$","m"),k+".Name="+(r.score>0?(r.name||"Player 1"):""))
+           .replace(new RegExp("^"+k+"\\.Score=.*$","m"),k+".Score="+(r.score>0?r.score:-999));
+  });
+  return txt;
+}
+/* Merge the run we observed in memory into the game's own ini table.
+   The port only commits a score when you press Ok on its name dialog; that
+   dialog is unreliable here, so the hub does the bookkeeping itself. Runs
+   only on exit/hide, never mid-game. */
 function persistRomTable(w){
   try{
-    const H=w.HEAP32,U=w.HEAPU8; if(!H||!U) return;
-    let top=0; const rows=[];
-    for(let k=0;k<PB_SLOTS;k++){
-      const base=PB_TBL-32+k*PB_STRIDE, v=H[(base+32)>>2];
-      if(v!==-999&&(v<0||v>MAX_SCORE)) return;      /* stale layout — abort */
-      let name="";
-      for(let b=0;b<31;b++){ const c=U[base+b]; if(!c) break;
-        if(c<32||c>126){ name=""; break; } name+=String.fromCharCode(c); }
-      /* empty slot may read 0 instead of -999 — normalise so the game
-         treats it as vacant on next boot */
-      rows.push([name,(v<=0&&!name)?-999:v]); if(v>top) top=v;
-    }
-    if(top<=0) return;
     const path="/libsdl/SpaceCadetPinball/imgui_pb.ini";
-    let txt=new TextDecoder().decode(w.FS.readFile(path));
-    let want=txt;
-    for(const [k,[name,v]] of rows.entries()){
-      want=want.replace(new RegExp("^"+k+"\\.Name=.*$","m"),k+".Name="+name)
-               .replace(new RegExp("^"+k+"\\.Score=.*$","m"),k+".Score="+v);
+    let txt;
+    try{ txt=new TextDecoder().decode(w.FS.readFile(path)); }catch(e){ return; }
+    const rows=parseIniScores(txt);
+    /* pull anything the game DID commit to its in-memory table */
+    const H=w.HEAP32,U=w.HEAPU8;
+    if(H&&U){
+      for(let k=0;k<PB_SLOTS;k++){
+        const base=PB_TBL-32+k*PB_STRIDE, v=H[(base+32)>>2];
+        if(v>0&&v<=MAX_SCORE){
+          let name="";
+          for(let b=0;b<31;b++){ const c=U[base+b]; if(!c) break;
+            if(c<32||c>126){ name=""; break; } name+=String.fromCharCode(c); }
+          if(!rows.some(r=>r.score===v)) rows.push({name:name||"Player 1",score:v});
+        }
+      }
+      /* and the run that was never committed (dialog cancelled/stuck) */
+      const live=H[PB_LIVE>>2];
+      if(live>0&&live<MAX_SCORE&&live%5===0&&!rows.some(r=>r.score===live))
+        rows.push({name:"Player 1",score:live});
     }
-    /* self-healing: the game periodically rewrites this file from its own
-       (stale) settings, so re-assert whenever content drifts from memory */
+    const top=rows.filter(r=>r.score>0).sort((a,b)=>b.score-a.score).slice(0,PB_SLOTS);
+    while(top.length<PB_SLOTS) top.push({name:"",score:0});
+    const want=writeIniScores(txt,top);
     if(want!==txt){
-      w.FS.writeFile(path,want);
-      console.log("[ROM-link] table re-persisted, top="+top);
+      try{ w.FS.writeFile(path,want); }catch(e){}
+      console.log("[ROM-link] table saved: "+top.filter(r=>r.score>0).map(r=>r.score).join(", "));
     }
     try{ if(localStorage.getItem("spaceCadet.imgui_pb.ini")!==want)
            localStorage.setItem("spaceCadet.imgui_pb.ini",want); }catch(e){}
@@ -6506,6 +6529,19 @@ function readRomTable(){
   try{
     const w=frame.contentWindow, H=w.HEAP32, U=w.HEAPU8;
     if(!H||!U) return out;
+    /* the ini is the source of truth — it holds what we saved last session */
+    try{
+      const txt=new TextDecoder().decode(w.FS.readFile("/libsdl/SpaceCadetPinball/imgui_pb.ini"));
+      const ini=parseIniScores(txt).filter(r=>r.score>0);
+      const live=H[PB_LIVE>>2];
+      if(live>0&&live<MAX_SCORE&&live%5===0&&!ini.some(r=>r.score===live))
+        ini.push({name:"Player 1 (this run)",score:live});
+      if(ini.length){
+        const t=ini.sort((a,b)=>b.score-a.score).slice(0,PB_SLOTS);
+        while(t.length<PB_SLOTS) t.push({name:"",score:0});
+        return t;
+      }
+    }catch(e){}
     for(let k=0;k<PB_SLOTS;k++){
       const base=PB_TBL-32+k*PB_STRIDE, v=H[(base+32)>>2];
       let name="";
