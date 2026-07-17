@@ -6332,7 +6332,7 @@ function readRomIniScore(w){
    zero lag. Lock requires: address goes 0->points on new game, behaves
    like a score, and its exact value appears on-screen (as rendered ASCII)
    for two different values. */
-const MAX_SCORE=1e8, MAX_JUMP=200000, CHUNK=4<<20; /* ints per sweep chunk */
+const MAX_SCORE=1e8, MAX_JUMP=200000, CHUNK=16<<20; /* ints per sweep chunk */
 const Scan={prev:null,c:new Map(),addr:-1,v:0,cursor:0};
 function plausibleJump(d){ return d>0 && d<=MAX_JUMP && d%5===0; }
 function asciiVerify(w,o,v){
@@ -6444,7 +6444,7 @@ function launch(entry){
     frame.removeAttribute("srcdoc"); frame.src=entry.src;
     clearInterval(romPoll);
     Scan.prev=null; Scan.c.clear(); Scan.addr=-1; Scan.v=0; Scan.cursor=0;
-    romPoll=setInterval(syncRomScore,2000);
+    romPoll=setInterval(syncRomScore,1000);
   }
   stage.classList.add("open");
   document.body.classList.add("in-game");
