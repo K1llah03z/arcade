@@ -76,6 +76,29 @@
 
 			var Module={preRun:[],postRun:[],print:function(){}(),printErr:function(e){},canvas:function(){var e=document.getElementById("canvas");return e.addEventListener("webglcontextlost",(function(e){}),!1),e}(),setStatus:function(e){},totalDependencies:0,monitorRunDependencies:function(e){}};
 
+			// ===== HIGH SCORE PERSISTENCE =====
+			// The game keeps scores/settings in /imgui_pb.ini on an in-memory FS,
+			// which is lost on reload. Restore it before main() runs, and snapshot
+			// it to localStorage while playing so it survives new loads.
+			var INI_KEY = "spaceCadet.imgui_pb.ini";
+			Module.preRun.push(function(){
+				try{
+					var saved = localStorage.getItem(INI_KEY);
+					if (saved) FS.writeFile("/imgui_pb.ini", saved);
+				}catch(err){}
+			});
+			Module.postRun.push(function(){
+				function snapshot(){
+					try{
+						var txt = new TextDecoder().decode(FS.readFile("/imgui_pb.ini"));
+						if (txt) localStorage.setItem(INI_KEY, txt);
+					}catch(err){/* not written yet */}
+				}
+				setInterval(snapshot, 3000);
+				addEventListener("pagehide", snapshot);
+				addEventListener("visibilitychange", function(){ if (document.visibilityState === "hidden") snapshot(); });
+			});
+
 			var GAME_SOUND_ENABLED = getBooleanSetting("GAME_SOUND_ENABLED");
 
 			document.addEventListener("keydown", function(event)
