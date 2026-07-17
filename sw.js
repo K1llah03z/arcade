@@ -6,7 +6,7 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.2.12";
+const APP_VERSION = "1.2.13";
 const CACHE = "neon-grid-" + APP_VERSION;
 const ASSETS = [
   "./",
