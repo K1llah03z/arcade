@@ -6277,15 +6277,16 @@ const NATIVE_CLASSIC = new Set(["neon-chess","pyramid-13","mine-sweeper","freece
    WASM ports (e.g. Space Cadet) keep their high-score table in an ini
    file inside their Emscripten FS. The iframe runs same-origin, so we
    can read it directly and mirror the best score into the hub store. */
-let romPoll=null;
+let romPoll=null, romLinkLogged=false;
 function readRomHiScore(){
   try{
     const w=frame.contentWindow;
     if(!w || !w.FS || !w.FS.readFile) return 0;
+    if(!romLinkLogged){ romLinkLogged=true; console.log("[ROM-link] FS reachable in iframe"); }
     let txt="";
     for(const p of ["/imgui_pb.ini","imgui_pb.ini","/imgui.ini","imgui.ini"]){
-      try{ txt=new TextDecoder().decode(w.FS.readFile(p)); if(txt) break; }
-      catch(e){/* file not written yet */}
+      try{ txt=new TextDecoder().decode(w.FS.readFile(p)); if(txt){ console.log("[ROM-link] read "+p+" ("+txt.length+" bytes)"); break; } }
+      catch(e){/* not written yet — game saves after a game ends */}
     }
     let best=0;
     txt.split(/\r?\n/).forEach(l=>{
@@ -6294,7 +6295,7 @@ function readRomHiScore(){
       }
     });
     return best;
-  }catch(e){ return 0; }
+  }catch(e){ console.warn("[ROM-link]",e); return 0; }
 }
 function syncRomScore(){
   if(!activeGame || !activeGame.external) return;
@@ -6304,9 +6305,13 @@ function syncRomScore(){
   if(s>Store.best(activeGame.id)){
     Store.submit(activeGame.id,s);
     liveBest.textContent=s.toLocaleString();
+    renderGrid(); renderBoard(); renderStats(); // update home cards immediately
     notify("New high score linked: "+s.toLocaleString());
   }
 }
+/* Catch tab close / hide while a ROM is open */
+addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") syncRomScore(); });
+addEventListener("pagehide",syncRomScore);
 
 function launch(entry){
   activeGame=entry;
@@ -6325,7 +6330,7 @@ function launch(entry){
     frame.setAttribute("sandbox","allow-scripts allow-same-origin allow-pointer-lock");
     frame.removeAttribute("srcdoc"); frame.src=entry.src;
     clearInterval(romPoll);
-    romPoll=setInterval(syncRomScore,4000);
+    romPoll=setInterval(syncRomScore,2000);
   }
   stage.classList.add("open");
   document.body.classList.add("in-game");
