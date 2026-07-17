@@ -6316,8 +6316,10 @@ function readRomIniScore(w){
   for(const p of findIniFiles(w)){
     let txt=""; try{txt=new TextDecoder().decode(w.FS.readFile(p));}catch(e){continue;}
     txt.split(/\r?\n/).forEach(l=>{
-      if(/high\s*score/i.test(l)&&!/name/i.test(l))
-        (l.match(/-?\d+/g)||[]).forEach(n=>{n=+n;if(n>best)best=n;});
+      /* formats: "0.Score=287750" (this port) or "High Score 1 ... 106000" */
+      let m=l.match(/^\s*\d+\.Score\s*=\s*(-?\d+)/i);
+      if(!m && /high\s*score/i.test(l) && !/name/i.test(l)) m=l.match(/(-?\d+)\s*$/);
+      if(m){ const n=+m[1]; if(n>best) best=n; }  // -999 defaults never win
     });
   }
   return best;
