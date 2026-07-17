@@ -6418,7 +6418,6 @@ function readFixedScores(w){
 /* Write the in-memory table back into the game's ini (FS + localStorage
    mirror) so the IN-GAME high-score list survives reloads. The game itself
    only writes this file on a clean exit that never happens in an iframe. */
-let _lastPersist=-1;
 function persistRomTable(w){
   try{
     const H=w.HEAP32,U=w.HEAPU8; if(!H||!U) return;
@@ -6429,19 +6428,26 @@ function persistRomTable(w){
       let name="";
       for(let b=0;b<31;b++){ const c=U[base+b]; if(!c) break;
         if(c<32||c>126){ name=""; break; } name+=String.fromCharCode(c); }
-      rows.push([name,v]); if(v>top) top=v;
+      /* empty slot may read 0 instead of -999 — normalise so the game
+         treats it as vacant on next boot */
+      rows.push([name,(v<=0&&!name)?-999:v]); if(v>top) top=v;
     }
-    if(top<=0||top===_lastPersist) return;
+    if(top<=0) return;
     const path="/libsdl/SpaceCadetPinball/imgui_pb.ini";
     let txt=new TextDecoder().decode(w.FS.readFile(path));
+    let want=txt;
     for(const [k,[name,v]] of rows.entries()){
-      txt=txt.replace(new RegExp("^"+k+"\\.Name=.*$","m"),k+".Name="+name)
-             .replace(new RegExp("^"+k+"\\.Score=.*$","m"),k+".Score="+v);
+      want=want.replace(new RegExp("^"+k+"\\.Name=.*$","m"),k+".Name="+name)
+               .replace(new RegExp("^"+k+"\\.Score=.*$","m"),k+".Score="+v);
     }
-    w.FS.writeFile(path,txt);
-    try{ localStorage.setItem("spaceCadet.imgui_pb.ini",txt); }catch(e){}
-    _lastPersist=top;
-    console.log("[ROM-link] table persisted, top="+top);
+    /* self-healing: the game periodically rewrites this file from its own
+       (stale) settings, so re-assert whenever content drifts from memory */
+    if(want!==txt){
+      w.FS.writeFile(path,want);
+      console.log("[ROM-link] table re-persisted, top="+top);
+    }
+    try{ if(localStorage.getItem("spaceCadet.imgui_pb.ini")!==want)
+           localStorage.setItem("spaceCadet.imgui_pb.ini",want); }catch(e){}
   }catch(e){ console.log("[ROM-link] persist failed: "+e); }
 }
 function readRomHiScore(){
