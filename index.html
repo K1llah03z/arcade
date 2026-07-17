@@ -6199,6 +6199,15 @@ const tabsEl=$("#tabs"), gridEl=$("#grid"), boardBody=$("#boardBody"),
 
 let activeTab="Action", activeGame=null, toastTimer=null;
 
+/* One-time cleanup: purge impossible scores recorded by the old scanner */
+(function(){
+  const d=Store.load(); let dirty=false;
+  Object.keys(d.scores).forEach(id=>{
+    if(d.scores[id].best>=1e8){ delete d.scores[id]; dirty=true; }
+  });
+  if(dirty) Store.save(d);
+})();
+
 /* ---------- Toast ---------- */
 function notify(msg){
   toast.textContent=msg; toast.classList.add("show");
@@ -6315,36 +6324,51 @@ function readRomIniScore(w){
 }
 /* Live score straight from WASM memory: track heap addresses that behave
    like a pinball score (jumps up by point amounts, plateaus between hits). */
-const Scan={prev:null,c:new Map(),locked:0};
+/* Live score from WASM memory. Anchor: a score address is only trusted if
+   we watch it go 0 -> points (i.e. a new game starting). Reported value is
+   whatever the locked address currently holds — never a sticky max — and
+   the lock is dropped the moment the address stops behaving like a score. */
+const MAX_SCORE=1e8, MAX_JUMP=200000;
+const Scan={prev:null,c:new Map(),addr:-1,v:0};
+function plausibleJump(d){ return d>0 && d<=MAX_JUMP && d%5===0; }
 function scanHeapScore(w){
-  const H=w.HEAP32; if(!H||!H.length) return 0;
-  if(!Scan.prev || Scan.prev.length!==H.length){ Scan.prev=H.slice(0); return Scan.locked; }
+  const H=w.HEAP32; if(!H||!H.length) return -1;
+  if(!Scan.prev || Scan.prev.length!==H.length){ Scan.prev=H.slice(0); return -1; }
   const P=Scan.prev,n=H.length,C=Scan.c;
-  /* update existing candidates */
+  /* If locked: validate the address keeps behaving, else unlock */
+  if(Scan.addr>=0){
+    const v=H[Scan.addr],pv=Scan.v;
+    if(v===pv || v===0 || (v>pv && plausibleJump(v-pv) && v<MAX_SCORE)){
+      Scan.v=v; Scan.prev=H.slice(0); return v;
+    }
+    Scan.addr=-1; C.clear(); // misbehaved: full rescan
+  }
+  /* update candidates */
   for(const [i,o] of C){
     const v=H[i];
-    if(v===o.v) o.plat=true;
-    else if(v>o.v && v-o.v<=500000 && v<2e9){ o.v=v; o.incs++; }
-    else if(v===0){ o.v=0; o.plat=true; }        // new game reset
-    else C.delete(i);                             // moved like non-score memory
+    if(v===o.v) o.plat++;
+    else if(v>o.v && plausibleJump(v-o.v) && v<MAX_SCORE){ o.v=v; o.incs++; }
+    else if(v===0){ o.v=0; o.zeros++; }
+    else C.delete(i);
   }
-  /* recruit new addresses that just jumped like a score */
-  if(C.size<3e6){
+  /* recruit ONLY addresses that just went 0 -> plausible first points */
+  if(C.size<200000){
     for(let i=0;i<n;i++){
-      const a=P[i],b=H[i];
-      if(b>a && b-a<=500000 && b<2e9 && a>=0 && b%5===0 && !C.has(i))
-        C.set(i,{v:b,plat:false,incs:1});
+      if(P[i]===0 && H[i]>0 && H[i]<=MAX_JUMP && H[i]%5===0 && !C.has(i))
+        C.set(i,{v:H[i],plat:0,incs:1,zeros:0});
     }
   }
   Scan.prev=H.slice(0);
-  let best=0;
-  if(C.size){
-    let good=0;
-    for(const o of C.values())
-      if(o.plat && o.incs>0 && o.v>0 && o.v%5===0){ good++; if(o.v>best) best=o.v; }
-    if(good && good<=64) Scan.locked=Math.max(Scan.locked,best);
+  /* lock when one well-behaved candidate stands out */
+  const good=[];
+  for(const [i,o] of C) if(o.incs>=2 && o.plat>=2 && o.v>0) good.push([i,o]);
+  if(good.length===1 || (good.length>1 && good.length<=4 &&
+      good.every(g=>g[1].v===good[0][1].v))){ // mirrors of the same score
+    good.sort((a,b)=>b[1].incs-a[1].incs);
+    Scan.addr=good[0][0]; Scan.v=good[0][1].v;
+    return Scan.v;
   }
-  return Scan.locked;
+  return -1;
 }
 function readRomHiScore(){
   let w;
@@ -6353,12 +6377,12 @@ function readRomHiScore(){
   try{
     if(!w.FS || !w.FS.readFile){ romStatus("boot","GAME BOOTING\u2026"); return 0; }
     const ini=readRomIniScore(w);
-    const mem=scanHeapScore(w);
-    const best=Math.max(ini,mem);
-    if(best>0) romStatus("linked","OK \u2713"+(mem>ini?" (live)":""));
-    else if(Scan.c.size) romStatus("scan","SCANNING ("+Scan.c.size.toLocaleString()+" addrs)");
+    const mem=scanHeapScore(w); // -1 = no lock; >=0 = live score at locked address
+    if(mem>=0){ romStatus("linked","OK \u2713 (live)"); return Math.max(ini,mem); }
+    if(ini>0){ romStatus("linked","OK \u2713"); return ini; }
+    if(Scan.c.size) romStatus("scan","LINKING\u2026 start a new game to lock");
     else romStatus("waiting","CALIBRATING\u2026");
-    return best;
+    return 0;
   }catch(e){ romStatus("error",String(e.name||e)); return 0; }
 }
 function syncRomScore(){
@@ -6396,7 +6420,7 @@ function launch(entry){
     frame.setAttribute("sandbox","allow-scripts allow-same-origin allow-pointer-lock");
     frame.removeAttribute("srcdoc"); frame.src=entry.src;
     clearInterval(romPoll);
-    Scan.prev=null; Scan.c=new Map(); Scan.locked=0;
+    Scan.prev=null; Scan.c=new Map(); Scan.addr=-1; Scan.v=0;
     romPoll=setInterval(syncRomScore,2000);
   }
   stage.classList.add("open");
