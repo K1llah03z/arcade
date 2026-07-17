@@ -6394,12 +6394,35 @@ function scanHeapScore(w){
   }
   return -1;
 }
+/* Fixed addresses for THIS exact .wasm build (globals are deterministic).
+   Found by memory diffing: high-score table entry = char Name[32] + int Score,
+   5 slots, stride 0x24, slot 0 score at 0x341400. Live player score at 0x340e84.
+   Empty slots read -999. If the wasm is ever rebuilt these go stale — the
+   sanity checks below detect that and we fall back to the heap scanner. */
+const PB_TBL=0x341400, PB_STRIDE=0x24, PB_SLOTS=5, PB_LIVE=0x340e84;
+function readFixedScores(w){
+  const H=w.HEAP32; if(!H||!H.length) return -1;
+  let best=0, sane=false;
+  for(let k=0;k<PB_SLOTS;k++){
+    const v=H[(PB_TBL+k*PB_STRIDE)>>2];
+    if(v===-999){ sane=true; continue; }        /* empty slot = layout confirmed */
+    if(v<0||v>MAX_SCORE) return -1;             /* garbage -> address stale */
+    if(v>0) sane=true;
+    if(v>best) best=v;
+  }
+  if(!sane) return -1;
+  const live=H[PB_LIVE>>2];
+  if(live>0&&live<MAX_SCORE&&live%5===0&&live>best) best=live;
+  return best;
+}
 function readRomHiScore(){
   let w;
   try{ w=frame.contentWindow; void w.location.href; }
   catch(e){ romStatus("blocked","BLOCKED — serve over http(s), not file://"); return 0; }
   try{
     if(!w.FS || !w.FS.readFile){ romStatus("boot","GAME BOOTING\u2026"); return 0; }
+    const fixed=readFixedScores(w);
+    if(fixed>=0){ romStatus("linked","OK \u2713"); return fixed; }
     const ini=readRomIniScore(w);
     const mem=scanHeapScore(w);
     if(mem>=0){ romStatus("linked","OK \u2713 (live)"); return Math.max(ini,mem); }
