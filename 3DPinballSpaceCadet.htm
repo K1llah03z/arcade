@@ -81,16 +81,20 @@
 			// which is lost on reload. Restore it before main() runs, and snapshot
 			// it to localStorage while playing so it survives new loads.
 			var INI_KEY = "spaceCadet.imgui_pb.ini";
+			var INI_PATH = "/libsdl/SpaceCadetPinball/imgui_pb.ini";
 			Module.preRun.push(function(){
 				try{
 					var saved = localStorage.getItem(INI_KEY);
-					if (saved) FS.writeFile("/imgui_pb.ini", saved);
+					if (saved){
+						FS.createPath("/", "libsdl/SpaceCadetPinball", true, true);
+						FS.writeFile(INI_PATH, saved);
+					}
 				}catch(err){}
 			});
 			Module.postRun.push(function(){
 				function snapshot(){
 					try{
-						var txt = new TextDecoder().decode(FS.readFile("/imgui_pb.ini"));
+						var txt = new TextDecoder().decode(FS.readFile(INI_PATH));
 						if (txt) localStorage.setItem(INI_KEY, txt);
 					}catch(err){/* not written yet */}
 				}
