@@ -6380,9 +6380,11 @@ function scanHeapScore(w){
   }
   let checked=0;
   for(const [i,o] of C){
-    if(o.incs>=2 && o.plat>=1 && o.v>0 && o.v!==o.lastAsciiV && checked<2){
+    if(o.incs>=2 && o.plat>=1 && o.v>0 && o.v!==o.lastAsciiV && checked<8){
       checked++;
-      if(asciiVerify(w,o,o.v)){ o.ascii++; o.lastAsciiV=o.v; }
+      if(asciiVerify(w,o,o.v)){ o.ascii++; o.fails=0; }
+      else { o.fails=(o.fails||0)+1; if(o.fails>=3){ C.delete(i); continue; } }
+      o.lastAsciiV=o.v; /* never re-check the same value, pass or fail */
     }
     if(o.ascii>=2){
       Scan.addr=i; Scan.v=o.v;
