@@ -217,6 +217,13 @@ section.board{max-width:720px;margin-left:auto;margin-right:auto}
 .appsearch::placeholder{color:var(--ink-dim)}
 .appsearch:focus{border-color:var(--neon-cyan);box-shadow:0 0 12px rgba(34,230,255,.25)}
 .applist{display:flex;flex-direction:column;gap:9px}
+.applabel{
+  font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--neon-cyan);
+  text-shadow:0 0 8px rgba(34,230,255,.5);
+  border-bottom:1px solid var(--line);padding:12px 2px 8px;margin-bottom:2px;
+}
+.applabel:first-child{padding-top:2px}
+[data-theme="light"] .applabel{text-shadow:none}
 .approw{
   display:flex;align-items:center;gap:12px;
   background:linear-gradient(160deg,var(--bg-card),#120a26);
@@ -8617,14 +8624,14 @@ function importData(){
   notify("Backup imported \u2713");
 }
 function monogram(t){return t.replace(/[^A-Za-z0-9 ]/g,"").split(/\s+/).filter(Boolean).map(w=>w[0]).join("").slice(0,2).toUpperCase()||"?";}
-function appRow(r){
+function appRow(r,showGenre){
   const best=Store.best(r.id);
   const row=document.createElement("div");
   row.className="approw";
   row.innerHTML=
     '<div class="sq">'+monogram(r.title)+'</div>'+
     '<div><div class="nm">'+r.title+'</div>'+
-    '<div class="sub"><span class="g">'+r.genre+'</span> &middot; BEST <b>'+(best?best.toLocaleString():"&mdash;")+'</b></div></div>'+
+    '<div class="sub">'+(showGenre?'<span class="g">'+r.genre+'</span> &middot; ':'')+'BEST <b>'+(best?best.toLocaleString():"&mdash;")+'</b></div></div>'+
     '<div class="end"><button class="star'+(Faves.has(r.id)?" on":"")+'" type="button" aria-label="Toggle favorite">&#9733;</button>'+
     '<button class="aplay" type="button">&#9654;</button></div>';
   row.querySelector(".star").onclick=e=>{
@@ -8641,14 +8648,25 @@ function renderAppLists(){
   if(!listEl)return;
   const playable=REGISTRY.filter(r=>r.src);
   const q=appQuery.trim().toLowerCase();
+  const hits=playable.filter(r=>!q||r.title.toLowerCase().includes(q)||r.genre.toLowerCase().includes(q));
   listEl.innerHTML="";
-  playable
-    .filter(r=>!q||r.title.toLowerCase().includes(q)||r.genre.toLowerCase().includes(q))
-    .forEach(r=>listEl.appendChild(appRow(r)));
+  /* grouped by genre, each section labeled with its count; sections with
+     no (matching) games are skipped entirely */
+  const order=[...GENRES];
+  hits.forEach(r=>{if(!order.includes(r.genre))order.push(r.genre);});
+  order.forEach(g=>{
+    const rows=hits.filter(r=>r.genre===g);
+    if(!rows.length)return;
+    const h=document.createElement("div");
+    h.className="applabel";
+    h.textContent=g.toUpperCase()+" // "+rows.length;
+    listEl.appendChild(h);
+    rows.forEach(r=>listEl.appendChild(appRow(r,false)));
+  });
   if(!listEl.children.length)listEl.innerHTML='<div class="appempty">No games match &ldquo;'+appQuery+'&rdquo;</div>';
   const favs=playable.filter(r=>Faves.has(r.id));
   faveEl.innerHTML="";
-  favs.forEach(r=>faveEl.appendChild(appRow(r)));
+  favs.forEach(r=>faveEl.appendChild(appRow(r,true)));
   document.getElementById("faveEmpty").hidden=favs.length>0;
 }
 function showView(v){
