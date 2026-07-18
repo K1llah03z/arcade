@@ -1604,17 +1604,14 @@ addEventListener("keyup",e=>{
   if(k==="ArrowRight"||k==="d"||k==="D"){if(held.dir===1)held.dir=0;}
   if(k==="ArrowDown"||k==="s"||k==="S")held.soft=false;
 });
-// touch: on-screen button bar + swipe gestures
-let tStart=null;
+// touch: pure gestures — drag = move, tap = rotate, drag down = drop.
+// Only HOLD and PAUSE remain as buttons.
+let tStart=null,dragSteps=0,dragMoved=false,dropFired=false;
 function btnAt(x,y){return BTNS.find(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y-6&&y<=b.y+b.h+6);}
 function pressBtn(b){
   switch(b.act){
-    case"L":tryMove(-1,0);held.dir=-1;held.t=0.18;break;
-    case"R":tryMove(1,0);held.dir=1;held.t=0.18;break;
-    case"ROT":tryRotate(1);break;
-    case"SOFT":held.soft=true;break;
-    case"DROP":hardDrop();break;
     case"HOLD":holdPiece();break;
+    case"PAUSE":if(game.state===S.PLAYING)game.set(S.PAUSED);break;
   }
 }
 function releaseTouch(){
@@ -1625,18 +1622,31 @@ function releaseTouch(){
 cvs.addEventListener("pointerdown",e=>{
   AudioFX.unlock();
   if(game.state===S.MENU||game.state===S.GAME_OVER){startRun();return;}
-  if(game.state===S.PAUSED){game.set(S.PLAYING);return;}
   const b=TOUCH?btnAt(e.clientX,e.clientY):null;
+  if(game.state===S.PAUSED){if(!(b&&b.act==="PAUSE"))game.set(S.PLAYING);return;}
   if(b){b.hot=true;pressBtn(b);return;}
-  tStart=[e.clientX,e.clientY];
+  tStart=[e.clientX,e.clientY];dragSteps=0;dragMoved=false;dropFired=false;
+  try{cvs.setPointerCapture(e.pointerId);}catch(_){}
+});
+cvs.addEventListener("pointermove",e=>{
+  if(!tStart||game.state!==S.PLAYING||dropFired)return;
+  const dx=e.clientX-tStart[0],dy=e.clientY-tStart[1];
+  /* finger drags the piece: 1 column per cell-width of horizontal travel */
+  const want=Math.round(dx/CELL)-dragSteps;
+  if(want){
+    const dir=want>0?1:-1;
+    for(let i=0;i<Math.abs(want);i++){if(!tryMove(dir,0))break;dragSteps+=dir;}
+    dragMoved=true;
+  }
+  /* decisive downward drag places the piece */
+  if(dy>CELL*2.2&&dy>Math.abs(dx)*1.2){hardDrop();dropFired=true;tStart=null;}
 });
 cvs.addEventListener("pointerup",e=>{
   releaseTouch();
-  if(!tStart||game.state!==S.PLAYING)return;
+  if(!tStart||game.state!==S.PLAYING){tStart=null;return;}
   const dx=e.clientX-tStart[0],dy=e.clientY-tStart[1];
-  if(dy>60&&Math.abs(dy)>Math.abs(dx)){hardDrop();}
-  else if(dy<-60&&Math.abs(dy)>Math.abs(dx)){holdPiece();}
-  else if(Math.abs(dx)>=24){tryMove(dx<0?-1:1,0);}
+  /* a still tap flips the piece */
+  if(!dragMoved&&!dropFired&&Math.hypot(dx,dy)<12)tryRotate(1);
   tStart=null;
 });
 cvs.addEventListener("pointercancel",()=>{releaseTouch();tStart=null;});
@@ -1655,17 +1665,12 @@ function layout(){
     CELL=Math.floor(Math.min((H-topH-barH-16)/BH,(W-RAIL-20)/BW));
     OX=Math.max(8,(W-RAIL-BW*CELL)/2);
     OY=topH+Math.max(0,((H-topH-barH)-BH*CELL)/2);
-    /* buttons: same size as before, regrouped  H \u27F3 | \u25C0 \u25BC \u25B6 | \u2913 */
-    const n=6,gap=8,gGap=14,bh=barH-14,y=H-bh-8;
-    const bw=Math.min(96,(W-gap*(n+1)-2*gGap)/n);
-    const x0=(W-(n*bw+(n-1)*gap+2*gGap))/2;
-    const defs=[["H","HOLD"],["\u27F3","ROT"],["\u25C0","L"],["\u25BC","SOFT"],["\u25B6","R"],["\u2913","DROP"]];
-    let x=x0;
-    BTNS=defs.map(([label,act],i)=>{
-      const b={x,y,w:bw,h:bh,label,act,hot:false};
-      x+=bw+gap; if(i===1||i===4)x+=gGap; /* group gaps after \u27F3 and \u25B6 */
-      return b;
-    });
+    /* gesture play: only HOLD (bottom-left) and PAUSE (bottom-right) buttons */
+    const bh=barH-14,bw=Math.min(96,W*0.22),y=H-bh-8;
+    BTNS=[
+      {x:12,y,w:bw,h:bh,label:"H",act:"HOLD",hot:false},
+      {x:W-12-bw,y,w:bw,h:bh,label:"\u23F8",act:"PAUSE",hot:false}
+    ];
   } else {
     RAIL=0;
     CELL=Math.floor(Math.min((H-70)/BH,(W-40)/(BW+8)));
