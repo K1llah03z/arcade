@@ -166,7 +166,7 @@ nav.tabs{display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--line)
 }
 .stage.open{display:flex}
 .stage-bar{
-  display:flex;align-items:center;gap:14px;padding:12px 18px;
+  display:flex;align-items:center;gap:14px;padding:6px 18px;
   border-bottom:1px solid var(--line);background:var(--bg-panel);
 }
 .stage-bar .title{font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--neon-cyan)}
@@ -1398,8 +1398,9 @@ function burst(x,y,hue,n,spread){for(let i=0;i<n;i++)particles.push(new Particle
 function levelCfg(level){
   return{
     hue:(265+level*31)%360,                              // palette shift per level
-    gravity:Math.max(0.05,0.85*Math.pow(0.88,level-1)),  // seconds per row fall
-    lockDelay:Math.max(0.18,0.5*Math.pow(0.96,level-1)),
+    /* Tetris Guideline gravity: seconds per row = (0.8 - (level-1)*0.007)^(level-1) */
+    gravity:Math.pow(0.8-(level-1)*0.007,level-1),
+    lockDelay:0.5,                                        // Guideline standard lock delay
     linesToAdvance:10
   };
 }
@@ -1496,15 +1497,17 @@ function lockPiece(hard){
   for(let y=0;y<BH;y++)if(game.board[y].every(v=>v>=0))full.push(y);
   if(full.length){
     const pts=[0,100,300,500,800][full.length]*game.level;
+    /* Guideline combo: counter starts at 0 on the first clear of a chain,
+       bonus = 50 x combo x level for each consecutive clear */
+    game.score+=pts+50*game.combo*game.level;
     game.combo++;
-    game.score+=pts+(game.combo>1?50*game.combo*game.level:0);
     game.lines+=full.length;
     AudioFX.clear(full.length);
     Camera.shake(0.15*full.length+(full.length>=4?0.4:0));
     for(const y of full){
       game.clearFx.push({y,t:0.28});
       for(let x=0;x<BW;x++)
-        burst(pX(x)+CELL/2,pY(y)+CELL/2,hueFor(game.board[y][x],game.cfg.hue),6,full.length>=4?1.6:1);
+        burst(pX(x)+CW/2,pY(y)+CELL/2,hueFor(game.board[y][x],baseHue()),6,full.length>=4?1.6:1);
       game.board.splice(y,1);game.board.unshift(Array(BW).fill(-1));
     }
     if(full.length>=4)GameBridge.achievement("gridfall:quad-clear");
@@ -1568,7 +1571,7 @@ function holdPiece(){
   game.holdUsed=true;
   game.fallT=0;game.lockT=0;game.grounded=false;
   AudioFX.rotate();Camera.shake(0.06);
-  burst(pX(game.piece.x+1.5)+CELL/2,pY(Math.max(0,game.piece.y)+0.5)+CELL/2,hueFor(game.piece.ci,game.cfg.hue),10,0.6);
+  burst(pX(game.piece.x+1.5)+CW/2,pY(Math.max(0,game.piece.y)+0.5)+CELL/2,hueFor(game.piece.ci,baseHue()),10,0.6);
   if(collides(game.piece,0,0))endRun();
 }
 
@@ -1639,7 +1642,7 @@ cvs.addEventListener("pointermove",e=>{
   if(!gAxis&&Math.hypot(dx,dy)>12)gAxis=adx>ady?"h":"v";
   if(gAxis==="h"){
     /* finger drags the piece: 1 column per cell-width of horizontal travel */
-    const want=Math.round(dx/CELL)-dragSteps;
+    const want=Math.round(dx/CW)-dragSteps;
     if(want){
       const dir=want>0?1:-1;
       for(let i=0;i<Math.abs(want);i++){if(!tryMove(dir,0))break;dragSteps+=dir;}
@@ -1664,7 +1667,10 @@ cvs.addEventListener("pointercancel",()=>{releaseTouch();tStart=null;});
 cvs.addEventListener("contextmenu",e=>e.preventDefault());
 
 /* ---------- Layout ---------- */
-let CELL=24,OX=0,OY=0,BTNS=[];
+let CELL=24,CW=24,OX=0,OY=0,BTNS=[];
+/* accent-aware base hue: follows the theme picker; falls back to the level palette */
+const ACC_HUES={pink:325,red:0,green:110,blue:222,yellow:55,orange:30,purple:262};
+function baseHue(){const a=document.documentElement.getAttribute("data-accent");return (a&&a in ACC_HUES)?ACC_HUES[a]:game.cfg.hue;}
 const TOUCH=(window.matchMedia?matchMedia("(pointer: coarse)").matches:false)||("ontouchstart" in window);
 let RAIL=0;
 function layout(){
@@ -1673,7 +1679,7 @@ function layout(){
     /* mobile: wide board left, slim NEXT/HOLD rail down the right edge */
     RAIL=Math.max(56,Math.min(88,W*0.16));
     const topH=34;
-    CELL=Math.floor(Math.min((H-topH-barH-16)/BH,(W-RAIL-20)/BW));
+    CELL=Math.floor(Math.min((H-topH-barH-16)/BH,(W-RAIL-20)/BW));CW=CELL;
     OX=Math.max(8,(W-RAIL-BW*CELL)/2);
     OY=topH+Math.max(0,((H-topH-barH)-BH*CELL)/2);
     /* gesture play: only HOLD (bottom-left) and PAUSE (bottom-right) buttons */
@@ -1685,12 +1691,14 @@ function layout(){
     ];
   } else {
     RAIL=0;
-    CELL=Math.floor(Math.min((H-70)/BH,(W-40)/(BW+8)));
-    OX=(W-(BW+7)*CELL)/2;OY=Math.max(34,(H-BH*CELL)/2+12);
+    CELL=Math.floor(Math.min((H-28)/BH,(W-40)/(BW+8)));
+    /* desktop cells are up to 30% wider than tall to fill the widescreen */
+    CW=Math.max(CELL,Math.min(Math.floor(CELL*1.3),Math.floor((W-260)/BW)));
+    OX=(W-BW*CW)/2-CELL*1.5;OY=Math.max(14,(H-BH*CELL)/2);
     BTNS=[];
   }
 }
-function pX(x){return OX+x*CELL;}
+function pX(x){return OX+x*CW;}
 function pY(y){return OY+y*CELL;}
 
 /* ---------- Update ---------- */
@@ -1701,7 +1709,7 @@ function update(dt){
     if(held.t<=0){tryMove(held.dir,0);held.t=0.05;}
   }
   const p=game.piece;
-  const g=held.soft?Math.min(0.04,game.cfg.gravity):game.cfg.gravity;
+  const g=held.soft?game.cfg.gravity/20:game.cfg.gravity;  /* Guideline: soft drop is 20x normal speed */
   game.fallT+=dt;
   while(game.fallT>=g){
     game.fallT-=g;
@@ -1725,34 +1733,34 @@ function update(dt){
 
 /* ---------- Render ---------- */
 function drawCell(x,y,ci,alpha,ghost){
-  const px=pX(x),py=pY(y),hue=hueFor(ci,game.cfg.hue);
+  const px=pX(x),py=pY(y),hue=hueFor(ci,baseHue());
   ctx.globalAlpha=alpha;
   if(NG_CLASSIC()){
     /* CLASSIC: solid standard-colored blocks with bevel, gray ghost */
     if(ghost){
       ctx.strokeStyle="rgba(255,255,255,.35)";ctx.lineWidth=2;
-      ctx.strokeRect(px+2.5,py+2.5,CELL-5,CELL-5);
+      ctx.strokeRect(px+2.5,py+2.5,CW-5,CELL-5);
     }else{
       const c=NG_PIECE[ci%NG_PIECE.length];
-      ctx.fillStyle=c;ctx.fillRect(px+1,py+1,CELL-2,CELL-2);
+      ctx.fillStyle=c;ctx.fillRect(px+1,py+1,CW-2,CELL-2);
       ctx.fillStyle="rgba(255,255,255,.45)";                 // top/left bevel
-      ctx.fillRect(px+1,py+1,CELL-2,3);ctx.fillRect(px+1,py+1,3,CELL-2);
+      ctx.fillRect(px+1,py+1,CW-2,3);ctx.fillRect(px+1,py+1,3,CELL-2);
       ctx.fillStyle="rgba(0,0,0,.35)";                       // bottom/right bevel
-      ctx.fillRect(px+1,py+CELL-4,CELL-2,3);ctx.fillRect(px+CELL-4,py+1,3,CELL-2);
+      ctx.fillRect(px+1,py+CELL-4,CW-2,3);ctx.fillRect(px+CW-4,py+1,3,CELL-2);
       ctx.strokeStyle="#000";ctx.lineWidth=1;
-      ctx.strokeRect(px+0.5,py+0.5,CELL-1,CELL-1);
+      ctx.strokeRect(px+0.5,py+0.5,CW-1,CELL-1);
     }
   }else if(ghost){
     ctx.strokeStyle="hsl("+hue+" 100% 60% / 0.45)";ctx.lineWidth=2;
-    ctx.strokeRect(px+2.5,py+2.5,CELL-5,CELL-5);
+    ctx.strokeRect(px+2.5,py+2.5,CW-5,CELL-5);
   }else{
     ctx.shadowBlur=10;ctx.shadowColor="hsl("+hue+" 100% 55%)";
     ctx.fillStyle="hsl("+hue+" 85% 22%)";
-    ctx.fillRect(px+1.5,py+1.5,CELL-3,CELL-3);
+    ctx.fillRect(px+1.5,py+1.5,CW-3,CELL-3);
     ctx.strokeStyle="hsl("+hue+" 100% 62%)";ctx.lineWidth=2;
-    ctx.strokeRect(px+2,py+2,CELL-4,CELL-4);
+    ctx.strokeRect(px+2,py+2,CW-4,CELL-4);
     ctx.fillStyle="hsl("+hue+" 100% 75% / 0.35)";
-    ctx.fillRect(px+3,py+3,CELL-6,(CELL-6)*0.28);
+    ctx.fillRect(px+3,py+3,CW-6,(CELL-6)*0.28);
     ctx.shadowBlur=0;
   }
   ctx.globalAlpha=1;
@@ -1768,11 +1776,11 @@ function drawButtons(){
   ctx.textAlign="center";ctx.textBaseline="middle";
   for(const b of BTNS){
     ctx.globalAlpha=b.hot?0.95:0.55;
-    ctx.fillStyle=NG_CLASSIC()?"#1a1a1a":"hsl("+game.cfg.hue+" 70% 14%)";
+    ctx.fillStyle=NG_CLASSIC()?"#1a1a1a":"hsl("+baseHue()+" 70% 14%)";
     ctx.fillRect(b.x,b.y,b.w,b.h);
-    ctx.strokeStyle=NG_CLASSIC()?"#888888":"hsl("+game.cfg.hue+" 100% 60%)";ctx.lineWidth=2;
+    ctx.strokeStyle=NG_CLASSIC()?"#888888":"hsl("+baseHue()+" 100% 60%)";ctx.lineWidth=2;
     ctx.strokeRect(b.x+1,b.y+1,b.w-2,b.h-2);
-    ctx.fillStyle=NG_CLASSIC()?"#ffffff":"hsl("+game.cfg.hue+" 100% 78%)";
+    ctx.fillStyle=NG_CLASSIC()?"#ffffff":"hsl("+baseHue()+" 100% 78%)";
     ctx.fillText(b.label,b.x+b.w/2,b.y+b.h/2+1);
   }
   ctx.restore();
@@ -1797,8 +1805,8 @@ function banner(t,big,mid,small){
   const extra=(Math.max(0,midL.length-1)+Math.max(0,smL.length-1))*20;
   ctx.fillStyle=NG_P("rgba(5,3,12,0.78)");ctx.fillRect(-20,H/2-110-extra/2,W+40,220+extra);
   ctx.textAlign="center";
-  ctx.shadowBlur=(NG_CLASSIC()?0:24);ctx.shadowColor="hsl("+game.cfg.hue+" 100% 60%)";
-  ctx.fillStyle=NG_CLASSIC()?"#ffffff":"hsl("+game.cfg.hue+" 100% 70%)";
+  ctx.shadowBlur=(NG_CLASSIC()?0:24);ctx.shadowColor="hsl("+baseHue()+" 100% 60%)";
+  ctx.fillStyle=NG_CLASSIC()?"#ffffff":"hsl("+baseHue()+" 100% 70%)";
   const bigSize=Math.min(40,Math.floor(W/(big.length*0.72)));
   ctx.font="700 "+bigSize+"px ui-monospace,monospace";
   ctx.fillText(big,W/2,H/2-30-extra/2);
@@ -1822,11 +1830,11 @@ function frame(now){
   ctx.save();ctx.translate(Camera.x,Camera.y);
   ctx.fillStyle=NG_P("#05030c");ctx.fillRect(-20,-20,W+40,H+40);
 
-  const hue=game.cfg.hue;
+  const hue=baseHue();
   // well frame
   ctx.shadowBlur=(NG_CLASSIC()?0:18);ctx.shadowColor="hsl("+hue+" 100% 55%)";
   ctx.strokeStyle=NG_CLASSIC()?"#888888":"hsl("+hue+" 100% 55%)";ctx.lineWidth=2;
-  ctx.strokeRect(pX(0)-3,pY(0)-3,BW*CELL+6,BH*CELL+6);
+  ctx.strokeRect(pX(0)-3,pY(0)-3,BW*CW+6,BH*CELL+6);
   ctx.shadowBlur=0;
   // faint grid
   ctx.strokeStyle=NG_CLASSIC()?"rgba(255,255,255,.08)":"hsl("+hue+" 80% 50% / 0.10)";ctx.lineWidth=1;
@@ -1840,7 +1848,7 @@ function frame(now){
     for(const fx of game.clearFx){
       ctx.globalAlpha=fx.t/0.28;
       ctx.fillStyle=NG_P("#fff");
-      ctx.fillRect(pX(0),pY(fx.y),BW*CELL,CELL);
+      ctx.fillRect(pX(0),pY(fx.y),BW*CW,CELL);
       ctx.globalAlpha=1;
     }
     if(game.state===S.PLAYING||game.state===S.PAUSED){
@@ -1917,9 +1925,10 @@ function frame(now){
   if(TOUCH){
     ctx.fillText("SCORE "+game.score+"  LV "+game.level+"  LINES "+game.lines,12,24);
   } else {
-    ctx.fillText("SCORE "+game.score,16,26);
-    ctx.fillText("LEVEL "+game.level,16,48);
-    ctx.fillText("LINES "+game.lines,16,70);
+    const hx=Math.max(16,pX(0)-CELL*5.2), hy=pY(0)+12;
+    ctx.fillText("SCORE "+game.score,hx,hy);
+    ctx.fillText("LEVEL "+game.level,hx,hy+22);
+    ctx.fillText("LINES "+game.lines,hx,hy+44);
   }
   if(TOUCH&&(game.state===S.PLAYING||game.state===S.PAUSED))drawButtons();
 
