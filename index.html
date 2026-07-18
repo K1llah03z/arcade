@@ -1777,18 +1777,37 @@ function drawButtons(){
   }
   ctx.restore();
 }
+function wrapLines(txt,maxW){
+  /* split on the \u00B7 separators first, then pack into screen-width lines */
+  const parts=txt.split(" \u00B7 "),lines=[];let cur="";
+  for(const p of parts){
+    const cand=cur?cur+" \u00B7 "+p:p;
+    if(cur&&ctx.measureText(cand).width>maxW){lines.push(cur);cur=p;}
+    else cur=cand;
+  }
+  if(cur)lines.push(cur);
+  return lines;
+}
 function banner(t,big,mid,small){
   ctx.save();
-  ctx.fillStyle=NG_P("rgba(5,3,12,0.78)");ctx.fillRect(-20,H/2-110,W+40,220);
+  ctx.font="14px ui-monospace,monospace";
+  const maxW=W-32;
+  const midL=mid?wrapLines(mid,maxW):[];
+  const smL=small?wrapLines(small,maxW):[];
+  const extra=(Math.max(0,midL.length-1)+Math.max(0,smL.length-1))*20;
+  ctx.fillStyle=NG_P("rgba(5,3,12,0.78)");ctx.fillRect(-20,H/2-110-extra/2,W+40,220+extra);
   ctx.textAlign="center";
   ctx.shadowBlur=(NG_CLASSIC()?0:24);ctx.shadowColor="hsl("+game.cfg.hue+" 100% 60%)";
   ctx.fillStyle=NG_CLASSIC()?"#ffffff":"hsl("+game.cfg.hue+" 100% 70%)";
-  ctx.font="700 40px ui-monospace,monospace";
-  ctx.fillText(big,W/2,H/2-30);
+  const bigSize=Math.min(40,Math.floor(W/(big.length*0.72)));
+  ctx.font="700 "+bigSize+"px ui-monospace,monospace";
+  ctx.fillText(big,W/2,H/2-30-extra/2);
   ctx.shadowBlur=0;ctx.fillStyle=NG_P("#e8e4ff");ctx.font="14px ui-monospace,monospace";
-  if(mid)ctx.fillText(mid,W/2,H/2+8);
+  let y=H/2+8-extra/2;
+  for(const l of midL){ctx.fillText(l,W/2,y);y+=20;}
+  y=Math.max(y+16,H/2+44-extra/2);
   ctx.globalAlpha=0.6+0.4*Math.sin(t*4);
-  ctx.fillText(small,W/2,H/2+44);
+  for(const l of smL){ctx.fillText(l,W/2,y);y+=20;}
   ctx.restore();ctx.globalAlpha=1;
 }
 let last=performance.now();
@@ -1914,7 +1933,6 @@ function frame(now){
     ctx.textAlign="center";
     ctx.fillStyle=NG_P("#e8e4ff");ctx.font="bold 22px ui-monospace,monospace";
     ctx.fillText("HOW TO PLAY",W/2,H*0.26);
-    ctx.font="15px ui-monospace,monospace";ctx.fillStyle=NG_P("#9a8fc7");
     const rows=[
       ["DRAG \u2194","slide the piece left / right"],
       ["TAP","flip the piece"],
@@ -1922,10 +1940,19 @@ function frame(now){
       ["H","hold / swap the piece"],
       ["\u23F8","pause"]
     ];
+    /* size the two columns to the widest entries so nothing clips */
+    ctx.font="15px ui-monospace,monospace";
+    let lw=0,rw=0;
+    for(const r of rows){lw=Math.max(lw,ctx.measureText(r[0]).width);rw=Math.max(rw,ctx.measureText(r[1]).width);}
+    const gapC=12,total=lw+gapC+rw;
+    const fs=total>W-24?Math.max(11,Math.floor(15*(W-24)/total)):15;
+    ctx.font=fs+"px ui-monospace,monospace";
+    lw=0;for(const r of rows)lw=Math.max(lw,ctx.measureText(r[0]).width);
+    const x0=Math.max(12,(W-(lw+gapC+rw*fs/15))/2);
     rows.forEach((r,i)=>{
       const y=H*0.34+i*34;
-      ctx.fillStyle=NG_P("#22e6ff");ctx.textAlign="right";ctx.fillText(r[0],W/2-14,y);
-      ctx.fillStyle=NG_P("#9a8fc7");ctx.textAlign="left";ctx.fillText(r[1],W/2+2,y);
+      ctx.fillStyle=NG_P("#22e6ff");ctx.textAlign="right";ctx.fillText(r[0],x0+lw,y);
+      ctx.fillStyle=NG_P("#9a8fc7");ctx.textAlign="left";ctx.fillText(r[1],x0+lw+gapC,y);
     });
     ctx.textAlign="center";ctx.fillStyle=NG_P("#e8e4ff");
     ctx.fillText("tap anywhere to keep playing",W/2,H*0.34+rows.length*34+26);
