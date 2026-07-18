@@ -4104,10 +4104,19 @@ function cardSize(){
 function handLayout(){
   const p=G.players[0],{cw,ch}=cardSize();
   const n=p.hand.length,maxW=W-30;
-  const step=n>1?Math.min(cw+8,(maxW-cw)/(n-1)):0;
-  const total=cw+step*(n-1);
-  const x0=(W-total)/2,y=H-ch-14;
-  return {cw,ch,step,x0,y};
+  const rows=n>9?2:1;
+  const perRow=Math.ceil(n/rows);
+  const step=perRow>1?Math.min(cw+8,(maxW-cw)/(perRow-1)):0;
+  const rowH=ch*0.62;                 /* rows overlap slightly, like a fanned hand */
+  const y=H-ch-14-(rows-1)*rowH;      /* y of the TOP row */
+  function pos(i){
+    const r=Math.floor(i/perRow);
+    const cnt=Math.min(perRow,n-r*perRow);   /* cards actually in this row */
+    const total=cw+step*(cnt-1);
+    return {x:(W-total)/2+(i-r*perRow)*step, y:y+r*rowH,
+            idxInRow:i-r*perRow, cnt};
+  }
+  return {cw,ch,step,rows,perRow,y,pos};
 }
 function newGameBtn(){return {x:12,y:10,w:104,h:30};}
 function pileRects(){
@@ -4190,21 +4199,22 @@ function oppSpots(){
   }
   const {ch}=cardSize(),out=[];
   if(portrait){
-    /* MOBILE: top row below the NEW GAME tag; sides evenly padded with
-       equal gaps at the ends (interior spacing) */
+    /* MOBILE: top row below the NEW GAME tag; every seat sits on ONE
+       uniform vertical grid — the gap from the top-name row down to the
+       first side seat is identical to the gap between side seats, so all
+       names are evenly spaced with no dead zone under the top row */
     const mx=Math.max(44,W*0.13),topY=64; /* padded down from the NEW GAME tag */
-    /* uniform vertical rhythm: the gap from the top row down to the first
-       side seat equals the gap between side seats */
-    const rowBot=topY+66,sideBot=H-ch-150;
+    const sideBot=H-ch*2.22-112;          /* clears the 2-row hand + YOUR TURN banner */
+    const stepV=(sideBot-topY)/Math.max(1,nL);
     for(let i=0;i<nL;i++)
-      out.push({x:mx,y:sideBot-(sideBot-rowBot)*i/nL,side:"L"});
+      out.push({x:mx,y:sideBot-stepV*i,side:"L"});
     /* top row spreads edge-to-edge: first and last seats anchor near the
        margins, the rest space evenly between them */
     const pad=34;
     for(let i=0;i<nT;i++)
       out.push({x:nT===1?W/2:(mx+pad)+(W-2*(mx+pad))*i/(nT-1),y:topY,side:"T"});
     for(let i=0;i<nR;i++)
-      out.push({x:W-mx,y:rowBot+(sideBot-rowBot)*(i+1)/nR,side:"R"});
+      out.push({x:W-mx,y:topY+stepV*(i+1),side:"R"});
   }else{
     /* DESKTOP: the layout that looked right — top row at the very top
        (clear of the tag horizontally), sides anchored across full height */
@@ -4306,9 +4316,10 @@ function draw(dt){
   ctx.font=(myTurn?"700 ":"")+"12px ui-monospace,monospace";
   ctx.fillText("YOU \u00B7 "+me.hand.length+(me.hand.length===1?" \u2014 UNO!":""),W/2,hl.y-28);
   me.hand.forEach((cd,i)=>{
+    const p2=hl.pos(i);
     const lift=(myTurn&&legal(cd))?-10:0;
     const glow=i===G.drawnIdx;
-    drawCardFace(hl.x0+i*hl.step,hl.y+lift+(glow?-6:0),hl.cw,hl.ch,cd,myTurn&&!legal(cd));
+    drawCardFace(p2.x,p2.y+lift+(glow?-6:0),hl.cw,hl.ch,cd,myTurn&&!legal(cd));
   });
   /* message strip */
   if(G.msgT>0){
@@ -4466,7 +4477,9 @@ function onTap(e){
   /* hand: scan right-to-left so overlapping fans pick the visible card */
   const hl=handLayout(),me=G.players[0];
   for(let i=me.hand.length-1;i>=0;i--){
-    const b={x:hl.x0+i*hl.step,y:hl.y-14,w:(i===me.hand.length-1?hl.cw:hl.step),h:hl.ch+14};
+    const p2=hl.pos(i);
+    const b={x:p2.x,y:p2.y-14,
+             w:(p2.idxInRow===p2.cnt-1?hl.cw:hl.step),h:hl.ch+14};
     if(hit(p,b)){humanPlay(i);return;}
   }
   const pr=pileRects();
