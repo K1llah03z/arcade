@@ -3732,6 +3732,623 @@ requestAnimationFrame(frame);
 </script>
 </template>
 
+<template id="game-neon-uno">
+<meta charset="UTF-8">
+<style>
+  html,body{margin:0;height:100%;width:100%;background:#05030c;overflow:hidden;position:fixed;inset:0;font-family:ui-monospace,Menlo,Consolas,monospace;overscroll-behavior:none;touch-action:none}
+  canvas{display:block;width:100%;height:100%;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;cursor:pointer}
+  [data-theme="light"] body{background:#0a8a0a}
+</style>
+<canvas id="c"></canvas>
+<script>
+/* Classic-theme palette shim — identical scheme to Neon Solitaire: NG_P maps
+   neon colors to classic felt when the hub sets data-theme="light"; neon
+   accents recolor the table via NG_NEONS. */
+const NG_CLASSIC = () => document.documentElement.getAttribute("data-theme") === "light";
+const NG_FELTS={
+  "":{deep:"#0a8a0a",panel:"rgba(4,70,4,.92)",dim:"#d9f2d9",gold:"#ffd700"},
+  "green":{deep:"#0a8a0a",panel:"rgba(4,70,4,.92)",dim:"#d9f2d9",gold:"#ffd700"},
+  "red":{deep:"#8a0a0a",panel:"rgba(70,4,4,.92)",dim:"#f2d9d9",gold:"#ffd700"},
+  "pink":{deep:"#8a0a5a",panel:"rgba(70,4,42,.92)",dim:"#f2d9ea",gold:"#ffd700"},
+  "blue":{deep:"#0a2a8a",panel:"rgba(4,22,70,.92)",dim:"#d9e2f2",gold:"#ffd700"},
+  "yellow":{deep:"#7a7a0a",panel:"rgba(62,62,4,.92)",dim:"#f2f2d9",gold:"#ffffff"},
+  "orange":{deep:"#8a4a0a",panel:"rgba(70,36,4,.92)",dim:"#f2e5d9",gold:"#ffd700"},
+  "purple":{deep:"#4a0a8a",panel:"rgba(38,4,70,.92)",dim:"#e5d9f2",gold:"#ffd700"},
+  "gray":{deep:"#c0c0c0",panel:"rgba(176,176,176,.92)",dim:"#404040",gold:"#000080",ink:"#000000"}
+};
+const NG_NEONS={
+  red:{p:"#ff2e2e",l:"#ff8a8a",a:"#ffc4c4",deep:"#180505",dim:"#c78f8f",panel:"rgba(43,10,10,.92)",prgb:"255,46,46"},
+  green:{p:"#39ff14",l:"#8aff70",a:"#ccffcc",deep:"#041505",dim:"#8fc79a",panel:"rgba(8,38,12,.92)",prgb:"57,255,20"},
+  blue:{p:"#2e6bff",l:"#6ea8ff",a:"#bcd6ff",deep:"#050a18",dim:"#8fa3c7",panel:"rgba(10,20,43,.92)",prgb:"46,107,255"},
+  yellow:{p:"#ffee32",l:"#fff78a",a:"#fffbc4",deep:"#171505",dim:"#c7c08f",panel:"rgba(41,36,8,.92)",prgb:"255,238,50"},
+  orange:{p:"#ff8c1a",l:"#ffb266",a:"#ffd9b0",deep:"#180d05",dim:"#c7ab8f",panel:"rgba(43,23,8,.92)",prgb:"255,140,26"},
+  purple:{p:"#a06bff",l:"#b794ff",a:"#ddccff",deep:"#0b0518",dim:"#9a8fc7",panel:"rgba(20,10,43,.92)",prgb:"160,107,255"}
+};
+const NG_ACC=()=>document.documentElement.getAttribute("data-accent")||"";
+function NG_MAP(){
+  const f=NG_FELTS[NG_ACC()]||NG_FELTS[""];
+  return {
+    "#05030c":f.deep,"#160a33":f.deep,
+    "#9a8fc7":f.dim,"#e8e4ff":(f.ink||"#ffffff"),
+    "#ffc857":f.gold,"#ff2ea6":f.gold,"#22e6ff":(f.ink||"#ffffff"),
+    "rgba(20,10,43,.92)":f.panel,
+    "#8b5cf6":"#ffffff","#241a4d":"#000000"
+  };
+}
+function NG_NMAP(){
+  const n=NG_NEONS[NG_ACC()]; if(!n) return null; /* pink keeps original art */
+  return {
+    "#05030c":n.deep,"#160a33":n.deep,
+    "#9a8fc7":n.dim,"#ffc857":n.a,"#ff2ea6":n.p,"#22e6ff":n.l,
+    "rgba(20,10,43,.92)":n.panel,
+    "#8b5cf6":n.p
+  };
+}
+const NG_P = c => {
+  if(NG_CLASSIC()) return NG_MAP()[c]||c;
+  const m=NG_NMAP(); return (m&&m[c])||c;
+};
+</script>
+<script>
+/* ================= GameBridge CLIENT STUB (v1) ================= */
+(function(){
+  const GAME_ID = "neon-uno";
+  function send(type, payload){ parent.postMessage({source:"GameBridge",v:1,gameId:GAME_ID,type,payload},"*"); }
+  window.GameBridge = {
+    id: GAME_ID,
+    ready:        ()            => send("ready",{}),
+    reportScore:  (score)       => send("score",{score}),
+    levelUp:      (level)       => send("level",{level}),
+    achievement:  (achievementId)=> send("achievement",{achievementId}),
+    gameOver:     (finalScore)  => send("gameOver",{finalScore})
+  };
+})();
+/* ---- mobile gesture guards ---- */
+(function(){
+  let last=0;
+  document.addEventListener("touchend",e=>{
+    const now=Date.now();
+    const el=e.target instanceof Element ? e.target : null;
+    if(now-last<400 && !(el&&el.closest("button"))) e.preventDefault();
+    last=now;
+  },{passive:false,capture:true});
+  document.addEventListener("dblclick",e=>e.preventDefault(),{passive:false,capture:true});
+  document.addEventListener("selectstart",e=>e.preventDefault(),{capture:true});
+  for(const g of ["gesturestart","gesturechange","gestureend"])
+    document.addEventListener(g,e=>e.preventDefault(),{passive:false});
+})();
+
+/* ================= NEON UNO =================
+   Standard 108-card UNO vs 1-3 computer opponents.
+   Official scoring on a win: opponents' number cards face value,
+   Skip/Reverse/Draw-2 = 20, Wild/Wild-Draw-4 = 50.            */
+(function(){
+"use strict";
+const cvs=document.getElementById("c");let ctx=cvs.getContext("2d");
+let W=0,H=0,DPR=Math.min(2,window.devicePixelRatio||1);
+function resize(){const nw=document.documentElement.clientWidth||innerWidth,nh=document.documentElement.clientHeight||innerHeight;if(nw===W&&nh===H)return;W=nw;H=nh;cvs.width=W*DPR;cvs.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener("resize",resize);addEventListener("orientationchange",()=>setTimeout(resize,120));
+
+/* ---------- Procedural Audio (same voice as Solitaire) ---------- */
+const AudioFX=(function(){
+  let ac=null;
+  function actx(){ if(!ac) ac=new (window.AudioContext||window.webkitAudioContext)(); if(ac.state==="suspended") ac.resume(); return ac; }
+  function blip(f0,f1,dur,type,vol){
+    try{
+      const a=actx(),t=a.currentTime,o=a.createOscillator(),g=a.createGain();
+      o.type=type;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t+dur);
+      g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+      o.connect(g).connect(a.destination);o.start(t);o.stop(t+dur);
+    }catch(e){}
+  }
+  return {
+    play:()=>blip(520,780,.08,"triangle",.05),
+    draw:()=>blip(300,600,.05,"square",.03),
+    bad:()=>blip(180,120,.12,"sawtooth",.06),
+    skip:()=>blip(700,350,.1,"square",.045),
+    wild:()=>{blip(440,880,.12,"triangle",.05);setTimeout(()=>blip(660,1320,.12,"triangle",.04),80);},
+    uno:()=>{blip(880,1320,.14,"triangle",.06);setTimeout(()=>blip(1100,1760,.14,"triangle",.05),90);},
+    turn:()=>{blip(660,660,.16,"triangle",.07);setTimeout(()=>blip(990,990,.22,"triangle",.06),140);},
+    win:i=>blip(440*Math.pow(1.06,i%24),660*Math.pow(1.06,i%24),.15,"triangle",.05)
+  };
+})();
+
+/* ---------- Cards ---------- */
+/* c: 0 red 1 yellow 2 green 3 blue 4 wild; v: 0-9, "S","R","D2","W","W4" */
+const CNAMES=["RED","YELLOW","GREEN","BLUE"];
+const CHEX=["#ff2e2e","#ffee32","#39ff14","#2e6bff"];      /* neon suit colors */
+const CHEX_CLASSIC=["#d00000","#c8a800","#008a00","#1040a0"];
+function suitColor(i){return NG_CLASSIC()?CHEX_CLASSIC[i]:CHEX[i];}
+function cardPts(cd){return cd.v==="W"||cd.v==="W4"?50:(typeof cd.v==="number"?cd.v:20);}
+function label(cd){return cd.v==="S"?"\u2298":cd.v==="R"?"\u21C4":cd.v==="D2"?"+2":cd.v==="W"?"\u2739":cd.v==="W4"?"+4":String(cd.v);}
+function mkDeck(){
+  const d=[];
+  for(let c=0;c<4;c++){
+    d.push({c,v:0});
+    for(let v=1;v<=9;v++){d.push({c,v});d.push({c,v});}
+    for(const v of ["S","R","D2"]){d.push({c,v});d.push({c,v});}
+  }
+  for(let i=0;i<4;i++){d.push({c:4,v:"W"});d.push({c:4,v:"W4"});}
+  for(let i=d.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[d[i],d[j]]=[d[j],d[i]];}
+  return d;
+}
+
+/* ---------- State ---------- */
+const S={MENU:0,PLAYING:1,PICK:2,OVER:3};
+const G={state:S.MENU,players:[],deck:[],discard:[],color:0,dir:1,turn:0,
+         msg:"",msgT:0,aiT:0,over:null,unoFlash:0,drawnIdx:-1,fx:[],diff:"medium"};
+function say(m,t=2){G.msg=m;G.msgT=t;}
+/* 150 boy + 150 girl names; each CPU gets a unique random one */
+const BOY_NAMES=["James", "Liam", "Noah", "Oliver", "Elijah", "William", "Henry", "Lucas", "Benjamin", "Theodore", "Mateo", "Levi", "Sebastian", "Daniel", "Jack", "Michael", "Alexander", "Owen", "Asher", "Samuel", "Ethan", "Leo", "Jackson", "Mason", "Ezra", "John", "Hudson", "Luca", "Aiden", "Joseph", "David", "Jacob", "Logan", "Luke", "Julian", "Gabriel", "Grayson", "Wyatt", "Matthew", "Maverick", "Dylan", "Isaac", "Elias", "Anthony", "Thomas", "Jayden", "Carter", "Santiago", "Ezekiel", "Charles", "Josiah", "Caleb", "Cooper", "Lincoln", "Miles", "Christopher", "Nathan", "Isaiah", "Kai", "Joshua", "Andrew", "Angel", "Adrian", "Cameron", "Nolan", "Waylon", "Jaxon", "Roman", "Eli", "Wesley", "Aaron", "Ian", "Christian", "Ryan", "Leonardo", "Brooks", "Axel", "Walker", "Jonathan", "Easton", "Everett", "Weston", "Bennett", "Robert", "Jameson", "Landon", "Silas", "Jose", "Beau", "Micah", "Colton", "Jordan", "Jeremiah", "Parker", "Greyson", "Rowan", "Adam", "Nicholas", "Theo", "Xavier", "Hunter", "Dominic", "Jace", "Gael", "River", "Austin", "Kayden", "Damian", "Tristan", "Carson", "Jasper", "Brayden", "Amir", "Cole", "Emmett", "Corbin", "Knox", "Declan", "Chase", "Vincent", "Finn", "Atlas", "Kaiden", "Emiliano", "Archer", "Arthur", "Felix", "George", "Ryder", "Zion", "Malachi", "Ashton", "Edward", "Patrick", "Karter", "Milo", "Antonio", "Barrett", "Enzo", "Abel", "Bryson", "Nathaniel", "Marcus", "Simon", "Judah", "Blake", "Harrison", "Peter", "Otto", "Calvin"];
+const GIRL_NAMES=["Olivia", "Emma", "Charlotte", "Amelia", "Sophia", "Isabella", "Ava", "Mia", "Evelyn", "Luna", "Harper", "Camila", "Sofia", "Scarlett", "Elizabeth", "Eleanor", "Emily", "Chloe", "Mila", "Violet", "Penelope", "Gianna", "Aria", "Abigail", "Ella", "Avery", "Hazel", "Nora", "Layla", "Lily", "Aurora", "Nova", "Ellie", "Madison", "Grace", "Isla", "Willow", "Zoe", "Riley", "Stella", "Eliana", "Ivy", "Victoria", "Emilia", "Zoey", "Naomi", "Hannah", "Lucy", "Elena", "Lillian", "Maya", "Leah", "Paisley", "Addison", "Natalie", "Valentina", "Everly", "Delilah", "Leilani", "Madelyn", "Kinsley", "Ruby", "Sophie", "Alice", "Genesis", "Claire", "Audrey", "Sadie", "Aaliyah", "Josephine", "Autumn", "Brooklyn", "Quinn", "Kennedy", "Cora", "Savannah", "Caroline", "Athena", "Natalia", "Hailey", "Aubrey", "Emery", "Anna", "Iris", "Bella", "Eloise", "Skylar", "Jade", "Gabriella", "Ariana", "Maria", "Adeline", "Lydia", "Sarah", "Nevaeh", "Serenity", "Liliana", "Ayla", "Everleigh", "Raelynn", "Allison", "Margaret", "Sara", "Amara", "Josie", "Alina", "Melody", "Freya", "Juniper", "Piper", "Vivian", "Gemma", "Julia", "Clara", "Rylee", "Hadley", "Katherine", "Millie", "Sienna", "Daisy", "Kaylee", "Vera", "Rose", "Amira", "Eden", "Remi", "Mackenzie", "Charlie", "Reagan", "Alaia", "Dahlia", "Peyton", "Lyla", "Faith", "Margot", "Ophelia", "Wren", "Andrea", "Alani", "Norah", "Selena", "Rebecca", "Michelle", "Summer", "Esther", "Georgia", "Catalina", "Magnolia", "Arabella", "Fiona"];
+function randomNames(n){
+  const pool=BOY_NAMES.concat(GIRL_NAMES),out=[];
+  while(out.length<n){const nm=pool[(Math.random()*pool.length)|0];if(!out.includes(nm))out.push(nm);}
+  return out;
+}
+function newGame(nOpp){
+  const names=["YOU"].concat(randomNames(nOpp));
+  G.players=[];
+  for(let i=0;i<=nOpp;i++)G.players.push({name:names[i],hand:[],ai:i>0});
+  G.deck=mkDeck();G.discard=[];G.dir=1;G.turn=0;G.over=null;G.drawnIdx=-1;G.fx=[];
+  for(let r=0;r<7;r++)for(const p of G.players)p.hand.push(G.deck.pop());
+  let first=G.deck.pop();
+  while(first.c===4){G.deck.unshift(first);first=G.deck.pop();} /* no wild opener */
+  G.discard.push(first);G.color=first.c;
+  if(first.v==="S"){say("Opening skip!");advance();}
+  else if(first.v==="R"&&G.players.length>2){G.dir=-1;say("Opening reverse!");}
+  else if(first.v==="D2"){drawN(G.players[0],2);say("Opening +2 \u2014 you draw 2");advance();}
+  G.state=S.PLAYING;G.aiT=1.5;
+  GameBridge.reportScore(0);
+  say("Your move");
+}
+function reshuffle(){
+  if(G.deck.length)return;
+  const top=G.discard.pop();
+  G.deck=G.discard;G.discard=[top];
+  for(let i=G.deck.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[G.deck[i],G.deck[j]]=[G.deck[j],G.deck[i]];}
+  if(G.deck.length){say("Deck empty \u2014 discard pile reshuffled!",2.5);AudioFX.draw();}
+}
+function drawN(p,n){for(let i=0;i<n;i++){reshuffle();if(G.deck.length)p.hand.push(G.deck.pop());}}
+function legal(cd){
+  const top=G.discard[G.discard.length-1];
+  return cd.c===4||cd.c===G.color||cd.v===top.v;
+}
+function advance(){G.turn=(G.turn+G.dir+G.players.length)%G.players.length;}
+function nextPlayer(){return G.players[(G.turn+G.dir+G.players.length)%G.players.length];}
+
+/* ---------- Playing a card ---------- */
+function playCard(p,idx,chosenColor){
+  const cd=p.hand.splice(idx,1)[0];
+  G.discard.push(cd);
+  G.color=cd.c===4?chosenColor:cd.c;
+  G.drawnIdx=-1;
+  burst(W/2,H/2,cd.c===4?G.color:cd.c);
+  if(p.hand.length===1){AudioFX.uno();say(p.name+" \u2014 UNO!");G.unoFlash=1;}
+  if(p.hand.length===0){
+    /* official rule: a final Draw 2 / Wild Draw 4 still makes the next player draw */
+    if(cd.v==="D2")drawN(nextPlayer(),2);
+    if(cd.v==="W4")drawN(nextPlayer(),4);
+    endRound(p);return;
+  }
+  if(cd.v==="S"){AudioFX.skip();say(nextPlayer().name+" skipped");advance();advance();}
+  else if(cd.v==="R"){
+    AudioFX.skip();
+    if(G.players.length===2){say("Reverse \u2014 skip!");advance();advance();}
+    else{G.dir*=-1;say("Direction reversed");advance();}
+  }
+  else if(cd.v==="D2"){const t=nextPlayer();drawN(t,2);AudioFX.draw();say(t.name+" draws 2");advance();advance();}
+  else if(cd.v==="W4"){const t=nextPlayer();drawN(t,4);AudioFX.wild();say(t.name+" draws 4 \u00B7 "+CNAMES[G.color]);advance();advance();}
+  else if(cd.v==="W"){AudioFX.wild();say("Color: "+CNAMES[G.color]);advance();}
+  else{AudioFX.play();advance();}
+  G.aiT=1.5;
+}
+function endRound(winner){
+  let pts=0;
+  for(const p of G.players)if(p!==winner)for(const cd of p.hand)pts+=cardPts(cd);
+  G.over={winner,pts};G.state=S.OVER;
+  G.winFx={cards:[],t:0,spawn:0};
+  if(winner===G.players[0]){
+    GameBridge.reportScore(pts);GameBridge.gameOver(pts);
+    GameBridge.achievement("neon-uno:win");
+    for(let i=0;i<50;i++)setTimeout(()=>AudioFX.win(i),i*60);
+  }else{GameBridge.gameOver(0);}
+}
+
+/* ---------- Human actions ---------- */
+let pickIdx=-1; /* card awaiting wild color choice */
+function humanPlay(idx){
+  const p=G.players[0],cd=p.hand[idx];
+  if(!legal(cd)){AudioFX.bad();say("Can't play that");return;}
+  if(cd.c===4){pickIdx=idx;G.state=S.PICK;return;}
+  playCard(p,idx);
+}
+function humanDraw(){
+  const p=G.players[0];
+  if(G.drawnIdx>=0){ /* already drew: pass */
+    G.drawnIdx=-1;say("Passed");advance();G.aiT=1.5;return;
+  }
+  drawN(p,1);AudioFX.draw();
+  const idx=p.hand.length-1;
+  if(legal(p.hand[idx])){G.drawnIdx=idx;say("Drew a playable card \u2014 play it or tap deck to pass");}
+  else{say("Drew \u2014 no play");advance();G.aiT=1.5;}
+}
+
+/* ---------- Computer opponents ---------- */
+function aiTurn(p){
+  const ids=p.hand.map((c,i)=>i).filter(i=>legal(p.hand[i]));
+  if(!ids.length){
+    drawN(p,1);AudioFX.draw();
+    const i=p.hand.length-1;
+    if(legal(p.hand[i]))aiPlay(p,i);else{say(p.name+" draws");advance();G.aiT=1.5;}
+    return;
+  }
+  if(G.diff==="easy"){ /* EASY: plays a random legal card, random wild colors */
+    aiPlay(p,ids[(Math.random()*ids.length)|0]);return;
+  }
+  /* MEDIUM: dump draw cards > skip/reverse > high numbers > wilds last */
+  const rank=i=>{const v=p.hand[i].v;
+    return v==="D2"?0:v==="S"||v==="R"?1:typeof v==="number"?2+(9-v)*0.05:v==="W"?4:5;};
+  if(G.diff==="hard"){
+    /* HARD: holds wilds until stuck, punishes low-card opponents with
+       attack cards, and sheds the color it holds most of */
+    const counts=[0,0,0,0];for(const c of p.hand)if(c.c<4)counts[c.c]++;
+    const threat=Math.min(...G.players.filter(q=>q!==p).map(q=>q.hand.length));
+    const hasColorPlay=ids.some(i=>p.hand[i].c<4);
+    const hrank=i=>{const cd=p.hand[i],v=cd.v;
+      let r=typeof v==="number"?3+(9-v)*0.05:v==="W"?6:v==="W4"?7:2;
+      if((v==="D2"||v==="S"||v==="R"||v==="W4")&&threat<=2)r-=3;   /* attack when someone is close */
+      if(cd.c<4)r-=counts[cd.c]*0.15;                              /* shed dominant color */
+      if((v==="W"||v==="W4")&&hasColorPlay)r+=4;                   /* save wilds */
+      return r;};
+    ids.sort((a,b)=>hrank(a)-hrank(b));
+    aiPlay(p,ids[0]);return;
+  }
+  ids.sort((a,b)=>rank(a)-rank(b));
+  aiPlay(p,ids[0]);
+}
+function aiPlay(p,idx){
+  let chosen=(Math.random()*4)|0;
+  if(p.hand[idx].c===4&&G.diff!=="easy"){ /* pick the color it holds most of */
+    const n=[0,0,0,0];for(const c of p.hand)if(c.c<4)n[c.c]++;
+    const m=Math.max(...n);if(m>0)chosen=n.indexOf(m);
+  }
+  playCard(p,idx,chosen);
+}
+
+/* ---------- Particles ---------- */
+function burst(x,y,ci){
+  for(let i=0;i<14;i++){
+    const a=Math.random()*Math.PI*2,s=40+Math.random()*130;
+    G.fx.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,t:0.5+Math.random()*0.3,ci});
+  }
+}
+
+/* ---------- Layout helpers ---------- */
+function cardSize(){
+  const cw=Math.max(44,Math.min(76,W/12));
+  return {cw,ch:cw*1.45};
+}
+function handLayout(){
+  const p=G.players[0],{cw,ch}=cardSize();
+  const n=p.hand.length,maxW=W-30;
+  const step=n>1?Math.min(cw+8,(maxW-cw)/(n-1)):0;
+  const total=cw+step*(n-1);
+  const x0=(W-total)/2,y=H-ch-14;
+  return {cw,ch,step,x0,y};
+}
+function pileRects(){
+  const {cw,ch}=cardSize();
+  const cy=H/2-ch/2-10;
+  return {deck:{x:W/2-cw-14,y:cy,w:cw,h:ch},disc:{x:W/2+14,y:cy,w:cw,h:ch}};
+}
+
+/* ---------- Drawing ---------- */
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function drawCardFace(x,y,w,h,cd,dim){
+  const col=cd.c===4?"#241a4d":suitColor(cd.c);
+  ctx.save();
+  if(!NG_CLASSIC()){ctx.shadowBlur=12;ctx.shadowColor=cd.c===4?NG_P("#8b5cf6"):col;}
+  rr(x,y,w,h,7);
+  ctx.fillStyle=NG_CLASSIC()?"#ffffff":"#0d0820";ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.lineWidth=2.5;ctx.strokeStyle=cd.c===4?NG_P("#8b5cf6"):col;ctx.stroke();
+  rr(x+4,y+4,w-8,h-8,5);
+  ctx.fillStyle=NG_CLASSIC()?(cd.c===4?"#222222":col):"rgba(255,255,255,0.06)";ctx.fill();
+  const txt=label(cd);
+  if(cd.c===4){
+    /* wild: four-color quadrant emblem, like the real card */
+    const cx0=x+w/2,cy0=y+h/2,R=w*0.32;
+    const quads=[[Math.PI,1.5*Math.PI,0],[1.5*Math.PI,2*Math.PI,1],[0.5*Math.PI,Math.PI,2],[0,0.5*Math.PI,3]];
+    for(const[a0,a1,ci]of quads){
+      ctx.beginPath();ctx.moveTo(cx0,cy0);ctx.arc(cx0,cy0,R,a0,a1);ctx.closePath();
+      ctx.fillStyle=suitColor(ci);
+      if(!NG_CLASSIC()){ctx.shadowBlur=8;ctx.shadowColor=suitColor(ci);}
+      ctx.fill();ctx.shadowBlur=0;
+    }
+    ctx.beginPath();ctx.arc(cx0,cy0,R,0,7);
+    ctx.lineWidth=2;ctx.strokeStyle=NG_CLASSIC()?"#000000":"rgba(255,255,255,.75)";ctx.stroke();
+    if(cd.v==="W4"){
+      ctx.fillStyle=NG_CLASSIC()?"#ffffff":"#ffffff";
+      ctx.strokeStyle="#000000";ctx.lineWidth=3;
+      ctx.font="700 "+(w*0.34)+"px ui-monospace,monospace";ctx.textAlign="center";ctx.textBaseline="middle";
+      ctx.strokeText("+4",cx0,cy0+1);ctx.fillText("+4",cx0,cy0+1);
+    }
+    /* corner marks: W or +4 */
+    const corner=cd.v==="W4"?"+4":"W";
+    ctx.fillStyle=NG_CLASSIC()?"#ffffff":NG_P("#8b5cf6");
+    ctx.font="700 "+(w*0.2)+"px ui-monospace,monospace";ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(corner,x+w*0.22,y+h*0.15);
+    ctx.save();ctx.translate(x+w*0.78,y+h*0.85);ctx.rotate(Math.PI);ctx.fillText(corner,0,0);ctx.restore();
+  }else{
+    ctx.fillStyle=NG_CLASSIC()?"#ffffff":col;
+    ctx.font="700 "+(w*0.42)+"px ui-monospace,monospace";ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(txt,x+w/2,y+h/2);
+    ctx.font="700 "+(w*0.2)+"px ui-monospace,monospace";
+    ctx.fillText(txt,x+w*0.22,y+h*0.17);
+    ctx.save();ctx.translate(x+w*0.78,y+h*0.83);ctx.rotate(Math.PI);ctx.fillText(txt,0,0);ctx.restore();
+  }
+  if(dim){rr(x,y,w,h,7);ctx.fillStyle="rgba(0,0,0,0.55)";ctx.fill();}
+  ctx.restore();
+}
+function drawCardBack(x,y,w,h){
+  ctx.save();
+  rr(x,y,w,h,7);
+  ctx.fillStyle=NG_CLASSIC()?"#1040a0":"#160a33";ctx.fill();
+  ctx.lineWidth=2;ctx.strokeStyle=NG_P("#8b5cf6");ctx.stroke();
+  ctx.strokeStyle=NG_CLASSIC()?"rgba(255,255,255,.4)":"rgba(139,92,246,.5)";ctx.lineWidth=1;
+  for(let i=-h;i<w;i+=8){ctx.beginPath();ctx.moveTo(x+Math.max(0,i),y+Math.max(0,-i));
+    ctx.lineTo(x+Math.min(w,i+h),y+Math.min(h,h-(i+h-w>0?i+h-w:0)));ctx.stroke();}
+  ctx.fillStyle=NG_P("#8b5cf6");ctx.font="700 "+(w*0.3)+"px ui-monospace,monospace";
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("\u2739",x+w/2,y+h/2);
+  ctx.restore();
+}
+function oppSpots(){
+  const n=G.players.length-1,y=18;
+  if(n===1)return[{x:W/2,y}];
+  const out=[];for(let i=0;i<n;i++)out.push({x:W*(i+1)/(n+1),y});
+  return out;
+}
+function draw(dt){
+  ctx.fillStyle=NG_P("#05030c");ctx.fillRect(0,0,W,H);
+  ctx.textAlign="center";ctx.textBaseline="alphabetic";
+  if(G.state===S.MENU){drawMenu();return;}
+  const {cw,ch}=cardSize();
+  /* opponents */
+  const spots=oppSpots();
+  G.players.slice(1).forEach((p,i)=>{
+    const nOpp=G.players.length-1,scale=nOpp<=3?0.62:nOpp<=6?0.46:0.36;
+    const sp=spots[i],w=cw*scale,h=ch*scale;
+    const slot=W/(nOpp+1)-10;
+    const n=Math.min(p.hand.length,nOpp<=3?8:5),step=Math.min(w*0.45,Math.max(4,(slot-w)/Math.max(1,n)));
+    const x0=sp.x-((n-1)*step+w)/2;
+    for(let k=0;k<n;k++)drawCardBack(x0+k*step,sp.y+14,w,h);
+    const active=G.turn===i+1&&G.state===S.PLAYING;
+    ctx.fillStyle=active?NG_P("#ffc857"):NG_P("#9a8fc7");
+    ctx.font=(active?"700 ":"")+"12px ui-monospace,monospace";
+    ctx.fillText(p.name+" \u00B7 "+p.hand.length+(p.hand.length===1?" \u2014 UNO!":""),sp.x,sp.y+8);
+  });
+  /* piles */
+  const pr=pileRects();
+  if(G.deck.length||G.discard.length>1)drawCardBack(pr.deck.x,pr.deck.y,pr.deck.w,pr.deck.h);
+  ctx.fillStyle=NG_P("#9a8fc7");ctx.font="11px ui-monospace,monospace";
+  ctx.fillText("DRAW",pr.deck.x+pr.deck.w/2,pr.deck.y+pr.deck.h+16);
+  const top=G.discard[G.discard.length-1];
+  drawCardFace(pr.disc.x,pr.disc.y,pr.disc.w,pr.disc.h,top,false);
+  /* active color chip */
+  ctx.beginPath();ctx.arc(pr.disc.x+pr.disc.w/2,pr.disc.y+pr.disc.h+18,9,0,7);
+  ctx.fillStyle=suitColor(G.color);ctx.fill();
+  if(!NG_CLASSIC()){ctx.shadowBlur=10;ctx.shadowColor=suitColor(G.color);ctx.fill();ctx.shadowBlur=0;}
+  /* direction arrows */
+  ctx.fillStyle=NG_P("#9a8fc7");ctx.font="16px ui-monospace,monospace";
+  ctx.fillText(G.dir===1?"\u21BB":"\u21BA",W/2,pr.disc.y-14);
+  /* your hand */
+  const hl=handLayout(),me=G.players[0];
+  const myTurn=G.turn===0&&G.state===S.PLAYING;
+  if(myTurn){
+    /* big pulsing YOUR TURN banner above the hand */
+    const pulse=1+Math.sin(performance.now()/280)*0.06;
+    ctx.save();ctx.translate(W/2,hl.y-44);ctx.scale(pulse,pulse);
+    ctx.font="700 "+Math.min(34,W*0.06)+"px ui-monospace,monospace";
+    ctx.textAlign="center";ctx.textBaseline="middle";
+    if(!NG_CLASSIC()){ctx.shadowBlur=22;ctx.shadowColor=NG_P("#ffc857");}
+    ctx.fillStyle=NG_P("#ffc857");
+    ctx.fillText("\u25B6 YOUR TURN \u25C0",0,0);
+    ctx.restore();ctx.shadowBlur=0;ctx.textBaseline="alphabetic";
+  }
+  ctx.fillStyle=myTurn?NG_P("#ffc857"):NG_P("#9a8fc7");
+  ctx.font=(myTurn?"700 ":"")+"12px ui-monospace,monospace";
+  ctx.fillText("YOU \u00B7 "+me.hand.length+(me.hand.length===1?" \u2014 UNO!":""),W/2,hl.y-10);
+  me.hand.forEach((cd,i)=>{
+    const lift=(myTurn&&legal(cd))?-10:0;
+    const glow=i===G.drawnIdx;
+    drawCardFace(hl.x0+i*hl.step,hl.y+lift+(glow?-6:0),hl.cw,hl.ch,cd,myTurn&&!legal(cd));
+  });
+  /* message strip */
+  if(G.msgT>0){
+    G.msgT-=dt;
+    ctx.fillStyle=NG_P("rgba(20,10,43,.92)");
+    ctx.fillRect(0,H/2+ch/2+4,W,26);
+    ctx.fillStyle=NG_P("#e8e4ff");ctx.font="13px ui-monospace,monospace";
+    ctx.fillText(G.msg,W/2,H/2+ch/2+22);
+  }
+  /* particles */
+  for(let i=G.fx.length-1;i>=0;i--){
+    const f=G.fx[i];f.t-=dt;f.x+=f.vx*dt;f.y+=f.vy*dt;f.vy+=140*dt;
+    if(f.t<=0){G.fx.splice(i,1);continue;}
+    ctx.globalAlpha=Math.min(1,f.t*2);
+    ctx.fillStyle=f.ci===4?NG_P("#8b5cf6"):suitColor(f.ci);
+    ctx.fillRect(f.x-2,f.y-2,4,4);ctx.globalAlpha=1;
+  }
+  if(G.state===S.PICK)drawPicker();
+  if(G.state===S.OVER){
+    if(G.over.winner===G.players[0])stepWinFx(dt);
+    drawOver();
+  }
+}
+function drawMenu(){
+  ctx.fillStyle=NG_P("rgba(20,10,43,.92)");ctx.fillRect(0,H/2-170,W,360);
+  ctx.fillStyle=NG_P("#e8e4ff");ctx.font="700 34px ui-monospace,monospace";
+  if(!NG_CLASSIC()){ctx.shadowBlur=24;ctx.shadowColor=NG_P("#ff2ea6");}
+  ctx.fillText("NEON UNO",W/2,H/2-124);ctx.shadowBlur=0;
+  ctx.font="13px ui-monospace,monospace";ctx.fillStyle=NG_P("#9a8fc7");
+  ctx.fillText("Match color or symbol \u00B7 first to empty their hand wins",W/2,H/2-96);
+  ctx.fillText("Difficulty",W/2,H/2-68);
+  diffBtns().forEach(b=>{
+    const on=G.diff===b.d;
+    rr(b.x,b.y,b.w,b.h,8);
+    ctx.fillStyle=on?(NG_CLASSIC()?"rgba(255,255,255,.28)":"rgba(255,255,255,.12)"):"rgba(255,255,255,.04)";ctx.fill();
+    ctx.lineWidth=2;ctx.strokeStyle=on?NG_P("#ffc857"):NG_P("#8b5cf6");ctx.stroke();
+    ctx.fillStyle=on?NG_P("#ffc857"):NG_P("#22e6ff");ctx.font="700 14px ui-monospace,monospace";
+    ctx.textBaseline="middle";ctx.fillText(b.label,b.x+b.w/2,b.y+b.h/2+1);ctx.textBaseline="alphabetic";
+  });
+  ctx.fillStyle=NG_P("#9a8fc7");ctx.font="13px ui-monospace,monospace";
+  ctx.fillText("Computer opponents (official UNO seats 2-10 players)",W/2,H/2+16);
+  menuBtns().forEach(b=>{
+    rr(b.x,b.y,b.w,b.h,8);
+    ctx.fillStyle=NG_CLASSIC()?"rgba(255,255,255,.12)":"rgba(255,255,255,.05)";ctx.fill();
+    ctx.lineWidth=2;ctx.strokeStyle=NG_P("#8b5cf6");ctx.stroke();
+    ctx.fillStyle=NG_P("#22e6ff");ctx.font="700 20px ui-monospace,monospace";
+    ctx.textBaseline="middle";ctx.fillText(String(b.n),b.x+b.w/2,b.y+b.h/2+1);ctx.textBaseline="alphabetic";
+  });
+}
+function diffBtns(){
+  const labels=[["easy","EASY"],["medium","MEDIUM"],["hard","HARD"]];
+  const w=Math.min(96,(W-80)/3),h=36,gap=14,total=3*w+2*gap,x0=W/2-total/2,y=H/2-54;
+  return labels.map(([d,label],i)=>({d,label,x:x0+i*(w+gap),y,w,h}));
+}
+function menuBtns(){
+  const w=Math.min(58,(W-60)/5-10),h=48,gap=12;
+  const rows=[[1,2,3,4,5],[6,7,8,9]];
+  const out=[];
+  rows.forEach((row,ri)=>{
+    const total=row.length*w+(row.length-1)*gap,x0=W/2-total/2,y=H/2+34+ri*(h+12);
+    row.forEach((n,i)=>out.push({n,x:x0+i*(w+gap),y,w,h}));
+  });
+  return out;
+}
+function drawPicker(){
+  ctx.fillStyle="rgba(0,0,0,0.6)";ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=NG_P("#e8e4ff");ctx.font="700 18px ui-monospace,monospace";
+  ctx.fillText("CHOOSE A COLOR",W/2,H/2-70);
+  pickBtns().forEach(b=>{
+    rr(b.x,b.y,b.w,b.h,10);
+    ctx.fillStyle=suitColor(b.ci);
+    if(!NG_CLASSIC()){ctx.shadowBlur=18;ctx.shadowColor=suitColor(b.ci);}
+    ctx.fill();ctx.shadowBlur=0;
+    ctx.lineWidth=2;ctx.strokeStyle="rgba(255,255,255,.7)";ctx.stroke();
+  });
+}
+function pickBtns(){
+  const w=64,h=64,gap=18,total=4*w+3*gap,x0=W/2-total/2,y=H/2-40;
+  return [0,1,2,3].map((ci,i)=>({ci,x:x0+i*(w+gap),y,w,h}));
+}
+function stepWinFx(dt){
+  /* UNO victory: the deck erupts — cards rain in the four colors,
+     spinning and bouncing off the table edge like a thrown-down hand */
+  const fx=G.winFx;if(!fx)return;
+  fx.t+=dt;fx.spawn-=dt;
+  const {cw,ch}=cardSize(),w=cw*0.8,h=ch*0.8;
+  if(fx.spawn<=0&&fx.cards.length<70){
+    fx.spawn=0.06;
+    const vals=[0,1,2,3,4,5,6,7,8,9,"S","R","D2"];
+    const roll=Math.random();
+    const cd=roll<0.12?{c:4,v:roll<0.06?"W":"W4"}:{c:(Math.random()*4)|0,v:vals[(Math.random()*vals.length)|0]};
+    fx.cards.push({cd,x:W/2+(Math.random()-0.5)*60,y:H/2-40,
+      vx:(Math.random()-0.5)*520,vy:-250-Math.random()*350,
+      a:Math.random()*6.28,va:(Math.random()-0.5)*9,bounces:0});
+  }
+  for(let i=fx.cards.length-1;i>=0;i--){
+    const c=fx.cards[i];
+    c.vy+=900*dt;c.x+=c.vx*dt;c.y+=c.vy*dt;c.a+=c.va*dt;
+    if(c.y>H-h/2&&c.vy>0){c.y=H-h/2;c.vy*=-0.55;c.vx*=0.8;c.va*=0.8;c.bounces++;}
+    if(c.x<-w*2||c.x>W+w*2||c.bounces>4)fx.cards.splice(i,1);
+  }
+  for(const c of fx.cards){
+    ctx.save();ctx.translate(c.x,c.y);ctx.rotate(c.a);
+    drawCardFace(-w/2,-h/2,w,h,c.cd,false);
+    ctx.restore();
+  }
+  /* pulsing UNO! letters behind the panel */
+  const pulse=1+Math.sin(fx.t*5)*0.08;
+  ctx.save();ctx.translate(W/2,H*0.2);ctx.scale(pulse,pulse);
+  ctx.font="700 "+Math.min(90,W*0.16)+"px ui-monospace,monospace";
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  const word="UNO!";
+  let tw=ctx.measureText(word).width,xx=-tw/2;
+  for(let i=0;i<word.length;i++){
+    const cwd=ctx.measureText(word[i]).width,col=suitColor(i%4);
+    if(!NG_CLASSIC()){ctx.shadowBlur=26;ctx.shadowColor=col;}
+    ctx.fillStyle=col;ctx.fillText(word[i],xx+cwd/2,0);
+    xx+=cwd;
+  }
+  ctx.restore();ctx.shadowBlur=0;
+}
+function drawOver(){
+  const o=G.over,won=o.winner===G.players[0];
+  ctx.fillStyle=NG_P("rgba(20,10,43,.92)");ctx.fillRect(0,H/2-90,W,180);
+  ctx.fillStyle=won?NG_P("#ffc857"):NG_P("#ff2ea6");
+  ctx.font="700 30px ui-monospace,monospace";
+  if(!NG_CLASSIC()){ctx.shadowBlur=22;ctx.shadowColor=won?NG_P("#ffc857"):NG_P("#ff2ea6");}
+  ctx.fillText(won?"YOU WIN!":o.winner.name+" WINS",W/2,H/2-30);ctx.shadowBlur=0;
+  ctx.fillStyle=NG_P("#e8e4ff");ctx.font="14px ui-monospace,monospace";
+  ctx.fillText(won?"SCORE "+o.pts+" \u2014 from opponents' cards":"Better luck next hand",W/2,H/2+4);
+  ctx.fillStyle=NG_P("#9a8fc7");ctx.font="12px ui-monospace,monospace";
+  ctx.fillText("TAP TO PLAY AGAIN",W/2,H/2+40);
+}
+
+/* ---------- Input ---------- */
+function pt(e){const r=cvs.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top};}
+function hit(p,b){return p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h;}
+function onTap(e){
+  const p=pt(e);
+  if(G.state===S.MENU){
+    for(const b of diffBtns())if(hit(p,b)){G.diff=b.d;AudioFX.play();return;}
+    for(const b of menuBtns())if(hit(p,b)){newGame(b.n);return;}
+    return;
+  }
+  if(G.state===S.OVER){G.state=S.MENU;return;}
+  if(G.state===S.PICK){
+    for(const b of pickBtns())if(hit(p,b)){
+      const idx=pickIdx;pickIdx=-1;G.state=S.PLAYING;
+      playCard(G.players[0],idx,b.ci);return;
+    }
+    return;
+  }
+  if(G.turn!==0)return;
+  /* hand: scan right-to-left so overlapping fans pick the visible card */
+  const hl=handLayout(),me=G.players[0];
+  for(let i=me.hand.length-1;i>=0;i--){
+    const b={x:hl.x0+i*hl.step,y:hl.y-14,w:(i===me.hand.length-1?hl.cw:hl.step),h:hl.ch+14};
+    if(hit(p,b)){humanPlay(i);return;}
+  }
+  const pr=pileRects();
+  if(hit(p,pr.deck)){humanDraw();return;}
+}
+cvs.addEventListener("mousedown",onTap);
+cvs.addEventListener("touchstart",e=>{e.preventDefault();onTap(e);},{passive:false});
+
+/* ---------- Loop ---------- */
+let lastT=0;
+function frame(t){
+  requestAnimationFrame(frame);
+  resize();
+  const dt=Math.min(0.05,(t-lastT)/1000||0.016);lastT=t;
+  /* chime once each time the turn comes back to you */
+  if(G.state===S.PLAYING&&G.turn===0&&!G.chimed){G.chimed=true;AudioFX.turn();}
+  if(G.turn!==0)G.chimed=false;
+  if(G.state===S.PLAYING&&G.players[G.turn]&&G.players[G.turn].ai){
+    G.aiT-=dt;
+    if(G.aiT<=0){aiTurn(G.players[G.turn]);G.aiT=1.5;}
+  }
+  draw(dt);
+}
+requestAnimationFrame(frame);
+GameBridge.ready();
+})();
+</script>
+</template>
+
 <template id="game-mine-sweeper">
 <meta charset="UTF-8">
 <style>
@@ -8852,6 +9469,7 @@ const REGISTRY=[
   {id:"gridfall",    title:"Gridfall",    genre:"Puzzle", src:"embedded:gridfall"},
   {id:"neon-mahjong",title:"Mahjong",genre:"Puzzle", src:"embedded:neon-mahjong"},
   {id:"neon-solitaire",title:"Solitaire",genre:"Strategy",src:"embedded:neon-solitaire"},
+  {id:"neon-uno",title:"UNO",genre:"Strategy",src:"embedded:neon-uno"},
   {id:"freecell",    title:"FreeCell",genre:"Strategy",src:"embedded:freecell"},
   {id:"mine-sweeper",title:"Mine Sweeper",genre:"Puzzle",src:"embedded:mine-sweeper"},
   {id:"word-search",title:"Word Grid 10K",genre:"Puzzle",src:"embedded:word-search"},
@@ -9147,7 +9765,7 @@ const THEME_SNIPPET = `
 <\/script>`;
 
 /* Games that ship their own full classic skin; all others get the CRT filter */
-const NATIVE_CLASSIC = new Set(["neon-chess","pyramid-13","mine-sweeper","freecell","neon-solitaire","neon-mahjong","word-search","gridfall","maze-runner","photon-pop","boilerplate","space-cadet","gem-drop"]);
+const NATIVE_CLASSIC = new Set(["neon-chess","neon-uno","pyramid-13","mine-sweeper","freecell","neon-solitaire","neon-mahjong","word-search","gridfall","maze-runner","photon-pop","boilerplate","space-cadet","gem-drop"]);
 
 /* ---------- External ROM score link ----------
    WASM ports (e.g. Space Cadet) keep their high-score table in an ini
