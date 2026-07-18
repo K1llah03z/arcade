@@ -1853,12 +1853,45 @@ requestAnimationFrame(frame);
 /* Classic-theme palette shim: NG_P maps neon colors to classic ones when
    the hub sets data-theme="light". Neon mode passes colors through untouched. */
 const NG_CLASSIC = () => document.documentElement.getAttribute("data-theme") === "light";
-const NG_MAP = {
-  "#05030c":"#0a8a0a",
-  "#ff2ea6":"#ffd700","#ff8dcf":"#ffd700","#ffc857":"#ffd700","#e0619c":"#c00000",
-  "#9a8fc7":"#d9f2d9","#e8e4ff":"#ffffff"
+const NG_FELTS={
+  "":{deep:"#0a8a0a",panel:"rgba(4,70,4,.92)",dim:"#d9f2d9",gold:"#ffd700",b1:"#1040a0",b2:"#0a2f80"},
+  "green":{deep:"#0a8a0a",panel:"rgba(4,70,4,.92)",dim:"#d9f2d9",gold:"#ffd700",b1:"#1040a0",b2:"#0a2f80"},
+  "red":{deep:"#8a0a0a",panel:"rgba(70,4,4,.92)",dim:"#f2d9d9",gold:"#ffd700",b1:"#a01010",b2:"#800a0a"},
+  "pink":{deep:"#8a0a5a",panel:"rgba(70,4,42,.92)",dim:"#f2d9ea",gold:"#ffd700",b1:"#a0106a",b2:"#800a52"},
+  "blue":{deep:"#0a2a8a",panel:"rgba(4,22,70,.92)",dim:"#d9e2f2",gold:"#ffd700",b1:"#1040a0",b2:"#0a2f80"},
+  "yellow":{deep:"#7a7a0a",panel:"rgba(62,62,4,.92)",dim:"#f2f2d9",gold:"#ffffff",b1:"#8a8a10",b2:"#6b6b0a"},
+  "orange":{deep:"#8a4a0a",panel:"rgba(70,36,4,.92)",dim:"#f2e5d9",gold:"#ffd700",b1:"#a05a10",b2:"#80460a"},
+  "purple":{deep:"#4a0a8a",panel:"rgba(38,4,70,.92)",dim:"#e5d9f2",gold:"#ffd700",b1:"#5a10a0",b2:"#460a80"}
 };
-const NG_P = c => (NG_CLASSIC() && NG_MAP[c]) || c;
+const NG_NEONS={
+  red:{p:"#ff2e2e",l:"#ff8a8a",a:"#ffc4c4",deep:"#180505",dsq:"#3e0f0f",lsq:"#2a0808",pc:"#4d1414",dim:"#c78f8f",prgb:"255,46,46",lrgb:"255,138,138",panel:"rgba(43,10,10,.92)"},
+  green:{p:"#39ff14",l:"#8aff70",a:"#ccffcc",deep:"#041505",dsq:"#0f3e16",lsq:"#082a0e",pc:"#144d1e",dim:"#8fc79a",prgb:"57,255,20",lrgb:"138,255,112",panel:"rgba(8,38,12,.92)"},
+  blue:{p:"#2e6bff",l:"#6ea8ff",a:"#bcd6ff",deep:"#050a18",dsq:"#0f1c3e",lsq:"#08122a",pc:"#14254d",dim:"#8fa3c7",prgb:"46,107,255",lrgb:"110,168,255",panel:"rgba(10,20,43,.92)"},
+  yellow:{p:"#ffee32",l:"#fff78a",a:"#fffbc4",deep:"#171505",dsq:"#3e3a0f",lsq:"#2a2708",pc:"#4d4814",dim:"#c7c08f",prgb:"255,238,50",lrgb:"255,247,138",panel:"rgba(41,36,8,.92)"},
+  orange:{p:"#ff8c1a",l:"#ffb266",a:"#ffd9b0",deep:"#180d05",dsq:"#3e250f",lsq:"#2a1808",pc:"#4d3014",dim:"#c7ab8f",prgb:"255,140,26",lrgb:"255,178,102",panel:"rgba(43,23,8,.92)"},
+  purple:{p:"#a06bff",l:"#b794ff",a:"#ddccff",deep:"#0b0518",dsq:"#210f3e",lsq:"#16082a",pc:"#2c144d",dim:"#9a8fc7",prgb:"160,107,255",lrgb:"183,148,255",panel:"rgba(20,10,43,.92)"}
+};
+const NG_ACC=()=>document.documentElement.getAttribute("data-accent")||"";
+function NG_MAP(){
+  const f=NG_FELTS[NG_ACC()]||NG_FELTS[""];
+  return {
+    "#05030c":f.deep,
+    "#ff2ea6":f.gold,"#ff8dcf":f.gold,"#ffc857":f.gold,"#e0619c":"#c00000",
+    "#9a8fc7":f.dim,"#e8e4ff":"#ffffff"
+  };
+}
+function NG_NMAP(){
+  const n=NG_NEONS[NG_ACC()]; if(!n) return null; /* pink keeps original art */
+  return {
+    "#05030c":n.deep,
+    "#ff2ea6":n.p,"#ff8dcf":n.l,"#ffc857":n.a,"#e0619c":n.p,
+    "#9a8fc7":n.dim
+  };
+}
+const NG_P = c => {
+  if(NG_CLASSIC()) return NG_MAP()[c]||c;
+  const m=NG_NMAP(); return (m&&m[c])||c;
+};
 </script>
 <script>
 /* ================= GameBridge CLIENT STUB (v1.1 — adds save protocol) ================= */
@@ -2779,20 +2812,60 @@ requestAnimationFrame(frame);
 /* Classic-theme palette shim: NG_P maps neon colors to classic ones when
    the hub sets data-theme="light". Neon mode passes colors through untouched. */
 const NG_CLASSIC = () => document.documentElement.getAttribute("data-theme") === "light";
-const NG_MAP = {
-  "#160a33":"#0a8a0a","#05030c":"#0a8a0a",
-  "#1c0f3e":"#1040a0","#12082a":"#0a2f80","#8b5cf6":"#ffffff",
-  "rgba(34,230,255,.25)":"rgba(255,255,255,.4)",
-  "#f4f1ff":"#ffffff","#d8d2f0":"#ffffff",
-  "#22e6ff":"#ffffff","#ffc857":"#ffd700",
-  "#e11d6f":"#c00000","#241a4d":"#000000",
-  "rgba(139,92,246,.5)":"rgba(255,255,255,.5)",
-  "rgba(154,143,199,.5)":"rgba(255,255,255,.4)",
-  "#9a8fc7":"#d9f2d9","#ff2ea6":"#ffd700","#7CFF6B":"#c9f0c9","#e8e4ff":"#ffffff",
-  "rgba(20,10,43,.92)":"rgba(4,70,4,.92)",
-  "rgba(34,230,255,.15)":"rgba(255,255,255,.15)"
+const NG_FELTS={
+  "":{deep:"#0a8a0a",panel:"rgba(4,70,4,.92)",dim:"#d9f2d9",gold:"#ffd700",b1:"#1040a0",b2:"#0a2f80"},
+  "green":{deep:"#0a8a0a",panel:"rgba(4,70,4,.92)",dim:"#d9f2d9",gold:"#ffd700",b1:"#1040a0",b2:"#0a2f80"},
+  "red":{deep:"#8a0a0a",panel:"rgba(70,4,4,.92)",dim:"#f2d9d9",gold:"#ffd700",b1:"#a01010",b2:"#800a0a"},
+  "pink":{deep:"#8a0a5a",panel:"rgba(70,4,42,.92)",dim:"#f2d9ea",gold:"#ffd700",b1:"#a0106a",b2:"#800a52"},
+  "blue":{deep:"#0a2a8a",panel:"rgba(4,22,70,.92)",dim:"#d9e2f2",gold:"#ffd700",b1:"#1040a0",b2:"#0a2f80"},
+  "yellow":{deep:"#7a7a0a",panel:"rgba(62,62,4,.92)",dim:"#f2f2d9",gold:"#ffffff",b1:"#8a8a10",b2:"#6b6b0a"},
+  "orange":{deep:"#8a4a0a",panel:"rgba(70,36,4,.92)",dim:"#f2e5d9",gold:"#ffd700",b1:"#a05a10",b2:"#80460a"},
+  "purple":{deep:"#4a0a8a",panel:"rgba(38,4,70,.92)",dim:"#e5d9f2",gold:"#ffd700",b1:"#5a10a0",b2:"#460a80"}
 };
-const NG_P = c => (NG_CLASSIC() && NG_MAP[c]) || c;
+const NG_NEONS={
+  red:{p:"#ff2e2e",l:"#ff8a8a",a:"#ffc4c4",deep:"#180505",dsq:"#3e0f0f",lsq:"#2a0808",pc:"#4d1414",dim:"#c78f8f",prgb:"255,46,46",lrgb:"255,138,138",panel:"rgba(43,10,10,.92)"},
+  green:{p:"#39ff14",l:"#8aff70",a:"#ccffcc",deep:"#041505",dsq:"#0f3e16",lsq:"#082a0e",pc:"#144d1e",dim:"#8fc79a",prgb:"57,255,20",lrgb:"138,255,112",panel:"rgba(8,38,12,.92)"},
+  blue:{p:"#2e6bff",l:"#6ea8ff",a:"#bcd6ff",deep:"#050a18",dsq:"#0f1c3e",lsq:"#08122a",pc:"#14254d",dim:"#8fa3c7",prgb:"46,107,255",lrgb:"110,168,255",panel:"rgba(10,20,43,.92)"},
+  yellow:{p:"#ffee32",l:"#fff78a",a:"#fffbc4",deep:"#171505",dsq:"#3e3a0f",lsq:"#2a2708",pc:"#4d4814",dim:"#c7c08f",prgb:"255,238,50",lrgb:"255,247,138",panel:"rgba(41,36,8,.92)"},
+  orange:{p:"#ff8c1a",l:"#ffb266",a:"#ffd9b0",deep:"#180d05",dsq:"#3e250f",lsq:"#2a1808",pc:"#4d3014",dim:"#c7ab8f",prgb:"255,140,26",lrgb:"255,178,102",panel:"rgba(43,23,8,.92)"},
+  purple:{p:"#a06bff",l:"#b794ff",a:"#ddccff",deep:"#0b0518",dsq:"#210f3e",lsq:"#16082a",pc:"#2c144d",dim:"#9a8fc7",prgb:"160,107,255",lrgb:"183,148,255",panel:"rgba(20,10,43,.92)"}
+};
+const NG_ACC=()=>document.documentElement.getAttribute("data-accent")||"";
+function NG_MAP(){
+  const f=NG_FELTS[NG_ACC()]||NG_FELTS[""];
+  return {
+    "#160a33":f.deep,"#05030c":f.deep,
+    "#1c0f3e":f.b1,"#12082a":f.b2,"#8b5cf6":"#ffffff",
+    "rgba(34,230,255,.25)":"rgba(255,255,255,.4)",
+    "#f4f1ff":"#ffffff","#d8d2f0":"#ffffff",
+    "#22e6ff":"#ffffff","#ffc857":f.gold,
+    "#e11d6f":"#c00000","#241a4d":"#000000",
+    "rgba(139,92,246,.5)":"rgba(255,255,255,.5)",
+    "rgba(154,143,199,.5)":"rgba(255,255,255,.4)",
+    "#9a8fc7":f.dim,"#ff2ea6":f.gold,"#7CFF6B":f.dim,"#e8e4ff":"#ffffff",
+    "rgba(20,10,43,.92)":f.panel,
+    "rgba(34,230,255,.15)":"rgba(255,255,255,.15)"
+  };
+}
+function NG_NMAP(){
+  const n=NG_NEONS[NG_ACC()]; if(!n) return null; /* pink keeps original art */
+  return {
+    "#160a33":n.deep,"#05030c":n.deep,
+    "#1c0f3e":n.dsq,"#12082a":n.lsq,"#8b5cf6":n.p,
+    "rgba(34,230,255,.25)":"rgba("+n.lrgb+",.25)",
+    "#22e6ff":n.l,"#ffc857":n.a,
+    "#241a4d":n.pc,
+    "rgba(139,92,246,.5)":"rgba("+n.prgb+",.5)",
+    "rgba(154,143,199,.5)":"rgba("+n.lrgb+",.5)",
+    "#9a8fc7":n.dim,"#ff2ea6":n.p,"#7CFF6B":n.a,
+    "rgba(20,10,43,.92)":n.panel,
+    "rgba(34,230,255,.15)":"rgba("+n.lrgb+",.15)"
+  };
+}
+const NG_P = c => {
+  if(NG_CLASSIC()) return NG_MAP()[c]||c;
+  const m=NG_NMAP(); return (m&&m[c])||c;
+};
 </script>
 <script>
 /* ================= GameBridge CLIENT STUB (v1) ================= */
@@ -4485,15 +4558,28 @@ requestAnimationFrame(frame);
     border:1px solid var(--vio);color:var(--ink);padding:9px 20px;border-radius:20px;font-size:14px;opacity:0;
     transition:opacity .3s;z-index:65;pointer-events:none;box-shadow:0 0 16px rgba(139,92,246,.4)}
   #toastMsg.show{opacity:1}
+  /* ===== Accent variants (hub-selected color) ===== */
+  [data-accent="red"]{--bg:#180505;--panel:#2b0a0a;--cardbg:#2f1010;--line:#5e1b1b;--mag:#ff2e2e;--cyn:#ff8a8a;--vio:#ff5c5c;--amb:#ffc4c4;--dim:#c78f8f}
+  [data-accent="green"]{--bg:#041505;--panel:#08260c;--cardbg:#0f2f14;--line:#1b5e26;--mag:#39ff14;--cyn:#8aff70;--vio:#27e65c;--amb:#ccffcc;--dim:#8fc79a}
+  [data-accent="blue"]{--bg:#050a18;--panel:#0a142b;--cardbg:#101c2f;--line:#1b2f5e;--mag:#2e6bff;--cyn:#6ea8ff;--vio:#4f8cff;--amb:#bcd6ff;--dim:#8fa3c7}
+  [data-accent="yellow"]{--bg:#171505;--panel:#292408;--cardbg:#2f2b10;--line:#5e551b;--mag:#ffee32;--cyn:#fff78a;--vio:#ffd700;--amb:#fffbc4;--dim:#c7c08f}
+  [data-accent="orange"]{--bg:#180d05;--panel:#2b1708;--cardbg:#2f1f10;--line:#5e3a1b;--mag:#ff8c1a;--cyn:#ffb266;--vio:#ff9f40;--amb:#ffd9b0;--dim:#c7ab8f}
+  [data-accent="purple"]{--bg:#0b0518;--panel:#140a2b;--cardbg:#17102f;--line:#2c1b5e;--mag:#a06bff;--cyn:#b794ff;--vio:#8b5cf6;--amb:#ddccff;--dim:#9a8fc7}
   /* ===== CLASSIC skin (light theme): green felt, white cards, red/black suits ===== */
   [data-theme="light"]{--bg:#0a8a0a;--panel:#067806;--cardbg:#ffffff;--line:#045c04;
     --mag:#c00000;--cyn:#ffffff;--vio:#d9f2d9;--amb:#ffd700;--ink:#ffffff;--dim:#d9f2d9}
+  [data-theme="light"][data-accent="red"]{--bg:#8a0a0a;--panel:#780606;--line:#5c0404;--vio:#f2d9d9;--dim:#f2d9d9}
+  [data-theme="light"][data-accent="pink"]{--bg:#8a0a5a;--panel:#780650;--line:#5c0438;--vio:#f2d9ea;--dim:#f2d9ea}
+  [data-theme="light"][data-accent="blue"]{--bg:#0a2a8a;--panel:#062078;--line:#04175c;--vio:#d9e2f2;--dim:#d9e2f2}
+  [data-theme="light"][data-accent="yellow"]{--bg:#7a7a0a;--panel:#6b6b06;--line:#4d4d04;--vio:#f2f2d9;--dim:#f2f2d9;--amb:#ffffff}
+  [data-theme="light"][data-accent="orange"]{--bg:#8a4a0a;--panel:#783e06;--line:#5c3004;--vio:#f2e5d9;--dim:#f2e5d9}
+  [data-theme="light"][data-accent="purple"]{--bg:#4a0a8a;--panel:#3e0678;--line:#30045c;--vio:#e5d9f2;--dim:#e5d9f2}
   [data-theme="light"] *{text-shadow:none!important}
   [data-theme="light"] #wrap{background:var(--bg)}
   [data-theme="light"] #wrap:before{display:none}
   [data-theme="light"] #topbar,[data-theme="light"] #botbar{background:var(--panel);backdrop-filter:none}
   [data-theme="light"] #gameName{color:#fff}
-  [data-theme="light"] .tbtn{background:#0c930c;color:#fff;border-color:var(--line)}
+  [data-theme="light"] .tbtn{background:color-mix(in srgb, var(--bg) 88%, #fff);color:#fff;border-color:var(--line)}
   [data-theme="light"] .green{border-color:#fff;color:#fff}
   [data-theme="light"] .blue{border-color:#ffd700;color:#ffd700}
   [data-theme="light"] .green:hover,[data-theme="light"] .blue:hover,[data-theme="light"] .pill button:hover,
@@ -5262,20 +5348,60 @@ newDeal(randDeal());
 /* Classic-theme palette shim: NG_P maps neon colors to classic ones when
    the hub sets data-theme="light". Neon mode passes colors through untouched. */
 const NG_CLASSIC = () => document.documentElement.getAttribute("data-theme") === "light";
-const NG_MAP = {
-  "#160a33":"#0a8a0a","#05030c":"#0a8a0a",
-  "#1c0f3e":"#1040a0","#12082a":"#0a2f80","#8b5cf6":"#ffffff",
-  "rgba(34,230,255,.25)":"rgba(255,255,255,.4)",
-  "#f4f1ff":"#ffffff","#d8d2f0":"#ffffff",
-  "#22e6ff":"#ffffff","#ffc857":"#ffd700",
-  "#e11d6f":"#c00000","#241a4d":"#000000",
-  "rgba(139,92,246,.5)":"rgba(255,255,255,.5)",
-  "rgba(154,143,199,.5)":"rgba(255,255,255,.4)",
-  "#9a8fc7":"#d9f2d9","#ff2ea6":"#ffd700","#7CFF6B":"#c9f0c9","#e8e4ff":"#ffffff",
-  "rgba(20,10,43,.92)":"rgba(4,70,4,.92)",
-  "rgba(34,230,255,.15)":"rgba(255,255,255,.15)"
+const NG_FELTS={
+  "":{deep:"#0a8a0a",panel:"rgba(4,70,4,.92)",dim:"#d9f2d9",gold:"#ffd700",b1:"#1040a0",b2:"#0a2f80"},
+  "green":{deep:"#0a8a0a",panel:"rgba(4,70,4,.92)",dim:"#d9f2d9",gold:"#ffd700",b1:"#1040a0",b2:"#0a2f80"},
+  "red":{deep:"#8a0a0a",panel:"rgba(70,4,4,.92)",dim:"#f2d9d9",gold:"#ffd700",b1:"#a01010",b2:"#800a0a"},
+  "pink":{deep:"#8a0a5a",panel:"rgba(70,4,42,.92)",dim:"#f2d9ea",gold:"#ffd700",b1:"#a0106a",b2:"#800a52"},
+  "blue":{deep:"#0a2a8a",panel:"rgba(4,22,70,.92)",dim:"#d9e2f2",gold:"#ffd700",b1:"#1040a0",b2:"#0a2f80"},
+  "yellow":{deep:"#7a7a0a",panel:"rgba(62,62,4,.92)",dim:"#f2f2d9",gold:"#ffffff",b1:"#8a8a10",b2:"#6b6b0a"},
+  "orange":{deep:"#8a4a0a",panel:"rgba(70,36,4,.92)",dim:"#f2e5d9",gold:"#ffd700",b1:"#a05a10",b2:"#80460a"},
+  "purple":{deep:"#4a0a8a",panel:"rgba(38,4,70,.92)",dim:"#e5d9f2",gold:"#ffd700",b1:"#5a10a0",b2:"#460a80"}
 };
-const NG_P = c => (NG_CLASSIC() && NG_MAP[c]) || c;
+const NG_NEONS={
+  red:{p:"#ff2e2e",l:"#ff8a8a",a:"#ffc4c4",deep:"#180505",dsq:"#3e0f0f",lsq:"#2a0808",pc:"#4d1414",dim:"#c78f8f",prgb:"255,46,46",lrgb:"255,138,138",panel:"rgba(43,10,10,.92)"},
+  green:{p:"#39ff14",l:"#8aff70",a:"#ccffcc",deep:"#041505",dsq:"#0f3e16",lsq:"#082a0e",pc:"#144d1e",dim:"#8fc79a",prgb:"57,255,20",lrgb:"138,255,112",panel:"rgba(8,38,12,.92)"},
+  blue:{p:"#2e6bff",l:"#6ea8ff",a:"#bcd6ff",deep:"#050a18",dsq:"#0f1c3e",lsq:"#08122a",pc:"#14254d",dim:"#8fa3c7",prgb:"46,107,255",lrgb:"110,168,255",panel:"rgba(10,20,43,.92)"},
+  yellow:{p:"#ffee32",l:"#fff78a",a:"#fffbc4",deep:"#171505",dsq:"#3e3a0f",lsq:"#2a2708",pc:"#4d4814",dim:"#c7c08f",prgb:"255,238,50",lrgb:"255,247,138",panel:"rgba(41,36,8,.92)"},
+  orange:{p:"#ff8c1a",l:"#ffb266",a:"#ffd9b0",deep:"#180d05",dsq:"#3e250f",lsq:"#2a1808",pc:"#4d3014",dim:"#c7ab8f",prgb:"255,140,26",lrgb:"255,178,102",panel:"rgba(43,23,8,.92)"},
+  purple:{p:"#a06bff",l:"#b794ff",a:"#ddccff",deep:"#0b0518",dsq:"#210f3e",lsq:"#16082a",pc:"#2c144d",dim:"#9a8fc7",prgb:"160,107,255",lrgb:"183,148,255",panel:"rgba(20,10,43,.92)"}
+};
+const NG_ACC=()=>document.documentElement.getAttribute("data-accent")||"";
+function NG_MAP(){
+  const f=NG_FELTS[NG_ACC()]||NG_FELTS[""];
+  return {
+    "#160a33":f.deep,"#05030c":f.deep,
+    "#1c0f3e":f.b1,"#12082a":f.b2,"#8b5cf6":"#ffffff",
+    "rgba(34,230,255,.25)":"rgba(255,255,255,.4)",
+    "#f4f1ff":"#ffffff","#d8d2f0":"#ffffff",
+    "#22e6ff":"#ffffff","#ffc857":f.gold,
+    "#e11d6f":"#c00000","#241a4d":"#000000",
+    "rgba(139,92,246,.5)":"rgba(255,255,255,.5)",
+    "rgba(154,143,199,.5)":"rgba(255,255,255,.4)",
+    "#9a8fc7":f.dim,"#ff2ea6":f.gold,"#7CFF6B":f.dim,"#e8e4ff":"#ffffff",
+    "rgba(20,10,43,.92)":f.panel,
+    "rgba(34,230,255,.15)":"rgba(255,255,255,.15)"
+  };
+}
+function NG_NMAP(){
+  const n=NG_NEONS[NG_ACC()]; if(!n) return null; /* pink keeps original art */
+  return {
+    "#160a33":n.deep,"#05030c":n.deep,
+    "#1c0f3e":n.dsq,"#12082a":n.lsq,"#8b5cf6":n.p,
+    "rgba(34,230,255,.25)":"rgba("+n.lrgb+",.25)",
+    "#22e6ff":n.l,"#ffc857":n.a,
+    "#241a4d":n.pc,
+    "rgba(139,92,246,.5)":"rgba("+n.prgb+",.5)",
+    "rgba(154,143,199,.5)":"rgba("+n.lrgb+",.5)",
+    "#9a8fc7":n.dim,"#ff2ea6":n.p,"#7CFF6B":n.a,
+    "rgba(20,10,43,.92)":n.panel,
+    "rgba(34,230,255,.15)":"rgba("+n.lrgb+",.15)"
+  };
+}
+const NG_P = c => {
+  if(NG_CLASSIC()) return NG_MAP()[c]||c;
+  const m=NG_NMAP(); return (m&&m[c])||c;
+};
 </script>
 <script>
 /* ================= GameBridge CLIENT STUB (v1) ================= */
@@ -5695,22 +5821,67 @@ GameBridge.ready();
 /* Classic-theme palette shim: NG_P maps neon colors to classic ones when
    the hub sets data-theme="light". Neon mode passes colors through untouched. */
 const NG_CLASSIC = () => document.documentElement.getAttribute("data-theme") === "light";
-const NG_MAP = {
-  "#160a33":"#0a8a0a","#05030c":"#0a8a0a",
-  "#1c0f3e":"#769656","#12082a":"#eeeed2",
-  "#241a4d":"#000000","#f4f1ff":"#ffffff",
-  "#8b5cf6":"#5a7a3a",
-  "#22e6ff":"#ffffff","#ffc857":"#ffd700",
-  "#e11d6f":"#c00000",
-  "rgba(34,230,255,.9)":"rgba(255,255,0,.9)",
-  "rgba(255,200,87,.9)":"rgba(255,215,0,.95)",
-  "rgba(255,46,166,.85)":"rgba(200,0,0,.85)",
-  "rgba(124,255,107,.5)":"rgba(0,0,0,.35)",
-  "#9a8fc7":"#d9f2d9","#ff2ea6":"#ffd700","#7CFF6B":"#c9f0c9","#e8e4ff":"#ffffff",
-  "rgba(20,10,43,.94)":"rgba(4,70,4,.94)",
-  "rgba(20,10,43,.75)":"rgba(4,70,4,.75)"
+/* Classic felt variants: felt + board tints per accent */
+const NG_FELTS={
+  "":     {deep:"#0a8a0a",p94:"rgba(4,70,4,.94)",  p75:"rgba(4,70,4,.75)",  dim:"#d9f2d9",dark:"#769656",hl:"#5a7a3a",gold:"#ffd700"},
+  green:  {deep:"#0a8a0a",p94:"rgba(4,70,4,.94)",  p75:"rgba(4,70,4,.75)",  dim:"#d9f2d9",dark:"#769656",hl:"#5a7a3a",gold:"#ffd700"},
+  red:    {deep:"#8a0a0a",p94:"rgba(70,4,4,.94)",  p75:"rgba(70,4,4,.75)",  dim:"#f2d9d9",dark:"#a86464",hl:"#7a3a3a",gold:"#ffd700"},
+  pink:   {deep:"#8a0a5a",p94:"rgba(70,4,42,.94)", p75:"rgba(70,4,42,.75)", dim:"#f2d9ea",dark:"#b06a96",hl:"#7a3a64",gold:"#ffd700"},
+  blue:   {deep:"#0a2a8a",p94:"rgba(4,22,70,.94)", p75:"rgba(4,22,70,.75)", dim:"#d9e2f2",dark:"#6b8cbf",hl:"#3a5a7a",gold:"#ffd700"},
+  yellow: {deep:"#7a7a0a",p94:"rgba(62,62,4,.94)", p75:"rgba(62,62,4,.75)", dim:"#f2f2d9",dark:"#b0a85e",hl:"#7a743a",gold:"#ffffff"},
+  orange: {deep:"#8a4a0a",p94:"rgba(70,36,4,.94)", p75:"rgba(70,36,4,.75)", dim:"#f2e5d9",dark:"#c08a5a",hl:"#7a5a3a",gold:"#ffd700"},
+  purple: {deep:"#4a0a8a",p94:"rgba(38,4,70,.94)", p75:"rgba(38,4,70,.75)", dim:"#e5d9f2",dark:"#8a6bb0",hl:"#5a3a7a",gold:"#ffd700"}
 };
-const NG_P = c => (NG_CLASSIC() && NG_MAP[c]) || c;
+function NG_MAP(){
+  const a=document.documentElement.getAttribute("data-accent")||"";
+  const f=NG_FELTS[a]||NG_FELTS[""];
+  return {
+    "#160a33":f.deep,"#05030c":f.deep,
+    "#1c0f3e":f.dark,"#12082a":"#eeeed2",
+    "#241a4d":"#000000","#f4f1ff":"#ffffff",
+    "#8b5cf6":f.hl,
+    "#22e6ff":"#ffffff","#ffc857":f.gold,
+    "#e11d6f":"#c00000",
+    "rgba(34,230,255,.9)":"rgba(255,255,0,.9)",
+    "rgba(255,200,87,.9)":"rgba(255,215,0,.95)",
+    "rgba(255,46,166,.85)":"rgba(200,0,0,.85)",
+    "rgba(124,255,107,.5)":"rgba(0,0,0,.35)",
+    "#9a8fc7":f.dim,"#ff2ea6":f.gold,"#7CFF6B":f.dim,"#e8e4ff":"#ffffff",
+    "rgba(20,10,43,.94)":f.p94,
+    "rgba(20,10,43,.75)":f.p75
+  };
+}
+/* Neon accent variants: remap the game's pink/cyan art to the chosen hue */
+const NG_NEONS={
+  red:    {p:"#ff2e2e",l:"#ff8a8a",a:"#ffc4c4",deep:"#180505",dsq:"#3e0f0f",lsq:"#2a0808",pc:"#4d1414",dim:"#c78f8f",prgb:"255,46,46",lrgb:"255,138,138",p94:"rgba(43,10,10,.94)",p75:"rgba(43,10,10,.75)"},
+  green:  {p:"#39ff14",l:"#8aff70",a:"#ccffcc",deep:"#041505",dsq:"#0f3e16",lsq:"#082a0e",pc:"#144d1e",dim:"#8fc79a",prgb:"57,255,20",lrgb:"138,255,112",p94:"rgba(8,38,12,.94)",p75:"rgba(8,38,12,.75)"},
+  blue:   {p:"#2e6bff",l:"#6ea8ff",a:"#bcd6ff",deep:"#050a18",dsq:"#0f1c3e",lsq:"#08122a",pc:"#14254d",dim:"#8fa3c7",prgb:"46,107,255",lrgb:"110,168,255",p94:"rgba(10,20,43,.94)",p75:"rgba(10,20,43,.75)"},
+  yellow: {p:"#ffee32",l:"#fff78a",a:"#fffbc4",deep:"#171505",dsq:"#3e3a0f",lsq:"#2a2708",pc:"#4d4814",dim:"#c7c08f",prgb:"255,238,50",lrgb:"255,247,138",p94:"rgba(41,36,8,.94)",p75:"rgba(41,36,8,.75)"},
+  orange: {p:"#ff8c1a",l:"#ffb266",a:"#ffd9b0",deep:"#180d05",dsq:"#3e250f",lsq:"#2a1808",pc:"#4d3014",dim:"#c7ab8f",prgb:"255,140,26",lrgb:"255,178,102",p94:"rgba(43,23,8,.94)",p75:"rgba(43,23,8,.75)"},
+  purple: {p:"#a06bff",l:"#b794ff",a:"#ddccff",deep:"#0b0518",dsq:"#210f3e",lsq:"#16082a",pc:"#2c144d",dim:"#9a8fc7",prgb:"160,107,255",lrgb:"183,148,255",p94:"rgba(20,10,43,.94)",p75:"rgba(20,10,43,.75)"}
+};
+function NG_NMAP(){
+  const a=document.documentElement.getAttribute("data-accent")||"";
+  const n=NG_NEONS[a]; if(!n) return null; /* pink (default) keeps original art */
+  return {
+    "#160a33":n.deep,"#05030c":n.deep,
+    "#1c0f3e":n.dsq,"#12082a":n.lsq,
+    "#241a4d":n.pc,
+    "#8b5cf6":n.p,
+    "#22e6ff":n.l,"#ffc857":n.a,
+    "#ff2ea6":n.p,"#7CFF6B":n.a,"#9a8fc7":n.dim,
+    "rgba(34,230,255,.9)":"rgba("+n.lrgb+",.9)",
+    "rgba(255,200,87,.9)":"rgba("+n.lrgb+",.9)",
+    "rgba(255,46,166,.85)":"rgba("+n.prgb+",.85)",
+    "rgba(124,255,107,.5)":"rgba("+n.lrgb+",.5)",
+    "rgba(20,10,43,.94)":n.p94,
+    "rgba(20,10,43,.75)":n.p75
+  };
+}
+const NG_P = c => {
+  if(NG_CLASSIC()) return NG_MAP()[c]||c;
+  const m=NG_NMAP(); return (m&&m[c])||c;
+};
 </script>
 <script>
 /* ================= GameBridge CLIENT STUB (v1) ================= */
