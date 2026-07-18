@@ -197,39 +197,79 @@ body.in-game .stage{background:#06030e}
   .stage-bar{flex-wrap:wrap;gap:8px;padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top))}
   .stage-bar .live{gap:10px;font-size:11px}
   .tab{padding:9px 12px;font-size:11px}
-  /* Leaderboard-first mobile layout: hide the card grid + genre tabs,
-     show the ranked roster instead */
-  nav.tabs{display:none}
-  .grid{display:none}
-  .roster{display:block}
-  main section.roster{display:block}
+  /* leaderboard roster is the layout at every width (see .roster rules) */
   header.masthead{align-items:flex-start}
   .logo{font-size:30px}
   .credits{font-size:11px}
 }
 
-/* ---------- Mobile ranked roster (leaderboard-first layout) ---------- */
-.roster{
-  display:none;border:1px solid var(--line);border-radius:8px;
-  background:var(--bg-panel);padding:14px;margin-bottom:22px;
+/* ---------- Tab-bar app layout (all screen sizes) ---------- */
+nav.tabs{display:none}
+.grid{display:none}
+.appview{max-width:720px;margin:0 auto}
+section.board{max-width:720px;margin-left:auto;margin-right:auto}
+.shell{padding-bottom:110px} /* room for the fixed tab bar */
+.appsearch{
+  display:block;width:100%;margin-bottom:12px;
+  appearance:none;border:1px solid var(--line);border-radius:8px;background:var(--bg-panel);
+  color:var(--ink);font-family:inherit;font-size:13px;padding:12px 14px;outline:none;
 }
-.roster h2{font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:var(--neon-cyan);margin-bottom:10px;text-shadow:0 0 8px rgba(34,230,255,.5)}
-.roster table{width:100%;border-collapse:collapse;font-size:12px}
-.roster td,.roster th{padding:10px 4px;text-align:left;border-bottom:1px dashed var(--line);color:var(--ink-dim)}
-.roster th{color:var(--ink);letter-spacing:.14em;text-transform:uppercase;font-size:9px}
-.roster td.rank{color:var(--neon-violet);width:2.2em}
-.roster td.game{color:var(--ink)}
-.roster td.game .sub{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--neon-violet);margin-top:3px}
-.roster td.score{color:var(--neon-amber);text-align:right;white-space:nowrap}
-.roster td.act{text-align:right;width:5.5em}
-.roster button.rplay{
+.appsearch::placeholder{color:var(--ink-dim)}
+.appsearch:focus{border-color:var(--neon-cyan);box-shadow:0 0 12px rgba(34,230,255,.25)}
+.applist{display:flex;flex-direction:column;gap:9px}
+.approw{
+  display:flex;align-items:center;gap:12px;
+  background:linear-gradient(160deg,var(--bg-card),#120a26);
+  border:1px solid var(--line);border-radius:8px;padding:11px 12px;
+}
+[data-theme="light"] .approw{background:var(--bg-card)}
+.approw .sq{
+  width:44px;height:44px;flex:none;border-radius:9px;border:1px solid var(--neon-cyan);color:var(--neon-cyan);
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;
+  text-shadow:0 0 8px rgba(34,230,255,.5);
+}
+.approw:nth-child(3n+2) .sq{border-color:var(--neon-magenta);color:var(--neon-magenta);text-shadow:0 0 8px rgba(255,46,166,.5)}
+.approw:nth-child(3n) .sq{border-color:var(--neon-amber);color:var(--neon-amber);text-shadow:0 0 8px rgba(255,200,87,.5)}
+.approw .nm{font-size:13px;color:var(--ink)}
+.approw .sub{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-dim);margin-top:4px}
+.approw .sub .g{color:var(--neon-violet)}
+.approw .sub b{color:var(--neon-amber)}
+.approw .end{margin-left:auto;display:flex;align-items:center;gap:8px}
+.approw .star{
+  appearance:none;background:none;border:0;cursor:pointer;font-size:17px;line-height:1;
+  color:var(--ink-dim);padding:6px;font-family:inherit;
+}
+.approw .star.on{color:var(--neon-amber);text-shadow:0 0 10px rgba(255,200,87,.7)}
+.approw .aplay{
   appearance:none;border:1px solid var(--neon-cyan);background:transparent;color:var(--neon-cyan);
-  font-family:inherit;font-size:10px;letter-spacing:.15em;text-transform:uppercase;
-  padding:6px 10px;border-radius:4px;cursor:pointer;
+  font-family:inherit;font-size:11px;letter-spacing:.1em;padding:8px 13px;border-radius:6px;cursor:pointer;
 }
-.roster button.rplay:active{background:var(--neon-cyan);color:#04101a}
-.roster tr:last-child td{border-bottom:0}
-[data-theme="light"] .roster h2{text-shadow:none}
+.approw .aplay:active{background:var(--neon-cyan);color:#04101a}
+.appempty{color:var(--ink-dim);font-size:12px;text-align:center;padding:30px 0;letter-spacing:.08em}
+.setpanel{border:1px solid var(--line);border-radius:8px;background:var(--bg-panel);padding:16px}
+.setpanel h2{font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:var(--neon-cyan);margin-bottom:14px;text-shadow:0 0 8px rgba(34,230,255,.5)}
+[data-theme="light"] .setpanel h2{text-shadow:none}
+.setrow{display:flex;align-items:center;gap:12px;padding:6px 0;color:var(--ink);font-size:13px}
+.setrow .theme-toggle{margin-top:0}
+.setnote{color:var(--ink-dim);font-size:10px;letter-spacing:.1em;margin-top:10px}
+.tabbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:60;
+  display:flex;justify-content:center;gap:0;
+  background:rgba(20,10,43,.97);border-top:1px solid var(--line);
+  padding:8px 0 calc(10px + env(safe-area-inset-bottom));
+  backdrop-filter:blur(6px);
+}
+[data-theme="light"] .tabbar{background:var(--bg-panel)}
+.tabbar button{
+  appearance:none;background:none;border:0;cursor:pointer;
+  flex:1;max-width:180px;text-align:center;
+  font-family:inherit;font-size:9px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--ink-dim);padding:4px 0;
+}
+.tabbar button .ic{display:block;font-size:19px;margin-bottom:3px}
+.tabbar button.on{color:var(--neon-cyan);text-shadow:0 0 8px var(--neon-cyan)}
+[data-theme="light"] .tabbar button.on{color:#fff;text-shadow:none}
+body.in-game .tabbar{display:none}
 footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);text-transform:uppercase;text-align:center}
 
 /* ---------- Theme toggle ---------- */
@@ -315,11 +355,24 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
   <nav class="tabs" role="tablist" aria-label="Game genres" id="tabs"></nav>
 
   <main>
-    <!-- Mobile-only leaderboard-style roster: every playable cabinet, ranked -->
-    <section class="roster" id="rosterWrap" aria-labelledby="rosterTitle">
-      <h2 id="rosterTitle">&#9733; Your Arcade &middot; Ranked</h2>
-      <div id="rosterBody"></div>
-    </section>
+    <!-- Tab-bar app layout: GAMES / SCORES / FAVES / SETTINGS -->
+    <div class="appview" id="viewGames">
+      <input class="appsearch" id="searchBox" type="search" placeholder="&#8981; Search games&hellip;" autocomplete="off">
+      <div class="applist" id="appList"></div>
+    </div>
+
+    <div class="appview" id="viewFaves" hidden>
+      <div class="applist" id="faveList"></div>
+      <div class="appempty" id="faveEmpty" hidden>No favorites yet &mdash; tap the &#9733; on any game.</div>
+    </div>
+
+    <div class="appview" id="viewSettings" hidden>
+      <div class="setpanel" id="settingsPanel">
+        <h2>&#9881; Settings</h2>
+        <div class="setrow" id="setThemeRow"></div>
+        <div class="setnote">Theme applies to the hub and every cabinet.</div>
+      </div>
+    </div>
 
     <div class="grid" id="grid" role="list"></div>
 
@@ -332,6 +385,14 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 
   <footer>Neon//Grid Hub <span id="hubVersion"></span> &middot; GameBridge protocol v1 &middot; all audio &amp; art generated at runtime</footer>
 </div>
+
+<!-- ===================== BOTTOM TAB BAR ===================== -->
+<nav class="tabbar" id="tabbar" aria-label="Main navigation">
+  <button type="button" data-view="games" class="on"><span class="ic">&#128377;</span>Games</button>
+  <button type="button" data-view="scores"><span class="ic">&#127942;</span>Scores</button>
+  <button type="button" data-view="faves"><span class="ic">&#9733;</span>Faves</button>
+  <button type="button" data-view="settings"><span class="ic">&#9881;</span>Settings</button>
+</nav>
 
 <!-- ===================== GAME STAGE (modal) ===================== -->
 <div class="stage" id="stage" role="dialog" aria-modal="true" aria-label="Game window">
@@ -8431,27 +8492,69 @@ function renderTabs(){
 }
 
 /* ---------- Grid ---------- */
-/* Mobile leaderboard-first roster: all playable cabinets, ranked by best score */
-function renderRoster(){
-  const body=document.getElementById("rosterBody");
-  if(!body)return;
-  const rows=REGISTRY.filter(r=>r.src)
-    .map(r=>({r,best:Store.best(r.id)}))
-    .sort((a,b)=>b.best-a.best);
-  let html="<table><tr><th></th><th>Game</th><th style='text-align:right'>Best</th><th></th></tr>";
-  rows.forEach((row,i)=>{
-    html+="<tr><td class='rank'>"+String(i+1).padStart(2,"0")+"</td>"+
-      "<td class='game'>"+row.r.title+"<div class='sub'>"+row.r.genre+"</div></td>"+
-      "<td class='score'>"+(row.best?row.best.toLocaleString():"&mdash;")+"</td>"+
-      "<td class='act'><button class='rplay' type='button' data-id='"+row.r.id+"'>Play &#9654;</button></td></tr>";
-  });
-  body.innerHTML=html+"</table>";
-  body.querySelectorAll(".rplay").forEach(b=>{
-    b.onclick=()=>{const g=REGISTRY.find(r=>r.id===b.dataset.id);if(g)launch(g);};
-  });
+/* Tab-bar app layout: GAMES (searchable list) / SCORES / FAVES / SETTINGS */
+const Faves={
+  KEY:"neonGrid.faves",
+  load(){try{return JSON.parse(localStorage.getItem(this.KEY))||[];}catch(e){return[];}},
+  save(a){try{localStorage.setItem(this.KEY,JSON.stringify(a));}catch(e){}},
+  has(id){return this.load().includes(id);},
+  toggle(id){const a=this.load();const i=a.indexOf(id);if(i>=0)a.splice(i,1);else a.push(id);this.save(a);return i<0;}
+};
+let appQuery="";
+function monogram(t){return t.replace(/[^A-Za-z0-9 ]/g,"").split(/\s+/).filter(Boolean).map(w=>w[0]).join("").slice(0,2).toUpperCase()||"?";}
+function appRow(r){
+  const best=Store.best(r.id);
+  const row=document.createElement("div");
+  row.className="approw";
+  row.innerHTML=
+    '<div class="sq">'+monogram(r.title)+'</div>'+
+    '<div><div class="nm">'+r.title+'</div>'+
+    '<div class="sub"><span class="g">'+r.genre+'</span> &middot; BEST <b>'+(best?best.toLocaleString():"&mdash;")+'</b></div></div>'+
+    '<div class="end"><button class="star'+(Faves.has(r.id)?" on":"")+'" type="button" aria-label="Toggle favorite">&#9733;</button>'+
+    '<button class="aplay" type="button">&#9654;</button></div>';
+  row.querySelector(".star").onclick=e=>{
+    const on=Faves.toggle(r.id);
+    e.target.classList.toggle("on",on);
+    renderAppLists();
+  };
+  row.querySelector(".aplay").onclick=()=>launch(r);
+  return row;
+}
+function renderAppLists(){
+  const listEl=document.getElementById("appList");
+  const faveEl=document.getElementById("faveList");
+  if(!listEl)return;
+  const playable=REGISTRY.filter(r=>r.src);
+  const q=appQuery.trim().toLowerCase();
+  listEl.innerHTML="";
+  playable
+    .filter(r=>!q||r.title.toLowerCase().includes(q)||r.genre.toLowerCase().includes(q))
+    .forEach(r=>listEl.appendChild(appRow(r)));
+  if(!listEl.children.length)listEl.innerHTML='<div class="appempty">No games match &ldquo;'+appQuery+'&rdquo;</div>';
+  const favs=playable.filter(r=>Faves.has(r.id));
+  faveEl.innerHTML="";
+  favs.forEach(r=>faveEl.appendChild(appRow(r)));
+  document.getElementById("faveEmpty").hidden=favs.length>0;
+}
+function showView(v){
+  document.getElementById("viewGames").hidden=v!=="games";
+  document.getElementById("viewFaves").hidden=v!=="faves";
+  document.getElementById("viewSettings").hidden=v!=="settings";
+  document.querySelector("section.board").hidden=v!=="scores";
+  document.querySelectorAll("#tabbar button").forEach(b=>b.classList.toggle("on",b.dataset.view===v));
+}
+function initAppShell(){
+  document.querySelectorAll("#tabbar button").forEach(b=>b.onclick=()=>showView(b.dataset.view));
+  const sb=document.getElementById("searchBox");
+  sb.addEventListener("input",()=>{appQuery=sb.value;renderAppLists();});
+  /* theme toggle lives in Settings now */
+  const tr=document.getElementById("setThemeRow");
+  const tt=document.getElementById("themeToggle");
+  if(tr&&tt){tr.appendChild(tt);tr.insertAdjacentHTML("afterbegin","<span>Color theme</span>");}
+  showView("games");
 }
 function renderGrid(){
-  renderRoster();
+  renderAppLists();
   gridEl.innerHTML="";
   REGISTRY.filter(r=>r.genre===activeTab).forEach(r=>{
     const card=document.createElement("div");
@@ -8906,6 +9009,7 @@ for(const g of ["gesturestart","gesturechange","gestureend"])
 document.addEventListener("contextmenu",e=>{ if(!(e.target instanceof HTMLInputElement)) e.preventDefault(); });
 
 /* ---------- Boot ---------- */
+initAppShell();
 renderTabs(); renderGrid(); renderBoard(); renderStats();
 })();
 </script>
