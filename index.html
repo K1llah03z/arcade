@@ -1645,15 +1645,32 @@ cvs.addEventListener("contextmenu",e=>e.preventDefault());
 /* ---------- Layout ---------- */
 let CELL=24,OX=0,OY=0,BTNS=[];
 const TOUCH=(window.matchMedia?matchMedia("(pointer: coarse)").matches:false)||("ontouchstart" in window);
+let RAIL=0;
 function layout(){
   const barH=TOUCH?Math.max(64,Math.min(96,H*0.12)):0;
-  CELL=Math.floor(Math.min((H-70-barH)/BH,(W-40)/(BW+8)));
-  OX=(W-(BW+7)*CELL)/2;OY=Math.max(34,(H-barH-BH*CELL)/2+12);
   if(TOUCH){
-    const n=6,gap=8,bw=Math.min(96,(W-gap*(n+1))/n),bh=barH-14,y=H-bh-8;
-    const x0=(W-(n*bw+(n-1)*gap))/2;
-    const defs=[["\u25C0","L"],["\u25B6","R"],["\u27F3","ROT"],["\u25BC","SOFT"],["\u2913","DROP"],["H","HOLD"]];
-    BTNS=defs.map(([label,act],i)=>({x:x0+i*(bw+gap),y,w:bw,h:bh,label,act,hot:false}));
+    /* mobile: wide board left, slim NEXT/HOLD rail down the right edge */
+    RAIL=Math.max(56,Math.min(88,W*0.16));
+    const topH=34;
+    CELL=Math.floor(Math.min((H-topH-barH-16)/BH,(W-RAIL-20)/BW));
+    OX=Math.max(8,(W-RAIL-BW*CELL)/2);
+    OY=topH+Math.max(0,((H-topH-barH)-BH*CELL)/2);
+    /* buttons: same size as before, regrouped  H \u27F3 | \u25C0 \u25BC \u25B6 | \u2913 */
+    const n=6,gap=8,gGap=14,bh=barH-14,y=H-bh-8;
+    const bw=Math.min(96,(W-gap*(n+1)-2*gGap)/n);
+    const x0=(W-(n*bw+(n-1)*gap+2*gGap))/2;
+    const defs=[["H","HOLD"],["\u27F3","ROT"],["\u25C0","L"],["\u25BC","SOFT"],["\u25B6","R"],["\u2913","DROP"]];
+    let x=x0;
+    BTNS=defs.map(([label,act],i)=>{
+      const b={x,y,w:bw,h:bh,label,act,hot:false};
+      x+=bw+gap; if(i===1||i===4)x+=gGap; /* group gaps after \u27F3 and \u25B6 */
+      return b;
+    });
+  } else {
+    RAIL=0;
+    CELL=Math.floor(Math.min((H-70)/BH,(W-40)/(BW+8)));
+    OX=(W-(BW+7)*CELL)/2;OY=Math.max(34,(H-BH*CELL)/2+12);
+    BTNS=[];
   }
 }
 function pX(x){return OX+x*CELL;}
@@ -1796,6 +1813,37 @@ function frame(now){
       drawPieceAt(p.cells,p.x,p.y,p.ci,1,false);               // live
     }
     // side panel: HOLD box + NEXT queue
+    if(TOUCH){
+      /* slim right-edge rail: NEXT queue down the edge, HOLD at the bottom */
+      const rx=pX(BW)+10, k=Math.min(CELL*0.62,(W-rx-6)/4.4);
+      ctx.fillStyle=NG_P("#9a8fc7");ctx.font="11px ui-monospace,monospace";ctx.textAlign="left";
+      ctx.fillText("NEXT",rx,pY(0)+10);
+      game.next.slice(0,3).forEach((n,i)=>{
+        for(const[cx,cy]of n.cells){
+          const px=rx+cx*k, py=pY(0)+22+i*k*3.4+cy*k;
+          const h=hueFor(n.ci,hue);
+          ctx.fillStyle=NG_CLASSIC()?NG_PIECE[n.ci%NG_PIECE.length]:"hsl("+h+" 85% 25%)";
+          ctx.fillRect(px,py,k-2,k-2);
+          ctx.strokeStyle=NG_CLASSIC()?"#000":"hsl("+h+" 100% 60%)";ctx.lineWidth=1.2;
+          ctx.strokeRect(px+0.5,py+0.5,k-3,k-3);
+        }
+      });
+      const hy=pY(BH)-k*3.2;
+      ctx.fillStyle=NG_P("#9a8fc7");
+      ctx.fillText("HOLD"+(game.holdUsed?" \u2715":""),rx,hy);
+      if(game.hold){
+        const sh=SHAPES[game.hold],hh=hueFor(sh.c,hue);
+        ctx.globalAlpha=game.holdUsed?0.4:1;
+        for(const[cx,cy]of sh.m){
+          const px=rx+cx*k, py=hy+10+cy*k;
+          ctx.fillStyle=NG_CLASSIC()?NG_PIECE[sh.c%NG_PIECE.length]:"hsl("+hh+" 85% 25%)";
+          ctx.fillRect(px,py,k-2,k-2);
+          ctx.strokeStyle=NG_CLASSIC()?"#000":"hsl("+hh+" 100% 60%)";ctx.lineWidth=1.2;
+          ctx.strokeRect(px+0.5,py+0.5,k-3,k-3);
+        }
+        ctx.globalAlpha=1;
+      }
+    } else {
     const nx=pX(BW)+CELL*1.2;
     ctx.fillStyle=NG_P("#9a8fc7");ctx.font="12px ui-monospace,monospace";ctx.textAlign="left";
     ctx.fillText("HOLD"+(game.holdUsed?" \u2715":""),nx,pY(0)+12);
@@ -1824,14 +1872,19 @@ function frame(now){
         ctx.strokeRect(px+0.5,py+0.5,CELL*0.7-3,CELL*0.7-3);
       }
     });
+    }
   }
   for(const p of particles)p.draw();
 
   // HUD
   ctx.textAlign="left";ctx.fillStyle=NG_P("#e8e4ff");ctx.font="14px ui-monospace,monospace";
-  ctx.fillText("SCORE "+game.score,16,26);
-  ctx.fillText("LEVEL "+game.level,16,48);
-  ctx.fillText("LINES "+game.lines,16,70);
+  if(TOUCH){
+    ctx.fillText("SCORE "+game.score+"  LV "+game.level+"  LINES "+game.lines,12,24);
+  } else {
+    ctx.fillText("SCORE "+game.score,16,26);
+    ctx.fillText("LEVEL "+game.level,16,48);
+    ctx.fillText("LINES "+game.lines,16,70);
+  }
   if(TOUCH&&(game.state===S.PLAYING||game.state===S.PAUSED))drawButtons();
 
   if(game.state===S.MENU){
