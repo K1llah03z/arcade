@@ -6,13 +6,13 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.3.3";
+const APP_VERSION = "1.3.";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
    about to install). Update these alongside APP_VERSION. */
 const RELEASE_NOTES = [
-  "NEW: Faceted gem look with glints & power-gem animations",
+  "Gem drop has own in game power ups and new games like bejeweled",
   "NEW: Unique detonation sound for each power gem",
   "NEW: Shockwave rings, laser beams & rainbow nova effects",
   "FIX: Buttons raised above mobile browser bars"
