@@ -9441,6 +9441,16 @@ document.addEventListener("contextmenu",e=>{ if(!(e.target instanceof HTMLInputE
 /* ---------- Boot ---------- */
 initAppShell();
 renderTabs(); renderGrid(); renderBoard(); renderStats();
+/* App-icon shortcuts: ?launch=<game-id> jumps straight into a game */
+(function(){
+  try{
+    const id=new URLSearchParams(location.search).get("launch");
+    if(!id) return;
+    const entry=GAMES.find(g=>g.id===id);
+    if(entry) setTimeout(()=>launch(entry),50);
+    history.replaceState(null,"",location.pathname); /* don't re-launch on refresh */
+  }catch(e){}
+})();
 })();
 </script>
 <div id="swUpdateBanner" style="position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(80px);
