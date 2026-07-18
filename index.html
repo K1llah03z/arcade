@@ -3849,6 +3849,43 @@ const AudioFX=(function(){
     wild:()=>{blip(440,880,.12,"triangle",.05);setTimeout(()=>blip(660,1320,.12,"triangle",.04),80);},
     uno:()=>{blip(880,1320,.14,"triangle",.06);setTimeout(()=>blip(1100,1760,.14,"triangle",.05),90);},
     turn:()=>{blip(660,660,.16,"triangle",.07);setTimeout(()=>blip(990,990,.22,"triangle",.06),140);},
+    /* Shouted "OO-NO!" — same formant-voice trick as the laughs: sawtooth
+       glottal source through two bandpass filters tuned to the vowels
+       /u/ ("oo") then /o/ ("no"), with a shout-style pitch arc. Gendered
+       so each CPU yells in a voice matching their laugh. */
+    shout(gender){
+      try{
+        const a=actx(),t0=a.currentTime+0.03;
+        const F=gender==="F";
+        const f0=(F?255:135)*(1+(Math.random()-0.5)*0.08);
+        const bp1=a.createBiquadFilter();bp1.type="bandpass";bp1.Q.value=8;
+        const bp2=a.createBiquadFilter();bp2.type="bandpass";bp2.Q.value=9;
+        const out=a.createGain();out.gain.value=1;
+        bp1.connect(out);bp2.connect(out);out.connect(a.destination);
+        const syll=[
+          {d:0.20,p0:1.10,p1:1.28,F1:F?380:320,F2:F?980:800},   /* "OO" rising  */
+          {d:0.36,p0:1.42,p1:0.82,F1:F?620:500,F2:F?1150:930}   /* "NO!" falling */
+        ];
+        let t=t0;
+        for(const s of syll){
+          const o=a.createOscillator();o.type="sawtooth";
+          o.frequency.setValueAtTime(f0*s.p0,t);
+          o.frequency.exponentialRampToValueAtTime(f0*s.p1,t+s.d);
+          const vib=a.createOscillator(),vg=a.createGain();
+          vib.frequency.value=6;vg.gain.value=f0*0.04;
+          vib.connect(vg);vg.connect(o.frequency);
+          bp1.frequency.setValueAtTime(s.F1,t);
+          bp2.frequency.setValueAtTime(s.F2,t);
+          const env=a.createGain();
+          env.gain.setValueAtTime(0.0001,t);
+          env.gain.exponentialRampToValueAtTime(0.5,t+0.03);
+          env.gain.exponentialRampToValueAtTime(0.0001,t+s.d);
+          o.connect(env);env.connect(bp1);env.connect(bp2);
+          o.start(t);o.stop(t+s.d+0.03);vib.start(t);vib.stop(t+s.d+0.03);
+          t+=s.d+0.05;
+        }
+      }catch(e){}
+    },
     /* Gendered laughs, formant-synthesized to sound like a human voice:
        a sawtooth "glottal" source is run through two bandpass filters tuned
        to the vowel formants of "ha", with falling pitch, vibrato, breath
@@ -3996,7 +4033,12 @@ function playCard(p,idx,chosenColor){
   G.color=cd.c===4?chosenColor:cd.c;
   G.drawnIdx=-1;
   burst(W/2,H/2,cd.c===4?G.color:cd.c);
-  if(p.hand.length===1){AudioFX.uno();say(p.name+" \u2014 UNO!");G.unoFlash=1;}
+  if(p.hand.length===1){
+    AudioFX.uno();say(p.name+" \u2014 UNO!");G.unoFlash=1;
+    /* the chime rings, then the voice yells it */
+    const g=p.gender||(Math.random()<.5?"M":"F");
+    setTimeout(()=>AudioFX.shout(g),140);
+  }
   if(p.hand.length===0){
     /* official rule: a final Draw 2 / Wild Draw 4 still makes the next player draw */
     if(cd.v==="D2")drawN(nextPlayer(),2);
