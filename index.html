@@ -6476,6 +6476,9 @@ let timeBtn={x:0,y:0,r:16},drillBtn={x:0,y:0,r:16};
 let overBtns=null; /* game-over popup buttons */
 let iceH=[],iceTimer=0,iceGap=3.2;       /* ice storm */
 let colComboN=0,colComboT=0,lastShatterX=-1; /* ice storm: column combos & regrow queue */
+let iceLink=[];                              /* ice storm: double-wide slabs (early game) */
+let iceMult=1,iceTank=0,iceTankGoal=12;      /* ice storm: water tank & score multiplier */
+let iceDanger=[];                            /* ice storm: secondary internal column per col */
 let hand=[],handFlash=0,handName="";     /* poker */
 let overMsg="";
 
@@ -6658,9 +6661,7 @@ function detonate(cells){
       /* ice storm: blast pushes down the columns it touches (flame-style) */
       if(mode==="icestorm")for(let dx=-1;dx<=1;dx++){
         const nx=x+dx;
-        if(nx<0||nx>=N||iceH[nx]<=0)continue;
-        iceH[nx]=Math.max(0,iceH[nx]-2);
-        burst(BX+nx*CS+CS/2,BY+(N-Math.max(1,iceH[nx]))*CS,"#bfe6ff",6);
+        if(nx>=0&&nx<N)pushIce(nx,2);
       }
     } else if(s===2){
       for(let k=0;k<N;k++){
@@ -6672,16 +6673,11 @@ function detonate(cells){
          and the horizontal beam pushes down every column it crosses */
       if(mode==="icestorm"){
         shatterIceColumn(x);
-        for(let k=0;k<N;k++)if(k!==x&&iceH[k]>0){
-          iceH[k]=Math.max(0,iceH[k]-1);
-          burst(BX+k*CS+CS/2,BY+(N-Math.max(1,iceH[k]))*CS,"#bfe6ff",4);
-        }
+        for(let k=0;k<N;k++)if(k!==x&&iceLink[k]!==x)pushIce(k,1);
       }
     } else if(s===3){
       const t=rnd(TYPES);
       for(let j=0;j<N*N;j++)if(grid[j]===t&&!cells.has(j)){cells.add(j);queue.push(j);}
-      /* ice storm: the nova shockwave destroys every ice column (hypercube-style) */
-      if(mode==="icestorm")for(let k=0;k<N;k++)shatterIceColumn(k);
     }
   }
   return fired;
@@ -6796,12 +6792,52 @@ function useWildCard(){
   popText(W/2,BY+CS*1.2,"WILD CARD!","#ffd700");
   if(hand.length>=5)setTimeout(evalHand,480);
 }
+function pushIce(x,amt){ /* push a column down; double-wide slabs move together */
+  const cols=[x];const p=iceLink[x];if(p>=0)cols.push(p);
+  let hit=false;
+  for(const c of cols)if(iceH[c]>0){
+    const before=iceH[c];
+    iceH[c]=Math.max(0,iceH[c]-amt);hit=true;
+    iceTank+=before-iceH[c]; /* lowered ice fills the water tank */
+    if(iceH[c]<N)iceDanger[c]=0; /* lowering removes the internal column */
+    burst(BX+c*CS+CS/2,BY+(N-Math.max(1,iceH[c]))*CS,"#bfe6ff",5);
+  }
+  if(hit)checkIceTank();
+  return hit;
+}
+function checkIceTank(){ /* full tank: steam lowers all columns, multiplier +1, tank fills slower */
+  while(iceTank>=iceTankGoal){
+    iceTank-=iceTankGoal;
+    iceTankGoal=Math.round(iceTankGoal*1.4);
+    iceMult++;
+    popText(W/2,BY+CS*1.2,"STEAM! MULTIPLIER x"+iceMult,"#a2f5ff");
+    AudioFX.level();
+    for(let k=0;k<N;k++)if(iceH[k]>0){
+      const before=iceH[k];
+      iceH[k]=Math.max(0,iceH[k]-2);
+      if(iceH[k]<N)iceDanger[k]=0;
+      burst(BX+k*CS+CS/2,BY+(N-Math.max(1,iceH[k]))*CS,"#e6fbff",6);
+    }
+  }
+}
 function shatterIceColumn(x){
   if(iceH[x]<=0)return;
-  const h=iceH[x];iceH[x]=0;lastShatterX=x;
-  for(let k=0;k<h;k++)burst(BX+x*CS+CS/2,BY+(N-1-k)*CS+CS/2,"#bfe6ff",8);
+  const cols=[x];const p=iceLink[x];if(p>=0)cols.push(p);
+  for(const c of cols){
+    const h=iceH[c];iceH[c]=0;
+    for(let k=0;k<h;k++)burst(BX+c*CS+CS/2,BY+(N-1-k)*CS+CS/2,"#bfe6ff",8);
+    iceLink[c]=-1;
+  }
+  lastShatterX=x;
+  iceDanger[x]=0;if(p>=0)iceDanger[p]=0;
+  for(const c of cols)iceTank+=Math.max(1,N*0.5)|0; /* crushed columns fill the tank fast */
+  /* one slab = one combo credit, whether single or double-wide */
   colComboN=(colComboT>0)?colComboN+1:1;colComboT=2.5;
-  const bonus=1000*level*colComboN*boostMult();
+  /* Bejeweled values: 1,500 base per column; combos after the first two pay
+     5,000 then +1,000 per extra column, capped at 15,000 */
+  let bonus=1500*(cols.length>1?2:1);
+  if(colComboN>=3)bonus+=Math.min(15000,5000+1000*(colComboN-3));
+  bonus*=iceMult*boostMult();
   score+=bonus;
   if(colComboN>=2){
     popText(W/2,BY+CS*1.6,"COLUMN COMBO x"+colComboN+"  +"+bonus.toLocaleString(),"#ffd700");
@@ -6809,6 +6845,7 @@ function shatterIceColumn(x){
   } else {
     popText(BX+x*CS+CS/2,BY+(N-2)*CS,"+"+bonus.toLocaleString(),"#bfe6ff");
   }
+  checkIceTank();
 }
 function useIceShuffle(){
   if(iceShufUses<=0||mode!=="icestorm")return;
@@ -7015,13 +7052,7 @@ function beginClear(cells,specials,runs){
         shatterIceColumn(r.x);smashed=true;
       } else if(r.dir==="h"){
         /* push down every ice column the horizontal match sits over */
-        for(let k=0;k<r.len;k++){
-          const cx2=r.x+k;
-          if(iceH[cx2]>0){
-            iceH[cx2]=Math.max(0,iceH[cx2]-1);smashed=true;
-            burst(BX+cx2*CS+CS/2,BY+(N-Math.max(1,iceH[cx2]))*CS,"#bfe6ff",5);
-          }
-        }
+        for(let k=0;k<r.len;k++)if(pushIce(r.x+k,1))smashed=true;
       }
     }
     if(smashed)AudioFX.iceSmash();
@@ -7055,7 +7086,7 @@ function beginClear(cells,specials,runs){
     const newMult=1+Math.floor(matchTally/6);
     if(newMult>mult){mult=newMult;popText(W/2,BY+CS,"x"+mult+" MULTIPLIER","#ffd700");AudioFX.level();}
   }
-  const gained=(mode==="mine"?0:cells.size*10*chain*level*(mode==="blitz"?mult:1)*(mode==="butterfly"?5:1)*boostMult());
+  const gained=(mode==="mine"?0:cells.size*10*chain*level*(mode==="blitz"?mult:1)*(mode==="butterfly"?5:1)*(mode==="icestorm"?2*iceMult:1)*boostMult());
   score+=gained;
   progress+=cells.size*10*chain;
   if(mode==="mine")clearDirtAround(cells);
@@ -7136,6 +7167,8 @@ function prismSwap(){
   if(t===PRISM){
     spec[oi]=0;grid[oi]=0;
     for(let j=0;j<N*N;j++)if(grid[j]!=null)cells.add(j);
+    /* ice storm: swapping two prisms destroys every ice column */
+    if(mode==="icestorm")for(let k=0;k<N;k++)shatterIceColumn(k);
     GameBridge.achievement("gemdrop-double-prism");
   } else {
     for(let j=0;j<N*N;j++)if(grid[j]===t)cells.add(j);
@@ -7262,7 +7295,8 @@ function startRun(m){
   iceShufUses=3;iceFrzUses=3;iceFrzLeft=0;pokShufUses=3;wildUses=3;
   blzTimeUses=3;blzShufUses=3;clsShufUses=3;gemUses=5;
   hand=[];handFlash=0;runTime=0;overMsg="";finale=false;
-  iceH=new Array(N).fill(0);iceTimer=0;iceGap=3.2;
+  iceH=new Array(N).fill(0);iceLink=new Array(N).fill(-1);iceTimer=0;iceGap=3.2;
+  iceMult=1;iceTank=0;iceTankGoal=12;iceDanger=new Array(N).fill(0);
   colComboN=0;colComboT=0;lastShatterX=-1;
   timeLeft=(mode==="blitz")?60:(mode==="mine")?90:0;panOff=0;
   if(boost==="time"&&timeLeft)timeLeft+=15;
@@ -7532,7 +7566,20 @@ function frame(now){
   } else if(mode==="butterfly"){
     ctx.fillText("CAUGHT "+caught,W-12,10);
   } else if(mode==="icestorm"){
-    ctx.fillText("LVL "+level,W-12,10);
+    ctx.fillText("x"+iceMult,W-12,10);
+    /* water tank: fills as ice is crushed; full = steam + multiplier up */
+    const tw=6,tx2=BX-tw-6,th=CS*N;
+    if(tx2>2){
+      ctx.fillStyle="rgba(255,255,255,0.08)";
+      ctx.fillRect(tx2,BY,tw,th);
+      const fillH=th*Math.min(1,iceTank/iceTankGoal);
+      const wg=ctx.createLinearGradient(0,BY+th-fillH,0,BY+th);
+      wg.addColorStop(0,"#7fdcff");wg.addColorStop(1,"#2a9fd6");
+      ctx.fillStyle=wg;
+      ctx.fillRect(tx2,BY+th-fillH,tw,fillH);
+      ctx.strokeStyle="rgba(162,245,255,0.5)";ctx.lineWidth=1;
+      ctx.strokeRect(tx2,BY,tw,th);
+    }
   } else {
     ctx.fillText(mode==="zen"?"ZEN":"LVL "+level,W-12,10);
   }
@@ -7610,13 +7657,34 @@ function frame(now){
         if(colComboT>0){colComboT-=dt;if(colComboT<=0)colComboN=0;}
         iceTimer+=dt;
         if(iceTimer>=iceGap){
-        iceTimer=0;iceGap=Math.max(1.5,iceGap-0.05);
+        iceTimer=0;iceGap=Math.max(level<=2?2.4:1.3,iceGap-0.05);
         let x=rnd(N);
         if(x===lastShatterX&&N>1){x=(x+1+rnd(N-1))%N;} /* shattered column regrows last */
         if(iceH[x]===0&&x!==lastShatterX)lastShatterX=-1;
-        iceH[x]=Math.min(N,iceH[x]+1);
-        burst(BX+x*CS+CS/2,BY+(N-iceH[x])*CS+CS/2,"#bfe6ff",6);
-        if(iceH[x]>=N){overMsg="FROZEN SOLID";endRun();}
+        const wide=level<=2; /* early game: double-wide, slow. later: narrow, fast */
+        /* starting fresh ice at a wide level: link a neighbor into a slab */
+        if(wide&&iceH[x]===0&&iceLink[x]<0){
+          for(const nx of [x+1,x-1]){
+            if(nx>=0&&nx<N&&iceH[nx]===0&&iceLink[nx]<0&&nx!==lastShatterX){
+              iceLink[x]=nx;iceLink[nx]=x;break;
+            }
+          }
+        }
+        const cols=[x];if(iceLink[x]>=0)cols.push(iceLink[x]);
+        const nh=Math.min(N,Math.max(...cols.map(c=>iceH[c]))+1);
+        for(const c of cols){
+          iceH[c]=nh;
+          burst(BX+c*CS+CS/2,BY+(N-iceH[c])*CS+CS/2,"#bfe6ff",6);
+        }
+        }
+        /* columns at the top: a secondary internal column rises (skull warning).
+           lower/destroy the column to clear it; sudden death after 7.5 minutes */
+        for(let k=0;k<N;k++){
+          if(iceH[k]>=N){
+            const rate=runTime>450?1/1.2:1/6;
+            iceDanger[k]=Math.min(1,(iceDanger[k]||0)+dt*rate);
+            if(iceDanger[k]>=1){overMsg="FROZEN SOLID";endRun();}
+          } else iceDanger[k]=0;
         }
       }
     }
@@ -7806,6 +7874,18 @@ function frame(now){
       ctx.lineTo(px+CS,top+6);ctx.lineTo(px,top+6);ctx.closePath();ctx.fill();
       ctx.strokeStyle="rgba(255,255,255,0.5)";ctx.lineWidth=1;
       ctx.beginPath();ctx.moveTo(px+CS*0.3,top+CS*0.5);ctx.lineTo(px+CS*0.55,top+CS*1.1);ctx.stroke();
+      /* topped column: skull + red internal column rising */
+      if(iceH[x]>=N&&iceDanger[x]>0){
+        const dh=iceDanger[x]*N*CS;
+        ctx.fillStyle="rgba(255,60,60,"+(0.18+0.12*Math.sin(shineT*8))+")";
+        ctx.fillRect(px,BY+N*CS-dh,CS,dh);
+        ctx.strokeStyle="rgba(255,60,60,0.9)";ctx.lineWidth=2;
+        ctx.beginPath();ctx.moveTo(px,BY+N*CS-dh);ctx.lineTo(px+CS,BY+N*CS-dh);ctx.stroke();
+        const big=iceDanger[x]>0.8?1.4:1;
+        ctx.font="bold "+Math.max(12,CS*0.5*big)+"px ui-monospace,Menlo,monospace";
+        ctx.textAlign="center";ctx.fillStyle=iceDanger[x]>0.8?"#ff3b3b":"#ffffff";
+        ctx.fillText("\u2620",px+CS/2,BY+4);
+      }
     }
   }
   ctx.restore();
