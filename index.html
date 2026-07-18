@@ -331,13 +331,13 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 [data-theme="light"] .card{background:var(--bg-card)}
 [data-theme="light"] .card::before{background:linear-gradient(105deg,transparent,rgba(255,255,255,.14),transparent)}
 [data-theme="light"] .card.playable:hover{box-shadow:0 6px 16px rgba(0,0,0,.35);border-color:#fff}
-[data-theme="light"] .card .go:hover{background:#fff;color:#0a8a0a;box-shadow:none}
+[data-theme="light"] .card .go:hover{background:#fff;color:var(--bg-deep);box-shadow:none}
 [data-theme="light"] .tab[aria-selected="true"]{
-  color:#0a8a0a;background:#fff;border-color:#fff;
+  color:var(--bg-deep);background:#fff;border-color:#fff;
   box-shadow:none;text-shadow:none;
 }
-[data-theme="light"] .stage{background:rgba(5,80,5,.97)}
-[data-theme="light"] .stage-bar .close:hover{background:var(--neon-magenta);color:#045c04;box-shadow:none}
+[data-theme="light"] .stage{background:color-mix(in srgb, var(--bg-panel) 97%, transparent)}
+[data-theme="light"] .stage-bar .close:hover{background:var(--neon-magenta);color:var(--line);box-shadow:none}
 
 /* ---------- Neon accent palettes (7 options) ---------- */
 [data-accent="pink"]{--neon-magenta:#ff2ea6;--neon-cyan:#ff7ec9;--neon-violet:#ff4fb8;--neon-amber:#ffc0e0}
@@ -359,11 +359,19 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 /* ---------- Classic: kill every neon glow so nothing bleeds through ---------- */
 [data-theme="light"] *{text-shadow:none!important}
 [data-theme="light"] .appsearch:focus{box-shadow:none}
-[data-theme="light"] .approw .aplay:active{background:#fff;color:#0a8a0a}
+[data-theme="light"] .approw .aplay:active{background:#fff;color:var(--bg-deep)}
 [data-theme="light"] .card .go:hover{box-shadow:none}
 [data-theme="light"] .theme-toggle:hover{border-color:#fff}
 [data-theme="light"] .tab:focus-visible,[data-theme="light"] .theme-toggle:focus-visible,
 [data-theme="light"] .card .go:focus-visible{outline-color:#fff}
+
+/* ---------- Classic felt color variants ---------- */
+[data-theme="light"][data-accent="red"]{--bg-deep:#8a0a0a;--bg-panel:#780606;--bg-card:#930c0c;--line:#5c0404;--ink-dim:#f2d9d9;--neon-violet:#f2d9d9}
+[data-theme="light"][data-accent="pink"]{--bg-deep:#8a0a5a;--bg-panel:#780650;--bg-card:#930c66;--line:#5c0438;--ink-dim:#f2d9ea;--neon-violet:#f2d9ea}
+[data-theme="light"][data-accent="blue"]{--bg-deep:#0a2a8a;--bg-panel:#062078;--bg-card:#0c3593;--line:#04175c;--ink-dim:#d9e2f2;--neon-violet:#d9e2f2}
+[data-theme="light"][data-accent="yellow"]{--bg-deep:#7a7a0a;--bg-panel:#6b6b06;--bg-card:#85850c;--line:#4d4d04;--ink-dim:#f2f2d9;--neon-violet:#f2f2d9}
+[data-theme="light"][data-accent="orange"]{--bg-deep:#8a4a0a;--bg-panel:#783e06;--bg-card:#93520c;--line:#5c3004;--ink-dim:#f2e5d9;--neon-violet:#f2e5d9}
+[data-theme="light"][data-accent="purple"]{--bg-deep:#4a0a8a;--bg-panel:#3e0678;--bg-card:#520c93;--line:#30045c;--ink-dim:#e5d9f2;--neon-violet:#e5d9f2}
 /* Un-ported canvas games get a neon-free green-phosphor CRT treatment in classic mode.
    Games with a native classic skin (freecell, mine-sweeper) skip this class. */
 [data-theme="light"] .stage iframe.mono-classic{
@@ -400,7 +408,7 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
     <div class="credits">
       TOTAL CREDITS EARNED<br><b id="totalScore">0</b><br>
       <span id="gamesPlayed">0 sessions logged</span><br>
-      <select class="theme-toggle" id="themeToggle" aria-label="Color theme"><option value="classic">&#9788; Classic</option><option value="pink">Neon Pink</option><option value="red">Neon Red</option><option value="green">Neon Green</option><option value="blue">Neon Blue</option><option value="yellow">Neon Yellow</option><option value="orange">Neon Orange</option><option value="purple">Neon Purple</option></select>
+      <select class="theme-toggle" id="themeToggle" aria-label="Color theme"><optgroup label="Classic"><option value="classic">Classic Green</option><option value="classic-red">Classic Red</option><option value="classic-pink">Classic Pink</option><option value="classic-blue">Classic Blue</option><option value="classic-yellow">Classic Yellow</option><option value="classic-orange">Classic Orange</option><option value="classic-purple">Classic Purple</option></optgroup><optgroup label="Neon"><option value="pink">Neon Pink</option><option value="red">Neon Red</option><option value="green">Neon Green</option><option value="blue">Neon Blue</option><option value="yellow">Neon Yellow</option><option value="orange">Neon Orange</option><option value="purple">Neon Purple</option></optgroup></select>
     </div>
   </header>
 
@@ -487,7 +495,7 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
       <span>LEVEL <b id="liveLevel">1</b></span>
       <span>BEST <b id="liveBest">0</b></span>
     </span>
-    <select class="theme-toggle" id="stageThemeToggle" aria-label="Color theme" style="margin-top:0"><option value="classic">&#9788; Classic</option><option value="pink">Neon Pink</option><option value="red">Neon Red</option><option value="green">Neon Green</option><option value="blue">Neon Blue</option><option value="yellow">Neon Yellow</option><option value="orange">Neon Orange</option><option value="purple">Neon Purple</option></select>
+    <select class="theme-toggle" id="stageThemeToggle" aria-label="Color theme" style="margin-top:0"><optgroup label="Classic"><option value="classic">Classic Green</option><option value="classic-red">Classic Red</option><option value="classic-pink">Classic Pink</option><option value="classic-blue">Classic Blue</option><option value="classic-yellow">Classic Yellow</option><option value="classic-orange">Classic Orange</option><option value="classic-purple">Classic Purple</option></optgroup><optgroup label="Neon"><option value="pink">Neon Pink</option><option value="red">Neon Red</option><option value="green">Neon Green</option><option value="blue">Neon Blue</option><option value="yellow">Neon Yellow</option><option value="orange">Neon Orange</option><option value="purple">Neon Purple</option></optgroup></select>
     <button class="theme-toggle" id="hiScoresBtn" type="button" style="margin-top:0;display:none">&#9733; Scores</button>
     <button class="close" id="closeBtn" type="button">Exit [ESC]</button>
   </div>
@@ -9229,14 +9237,16 @@ renderTabs(); renderGrid(); renderBoard(); renderStats();
   const meta = document.querySelector('meta[name="theme-color"]');
   const ACCENTS = ["pink","red","green","blue","yellow","orange","purple"];
   const apply = v => {
-    // v is "classic" or one of the 7 neon accents
-    const isClassic = v === "classic";
+    // v is "classic", "classic-<color>", or one of the 7 neon accents
+    const isClassic = v === "classic" || v.startsWith("classic-");
+    const accent = isClassic ? (v === "classic" ? "" : v.slice(8)) : v;
     const t = isClassic ? "light" : "dark";
     document.documentElement.setAttribute("data-theme", t);
-    if (isClassic) document.documentElement.removeAttribute("data-accent");
-    else document.documentElement.setAttribute("data-accent", v);
+    if (accent) document.documentElement.setAttribute("data-accent", accent);
+    else document.documentElement.removeAttribute("data-accent");
     const METAC = {pink:"#26082b",red:"#2b0a0a",green:"#08260c",blue:"#0a142b",yellow:"#292408",orange:"#2b1708",purple:"#140a2b"};
-    meta.setAttribute("content", isClassic ? "#9bbc0f" : (METAC[v] || "#140a2b"));
+    const METAL = {"":"#067806",red:"#780606",pink:"#780650",blue:"#062078",yellow:"#6b6b06",orange:"#783e06",purple:"#3e0678"};
+    meta.setAttribute("content", isClassic ? (METAL[accent] || "#067806") : (METAC[v] || "#140a2b"));
     sels.forEach(s => { if (s.value !== v) s.value = v; });
     try { localStorage.setItem("ng_theme", v); } catch {}
     // let a running game know (GameBridge hub message; games may natively theme)
@@ -9247,7 +9257,8 @@ renderTabs(); renderGrid(); renderBoard(); renderStats();
   try { saved = localStorage.getItem("ng_theme") || "pink"; } catch {}
   if (saved === "dark") saved = "pink";          // migrate old values
   if (saved === "light") saved = "classic";
-  if (saved !== "classic" && !ACCENTS.includes(saved)) saved = "pink";
+  const CLASSICS = ["classic", ...ACCENTS.filter(a=>a!=="green").map(a=>"classic-"+a)];
+  if (!ACCENTS.includes(saved) && !CLASSICS.includes(saved)) saved = "pink";
   apply(saved);
   sels.forEach(s => s.addEventListener("change", () => {
     apply(s.value);
