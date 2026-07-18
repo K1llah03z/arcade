@@ -6470,6 +6470,18 @@ let pokShufBtn={x:0,y:0,r:16},wildBtn={x:0,y:0,r:16};
 let blzTimeUses=3,blzShufUses=3;             /* blitz power-ups */
 let blzTimeBtn={x:0,y:0,r:16},blzShufBtn={x:0,y:0,r:16};
 let clsShufUses=3,gemUses=5;                 /* classic power-ups */
+let extTank=0,speedBonus=0,lastSpeedAt=0,ignition=0,blazing=0; /* blitz: lightning mechanics */
+let mineMoved=false,mineRose=false;          /* diamond mine: gem-type progression */
+/* gem indices: 0 red, 1 orange, 2 yellow, 3 green, 4 blue, 5 purple, 6 white */
+function spawnType(){
+  if(mode!=="mine")return rnd(TYPES);
+  /* Bejeweled: starts with red/yellow/green/white; purple after the first legal
+     move; blue after the board rises 20m; orange never appears */
+  const pool=[0,2,3,6];
+  if(mineMoved)pool.push(5);
+  if(mineRose)pool.push(4);
+  return pool[rnd(pool.length)];
+}
 let clsShufBtn={x:0,y:0,r:16},gemBtn={x:0,y:0,r:16};
 let frzBtn={x:0,y:0,r:16},gustBtn={x:0,y:0,r:16};
 let timeBtn={x:0,y:0,r:16},drillBtn={x:0,y:0,r:16};
@@ -6556,10 +6568,10 @@ function newBoard(){
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
     const i=idx(x,y);
     if(dirt[i])continue;
-    let t;do{t=rnd(TYPES);}while((x>=2&&at(x-1,y)===t&&at(x-2,y)===t)||(y>=2&&at(x,y-1)===t&&at(x,y-2)===t));
+    let t;do{t=spawnType();}while((x>=2&&at(x-1,y)===t&&at(x-2,y)===t)||(y>=2&&at(x,y-1)===t&&at(x,y-2)===t));
     set(x,y,t);offY[i]=-(N-y+rnd(4))*CS*0.9;
   }
-  if(mode==="butterfly"){for(let k=0;k<3;k++)spawnButterfly();}
+  if(mode==="butterfly")spawnButterfly(); /* each game begins with one butterfly */
   if(boost==="head"){
     const cells=[];for(let i=0;i<N*N;i++)if(grid[i]!=null&&!spec[i]&&!fly[i])cells.push(i);
     for(let k=cells.length-1;k>0;k--){const j=rnd(k+1);[cells[k],cells[j]]=[cells[j],cells[k]];}
@@ -6676,7 +6688,8 @@ function detonate(cells){
         for(let k=0;k<N;k++)if(k!==x&&iceLink[k]!==x)pushIce(k,1);
       }
     } else if(s===3){
-      const t=rnd(TYPES);
+      const present=[...new Set(grid.filter(g=>g!=null&&g>=0))];
+      const t=present.length?present[rnd(present.length)]:rnd(TYPES);
       for(let j=0;j<N*N;j++)if(grid[j]===t&&!cells.has(j)){cells.add(j);queue.push(j);}
     }
   }
@@ -6964,6 +6977,7 @@ function mineDescend(allClear){
     popText(W/2,BY+CS*N*0.55,"DIG DEEPER! +30s","#ffd700");
   }
   AudioFX.level();GameBridge.levelUp(level);
+  if(!mineRose){mineRose=true;popText(W/2,BY+CS*2.0,"BLUE GEMS JOIN THE DIG!","#3aa0ff");}
   state="fall";collapse();
 }
 function clearDirtAround(cells){
@@ -7051,6 +7065,22 @@ function commitSwap(){
 }
 function beginClear(cells,specials,runs){
   chain++;
+  if(mode==="mine"&&chain===1&&!mineMoved){mineMoved=true;popText(W/2,BY+CS*1.2,"PURPLE GEMS JOIN THE DIG!","#b163ff");}
+  /* blazing speed: every matched gem explodes in a 3x3 (hypercubes excluded) */
+  if(mode==="blitz"&&blazing>0){
+    const base=[...cells];
+    for(const i of base){
+      if(grid[i]===PRISM)continue;
+      const x=i%N,y=(i/N)|0;
+      fx.push({type:"ring",x:BX+x*CS+CS/2,y:BY+y*CS+CS/2,t:0,life:0.35});
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+        const nx=x+dx,ny=y+dy;
+        if(nx<0||nx>=N||ny<0||ny>=N)continue;
+        const j=idx(nx,ny);
+        if(grid[j]!=null)cells.add(j);
+      }
+    }
+  }
   const fired=detonate(cells);
   /* ice storm: vertical matches SHATTER whole columns; horizontal matches push them down */
   if(mode==="icestorm"&&runs){
@@ -7085,18 +7115,49 @@ function beginClear(cells,specials,runs){
     }
     score+=flyPts;
   }
-  /* blitz time gems */
+  /* blitz: time gems fill the Time Extension tank (replenishes the next round) */
   if(mode==="blitz"){
     for(const i of cells)if(tg[i]){
-      tg[i]=0;timeLeft=Math.min(99,timeLeft+5);
+      tg[i]=0;
+      if(finale){score+=250*mult*boostMult(); /* Last Hurrah: time gems pay 5x base */
+        popText(BX+(i%N)*CS+CS/2,BY+((i/N)|0)*CS,"+"+(250*mult*boostMult()),"#22e6ff");}
+      else{extTank=Math.min(60,extTank+5);
+        popText(BX+(i%N)*CS+CS/2,BY+((i/N)|0)*CS,"+5s","#22e6ff");}
       AudioFX.timeGem();
-      popText(BX+(i%N)*CS+CS/2,BY+((i/N)|0)*CS,"+5s","#22e6ff");
     }
-    matchTally++;
-    const newMult=1+Math.floor(matchTally/6);
-    if(newMult>mult){mult=newMult;popText(W/2,BY+CS,"x"+mult+" MULTIPLIER","#ffd700");AudioFX.level();}
+    /* Speed Bonus: quick successive matches pay +100 more each, up to +1000;
+       maxed-out speed fills the Ignition Meter toward BLAZING SPEED */
+    if(chain===1&&!finale){
+      const nowT=performance.now();
+      if(lastSpeedAt&&nowT-lastSpeedAt<3500){
+        speedBonus=Math.min(1000,speedBonus+100);
+        const sb=speedBonus*mult*boostMult();
+        score+=sb;
+        popText(BX+CS*N*0.5,BY+CS*0.5,"SPEED BONUS +"+sb,"#ff9d42");
+        if(speedBonus>=1000){
+          ignition++;
+          if(ignition>=4&&blazing<=0){
+            blazing=7;ignition=0;
+            popText(W/2,BY+CS,"BLAZING SPEED!","#ff6a00");
+            AudioFX.novaPrism();
+          }
+        }
+      } else {speedBonus=0;ignition=Math.max(0,ignition-1);}
+      lastSpeedAt=nowT;
+    }
   }
-  const gained=(mode==="mine"?0:cells.size*10*chain*level*(mode==="blitz"?mult:1)*(mode==="butterfly"?5*flyMoveMult:1)*(mode==="icestorm"?2*iceMult:1)*boostMult());
+  let gained;
+  if(mode==="blitz"){
+    /* Bejeweled base values: match-3 = 50, match-4 = 100, match-5+ = 200;
+       gems cleared by special-gem blasts pay 20 each. Scaled by round multiplier. */
+    let base=0,runGems=0;
+    if(runs)for(const r of runs){base+=r.len>=5?200:r.len===4?100:50;runGems+=r.len;}
+    base+=Math.max(0,cells.size-runGems)*20;
+    if(!base)base=cells.size*20; /* prism swaps / Last Hurrah: per-gem payout */
+    gained=base*chain*mult*boostMult();
+  } else {
+    gained=(mode==="mine"?0:cells.size*10*chain*level*(mode==="butterfly"?5*flyMoveMult:1)*(mode==="icestorm"?2*iceMult:1)*boostMult());
+  }
   score+=gained;
   progress+=cells.size*10*chain;
   if(mode==="mine")clearDirtAround(cells);
@@ -7207,8 +7268,8 @@ function collapse(){
       const i=idx(x,y);
       if(dirt[i])break;
       if(grid[i]==null){
-        grid[i]=rnd(TYPES);spec[i]=0;fly[i]=0;
-        tg[i]=(mode==="blitz"&&Math.random()<0.08)?1:0;
+        grid[i]=spawnType();spec[i]=0;fly[i]=0;
+        tg[i]=(mode==="blitz"&&Math.random()<(mult<=2?0.14:mult<=4?0.09:0.06))?1:0;
         offY[i]=-(y+1)*CS-CS*0.5;vel[i]=0;
       }
     }
@@ -7304,6 +7365,8 @@ function startRun(m){
   freezeLeft=0;freezeUses=3;gustUses=3;timeUses=3;drillUses=3;overBtns=null;
   iceShufUses=3;iceFrzUses=3;iceFrzLeft=0;pokShufUses=3;wildUses=3;
   blzTimeUses=3;blzShufUses=3;clsShufUses=3;gemUses=5;
+  extTank=0;speedBonus=0;lastSpeedAt=0;ignition=0;blazing=0;
+  mineMoved=false;mineRose=false;
   hand=[];handFlash=0;runTime=0;overMsg="";finale=false;
   iceH=new Array(N).fill(0);iceLink=new Array(N).fill(-1);iceTimer=0;iceGap=3.2;
   iceMult=1;iceTank=0;iceTankGoal=12;iceDanger=new Array(N).fill(0);
@@ -7602,7 +7665,20 @@ function frame(now){
   if(mode==="blitz"||mode==="mine"){
     ctx.fillStyle="rgba(255,255,255,0.12)";ctx.fillRect(bx,by,bw,7);
     ctx.fillStyle=timeLeft<=10?"#ff3b3b":"#22e6ff";
-    ctx.fillRect(bx,by,bw*Math.min(1,timeLeft/(mode==="blitz"?99:150)),7);
+    ctx.fillRect(bx,by,bw*Math.min(1,timeLeft/(mode==="blitz"?60:150)),7);
+    if(mode==="blitz"){
+      /* Time Extension tank: banked time for the next round */
+      ctx.fillStyle="rgba(255,255,255,0.1)";ctx.fillRect(bx,by+9,bw,4);
+      ctx.fillStyle="#ffd700";ctx.fillRect(bx,by+9,bw*Math.min(1,extTank/60),4);
+      if(blazing>0){
+        const p=(Math.sin(shineT*10)+1)/2;
+        ctx.fillStyle="rgba(255,106,0,"+(0.05+p*0.08)+")";
+        ctx.fillRect(BX-6,BY-6,CS*N+12,CS*N+12);
+        ctx.textAlign="center";ctx.fillStyle="#ff6a00";
+        ctx.font="bold "+Math.max(11,W*0.018)+"px ui-monospace,Menlo,monospace";
+        ctx.fillText("BLAZING SPEED "+Math.ceil(blazing)+"s",W/2,by+18);
+      }
+    }
   } else if(mode==="poker"){
     /* card hand */
     const cw=Math.min(24,bw/7),ch=cw*1.35,hx=W/2-(5*cw+4*6)/2;
@@ -7643,22 +7719,37 @@ function frame(now){
   if(state!=="over"){
     runTime+=dt;
     if(mode==="blitz"||mode==="mine"){
-      timeLeft-=dt;
+      if(mode==="blitz"&&blazing>0){blazing=Math.max(0,blazing-dt);timeLeft-=dt*0.4;} /* blazing slows the clock */
+      else timeLeft-=dt;
       const c=Math.ceil(timeLeft);
       if(c<=5&&c!==lastTick&&c>0){AudioFX.tick();lastTick=c;}
       if(timeLeft<=0){
         timeLeft=0;
         if(mode==="blitz"&&!finale){
-          finale=true;
-          const cells=new Set();
-          for(let i=0;i<N*N;i++)if(spec[i])cells.add(i);
-          if(cells.size&&(state==="idle"||state==="fall")){
-            popText(W/2,BY+CS,"FINAL FLOURISH!","#ffd700");
+          if(extTank>0){
+            /* tank time replenishes the timer; multiplier climbs one per round */
+            timeLeft=extTank;extTank=0;mult++;lastTick=-1;
+            popText(W/2,BY+CS,"ROUND CLEARED! x"+mult+" MULTIPLIER","#ffd700");
             AudioFX.level();
-            beginClear(cells,[],[]);   /* detonate every remaining power gem */
-          } else if(state==="idle"){overMsg="TIME'S UP";endRun();}
-          /* mid-cascade: let it finish; resolveMatches ends the run */
+          } else {
+            /* LAST HURRAH: leftover time gems become Flame Gems, then every
+               special on the board detonates (handled by the finale watchdog below,
+               so it can never stall regardless of the state we're in right now) */
+            finale=true;
+            for(let i=0;i<N*N;i++)if(tg[i]){tg[i]=0;if(!spec[i])spec[i]=1;
+              burst(BX+(i%N)*CS+CS/2,BY+((i/N)|0)*CS+CS/2,"#ff9d42",8);}
+            popText(W/2,BY+CS,"LAST HURRAH!","#ffd700");
+            AudioFX.level();
+          }
         } else if(mode==="mine"){overMsg="TIME'S UP";endRun();}
+      }
+      /* finale watchdog: whatever state time-up caught us in (mid-swap, swapback,
+         falling), once the board is idle the Last Hurrah always proceeds */
+      if(mode==="blitz"&&finale&&state==="idle"){
+        const cells=new Set();
+        for(let i=0;i<N*N;i++)if(spec[i])cells.add(i);
+        if(cells.size)beginClear(cells,[],[]);
+        else{overMsg="TIME'S UP";endRun();}
       }
     }
     if(mode==="icestorm"&&state!=="menu"){
