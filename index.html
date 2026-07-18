@@ -7159,6 +7159,28 @@ function beginClear(cells,specials,runs){
     gained=(mode==="mine"?0:cells.size*10*chain*level*(mode==="butterfly"?5*flyMoveMult:1)*(mode==="icestorm"?2*iceMult:1)*boostMult());
   }
   score+=gained;
+  /* Bejeweled-style score popups: every match floats its points right where it
+     happened; explosion sweep shows its own payout at the blast center */
+  if(gained>0){
+    let runTotal=0,runGems2=0;
+    if(runs)for(const r of runs){
+      let rv;
+      if(mode==="blitz")rv=(r.len>=5?200:r.len===4?100:50)*chain*mult*boostMult();
+      else rv=r.len*10*chain*level*(mode==="butterfly"?5*flyMoveMult:1)*(mode==="icestorm"?2*iceMult:1)*boostMult();
+      runTotal+=rv;runGems2+=r.len;
+      const mx=r.dir==="h"?BX+(r.x+r.len/2)*CS:BX+r.x*CS+CS/2;
+      const my=r.dir==="h"?BY+r.y*CS+CS/2:BY+(r.y+r.len/2)*CS;
+      popText(mx,my,"+"+rv.toLocaleString(),chain>1?"#ffd700":"#ffffff");
+    }
+    /* points from special-gem blasts / prism clears, shown at the sweep's center */
+    const extra=gained-runTotal;
+    if(extra>0&&cells.size>runGems2){
+      let sx=0,sy=0,n2=0;
+      for(const i of cells){sx+=i%N;sy+=(i/N)|0;n2++;}
+      sx=BX+(sx/n2+0.5)*CS;sy=BY+(sy/n2+0.5)*CS;
+      popText(sx,sy,"+"+extra.toLocaleString(),fired.size?"#ffd700":"#ffffff");
+    }
+  }
   progress+=cells.size*10*chain;
   if(mode==="mine")clearDirtAround(cells);
   if(mode==="poker"&&runs&&runs.length&&chain===1&&swapA){
