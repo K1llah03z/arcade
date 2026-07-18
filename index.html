@@ -6711,9 +6711,15 @@ function popText(x,y,txt,col){fx.push({type:"text",x,y,txt,col:col||"#ffffff",t:
 
 /* ================= MODE HELPERS ================= */
 function spawnButterfly(){
+  /* a butterfly may spawn on a special gem (which loses its abilities),
+     but never on a hypercube's square */
   const opts=[];
-  for(let x=0;x<N;x++){const i=idx(x,N-1);if(grid[i]!=null&&grid[i]!==PRISM&&!spec[i]&&!fly[i]&&!dirt[i])opts.push(i);}
-  if(opts.length)fly[opts[rnd(opts.length)]]=1;
+  for(let x=0;x<N;x++){const i=idx(x,N-1);if(grid[i]!=null&&grid[i]!==PRISM&&!fly[i]&&!dirt[i])opts.push(i);}
+  if(opts.length){
+    const i=opts[rnd(opts.length)];
+    if(spec[i]){spec[i]=0;burst(BX+(i%N)*CS+CS/2,BY+(N-1)*CS+CS/2,"#ffffff",8);} /* power lost */
+    fly[i]=1;
+  }
 }
 function butterflyStep(){
   if(freezeLeft>0)return true; /* frozen solid: nobody moves, nobody spawns */
@@ -6730,8 +6736,11 @@ function butterflyStep(){
     [tg[i],tg[j]]=[tg[j],tg[i]];
     fly[i]=0;fly[j]=1;
   }
+  /* one new butterfly per match; more spawn as the game goes on */
   spawnButterfly();
-  if(Math.random()<0.35)spawnButterfly();
+  const extraChance=Math.min(0.75,0.08+caught*0.015);
+  if(Math.random()<extraChance)spawnButterfly();
+  if(caught>=40&&Math.random()<extraChance*0.5)spawnButterfly();
   AudioFX.flutter();
   return true;
 }
@@ -7057,23 +7066,24 @@ function beginClear(cells,specials,runs){
     }
     if(smashed)AudioFX.iceSmash();
   }
-  /* butterflies caught — Bejeweled 3 style scoring */
+  /* butterflies caught — Bejeweled 3 scoring: 750 base +25 per prior catch;
+     clearing multiple in one move multiplies the move's points by the count */
+  let flyMoveMult=1;
   if(mode==="butterfly"){
-    let moveCatches=0;
+    let moveCatches=0,flyPts=0;
     for(const i of cells)if(fly[i]){
       fly[i]=0;
-      const bonus=(750+25*caught)*boostMult();  /* base 750, +25 per butterfly already saved */
-      caught++;moveCatches++;
-      score+=bonus;
+      const bonus=(750+25*caught)*boostMult();
+      caught++;moveCatches++;flyPts+=bonus;
       popText(BX+(i%N)*CS+CS/2,BY+((i/N)|0)*CS,"+"+bonus,"#a2f5ff");
     }
-    /* multi-catch combo: exponential bonus for saving 2+ in one clear */
     if(moveCatches>=2){
-      const combo=250*Math.pow(2,moveCatches)*boostMult(); /* 2->1000, 3->2000, 4->4000... */
-      score+=combo;
-      popText(W/2,BY+CS*1.6,moveCatches+" BUTTERFLIES! +"+combo,"#ffd700");
+      flyMoveMult=moveCatches;
+      flyPts*=moveCatches;
+      popText(W/2,BY+CS*1.6,moveCatches+" BUTTERFLIES! x"+moveCatches,"#ffd700");
       AudioFX.level();
     }
+    score+=flyPts;
   }
   /* blitz time gems */
   if(mode==="blitz"){
@@ -7086,7 +7096,7 @@ function beginClear(cells,specials,runs){
     const newMult=1+Math.floor(matchTally/6);
     if(newMult>mult){mult=newMult;popText(W/2,BY+CS,"x"+mult+" MULTIPLIER","#ffd700");AudioFX.level();}
   }
-  const gained=(mode==="mine"?0:cells.size*10*chain*level*(mode==="blitz"?mult:1)*(mode==="butterfly"?5:1)*(mode==="icestorm"?2*iceMult:1)*boostMult());
+  const gained=(mode==="mine"?0:cells.size*10*chain*level*(mode==="blitz"?mult:1)*(mode==="butterfly"?5*flyMoveMult:1)*(mode==="icestorm"?2*iceMult:1)*boostMult());
   score+=gained;
   progress+=cells.size*10*chain;
   if(mode==="mine")clearDirtAround(cells);
@@ -7749,11 +7759,12 @@ function frame(now){
       ctx.beginPath();ctx.arc(spiderX-sr*0.42,sy+sr*0.6,sr*0.07,0,Math.PI*2);ctx.fill();
       ctx.beginPath();ctx.arc(spiderX+sr*0.42,sy+sr*0.6,sr*0.07,0,Math.PI*2);ctx.fill();
     }
-    /* danger warning tint on the top row */
+    /* danger warning: top and bottom edges flash red when a butterfly reaches the top */
     if(danger>0.7){
       const p=(Math.sin(shineT*8)+1)/2;
       ctx.fillStyle="rgba(255,60,60,"+(0.08+p*0.1)+")";
       ctx.fillRect(BX,BY,CS*N,CS);
+      ctx.fillRect(BX,BY+(N-1)*CS,CS*N,CS);
     }
   }
 
@@ -7843,7 +7854,10 @@ function frame(now){
       const k=1-clearT;s=CS*k;px+=(CS-s)/2;py+=(CS-s)/2;glow=true;rot=clearT*5;
       if(s<2)continue;
     }
-    if(fly[i]&&freezeLeft<=0)py+=Math.sin(shineT*6+x)*2; /* butterfly bob */
+    if(fly[i]&&freezeLeft<=0){
+      py+=Math.sin(shineT*6+x)*2; /* butterfly bob */
+      if(y<=1){px+=Math.sin(shineT*40+x*3)*(y===0?2.2:1.2);} /* trembling near the spider */
+    }
     if(sel&&sel.x===x&&sel.y===y){
       glow=true;
       ctx.strokeStyle=NG_CLASSIC()?"#ffffff":"#22e6ff";ctx.lineWidth=3;
