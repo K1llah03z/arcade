@@ -6655,15 +6655,33 @@ function detonate(cells){
         const j=idx(nx,ny);
         if(grid[j]!=null&&!cells.has(j)){cells.add(j);queue.push(j);}
       }
+      /* ice storm: blast pushes down the columns it touches (flame-style) */
+      if(mode==="icestorm")for(let dx=-1;dx<=1;dx++){
+        const nx=x+dx;
+        if(nx<0||nx>=N||iceH[nx]<=0)continue;
+        iceH[nx]=Math.max(0,iceH[nx]-2);
+        burst(BX+nx*CS+CS/2,BY+(N-Math.max(1,iceH[nx]))*CS,"#bfe6ff",6);
+      }
     } else if(s===2){
       for(let k=0;k<N;k++){
         for(const j of [idx(k,y),idx(x,k)]){
           if(grid[j]!=null&&!cells.has(j)){cells.add(j);queue.push(j);}
         }
       }
+      /* ice storm: the vertical beam destroys the column below it (star-style),
+         and the horizontal beam pushes down every column it crosses */
+      if(mode==="icestorm"){
+        shatterIceColumn(x);
+        for(let k=0;k<N;k++)if(k!==x&&iceH[k]>0){
+          iceH[k]=Math.max(0,iceH[k]-1);
+          burst(BX+k*CS+CS/2,BY+(N-Math.max(1,iceH[k]))*CS,"#bfe6ff",4);
+        }
+      }
     } else if(s===3){
       const t=rnd(TYPES);
       for(let j=0;j<N*N;j++)if(grid[j]===t&&!cells.has(j)){cells.add(j);queue.push(j);}
+      /* ice storm: the nova shockwave destroys every ice column (hypercube-style) */
+      if(mode==="icestorm")for(let k=0;k<N;k++)shatterIceColumn(k);
     }
   }
   return fired;
@@ -6777,6 +6795,20 @@ function useWildCard(){
   hand.push(["W"]);AudioFX.card();
   popText(W/2,BY+CS*1.2,"WILD CARD!","#ffd700");
   if(hand.length>=5)setTimeout(evalHand,480);
+}
+function shatterIceColumn(x){
+  if(iceH[x]<=0)return;
+  const h=iceH[x];iceH[x]=0;lastShatterX=x;
+  for(let k=0;k<h;k++)burst(BX+x*CS+CS/2,BY+(N-1-k)*CS+CS/2,"#bfe6ff",8);
+  colComboN=(colComboT>0)?colComboN+1:1;colComboT=2.5;
+  const bonus=1000*level*colComboN*boostMult();
+  score+=bonus;
+  if(colComboN>=2){
+    popText(W/2,BY+CS*1.6,"COLUMN COMBO x"+colComboN+"  +"+bonus.toLocaleString(),"#ffd700");
+    AudioFX.level();
+  } else {
+    popText(BX+x*CS+CS/2,BY+(N-2)*CS,"+"+bonus.toLocaleString(),"#bfe6ff");
+  }
 }
 function useIceShuffle(){
   if(iceShufUses<=0||mode!=="icestorm")return;
@@ -6980,18 +7012,7 @@ function beginClear(cells,specials,runs){
     for(const r of runs){
       if(r.dir==="v"&&iceH[r.x]>0){
         /* shatter: column destroyed completely, restarts from the bottom */
-        const h=iceH[r.x];iceH[r.x]=0;smashed=true;lastShatterX=r.x;
-        for(let k=0;k<h;k++)burst(BX+r.x*CS+CS/2,BY+(N-1-k)*CS+CS/2,"#bfe6ff",8);
-        /* column destroy bonus + column combo for quick successive shatters */
-        colComboN=(colComboT>0)?colComboN+1:1;colComboT=2.5;
-        const bonus=1000*level*colComboN*boostMult();
-        score+=bonus;
-        if(colComboN>=2){
-          popText(W/2,BY+CS*1.6,"COLUMN COMBO x"+colComboN+"  +"+bonus.toLocaleString(),"#ffd700");
-          AudioFX.level();
-        } else {
-          popText(BX+r.x*CS+CS/2,BY+(N-2)*CS,"+"+bonus.toLocaleString(),"#bfe6ff");
-        }
+        shatterIceColumn(r.x);smashed=true;
       } else if(r.dir==="h"){
         /* push down every ice column the horizontal match sits over */
         for(let k=0;k<r.len;k++){
