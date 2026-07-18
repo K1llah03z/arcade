@@ -46,14 +46,14 @@ body{
 .horizon{
   position:fixed;inset:0;z-index:0;pointer-events:none;
   background:
-    radial-gradient(ellipse 120% 60% at 50% -10%, #2a1259 0%, transparent 60%),
-    radial-gradient(ellipse 80% 40% at 50% 110%, #3d0f4d 0%, transparent 70%),
+    radial-gradient(ellipse 120% 60% at 50% -10%, var(--glow-top,#2a1259) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 40% at 50% 110%, var(--glow-bottom,#3d0f4d) 0%, transparent 70%),
     var(--bg-deep);
 }
 .sun{
   position:fixed;left:50%;top:14%;width:340px;height:340px;
   transform:translateX(-50%);z-index:0;pointer-events:none;border-radius:50%;
-  background:linear-gradient(180deg,var(--neon-amber) 0%,var(--neon-magenta) 55%,#7a0e5c 100%);
+  background:linear-gradient(180deg,var(--neon-amber) 0%,var(--neon-magenta) 55%,var(--sun-deep,#7a0e5c) 100%);
   filter:blur(2px) saturate(1.2);
   opacity:.28;
   -webkit-mask:repeating-linear-gradient(180deg,#000 0 14px,transparent 14px 22px);
@@ -64,8 +64,8 @@ body{
 .gridfloor{
   position:fixed;left:-50%;right:-50%;bottom:-2%;height:46vh;z-index:0;pointer-events:none;
   background:
-    repeating-linear-gradient(90deg,rgba(255,46,166,.35) 0 2px,transparent 2px 90px),
-    repeating-linear-gradient(0deg, rgba(34,230,255,.30) 0 2px,transparent 2px 64px);
+    repeating-linear-gradient(90deg,var(--grid-a,rgba(255,46,166,.35)) 0 2px,transparent 2px 90px),
+    repeating-linear-gradient(0deg, var(--grid-b,rgba(34,230,255,.30)) 0 2px,transparent 2px 64px);
   transform:perspective(420px) rotateX(62deg);
   transform-origin:50% 100%;
   animation:gridScroll 3.2s linear infinite;
@@ -280,7 +280,7 @@ section.board{max-width:720px;margin-left:auto;margin-right:auto}
 .tabbar{
   position:fixed;left:0;right:0;bottom:0;z-index:60;
   display:flex;justify-content:center;gap:0;
-  background:rgba(20,10,43,.97);border-top:1px solid var(--line);
+  background:color-mix(in srgb, var(--bg-panel) 97%, transparent);border-top:1px solid var(--line);
   padding:8px 0 calc(10px + env(safe-area-inset-bottom));
   backdrop-filter:blur(6px);
 }
@@ -337,6 +337,32 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 }
 [data-theme="light"] .stage{background:rgba(5,80,5,.97)}
 [data-theme="light"] .stage-bar .close:hover{background:var(--neon-magenta);color:#045c04;box-shadow:none}
+
+/* ---------- Neon accent palettes (7 options) ---------- */
+[data-accent="pink"]{--neon-magenta:#ff2ea6;--neon-cyan:#ff7ec9;--neon-violet:#ff4fb8;--neon-amber:#ffc0e0}
+[data-accent="red"]{--neon-magenta:#ff2e2e;--neon-cyan:#ff8a8a;--neon-violet:#ff5c5c;--neon-amber:#ffc4c4}
+[data-accent="green"]{--neon-magenta:#39ff14;--neon-cyan:#8aff70;--neon-violet:#27e65c;--neon-amber:#ccffcc}
+[data-accent="blue"]{--neon-magenta:#2e6bff;--neon-cyan:#6ea8ff;--neon-violet:#4f8cff;--neon-amber:#bcd6ff}
+[data-accent="yellow"]{--neon-magenta:#ffee32;--neon-cyan:#fff78a;--neon-violet:#ffd700;--neon-amber:#fffbc4}
+[data-accent="orange"]{--neon-magenta:#ff8c1a;--neon-cyan:#ffb266;--neon-violet:#ff9f40;--neon-amber:#ffd9b0}
+[data-accent="purple"]{--neon-magenta:#8b5cf6;--neon-cyan:#b794ff;--neon-violet:#a06bff;--neon-amber:#ddccff}
+
+/* ---------- Accent-matched backgrounds & cards ---------- */
+[data-accent="pink"]{--bg-deep:#180518;--bg-panel:#26082b;--bg-card:#310e36;--line:#5e1b52;--ink-dim:#c78fb8;--glow-top:#59124d;--glow-bottom:#4d0f3d;--sun-deep:#7a0e5c;--grid-a:rgba(255,46,166,.35);--grid-b:rgba(255,126,201,.30)}
+[data-accent="red"]{--bg-deep:#180505;--bg-panel:#2b0a0a;--bg-card:#360f0f;--line:#5e1b1b;--ink-dim:#c78f8f;--glow-top:#591212;--glow-bottom:#4d0f0f;--sun-deep:#7a0e0e;--grid-a:rgba(255,46,46,.35);--grid-b:rgba(255,138,138,.30)}
+[data-accent="green"]{--bg-deep:#041505;--bg-panel:#08260c;--bg-card:#0c3312;--line:#1b5e26;--ink-dim:#8fc79a;--glow-top:#125920;--glow-bottom:#0f4d1a;--sun-deep:#0e7a22;--grid-a:rgba(57,255,20,.30);--grid-b:rgba(138,255,112,.25)}
+[data-accent="blue"]{--bg-deep:#050a18;--bg-panel:#0a142b;--bg-card:#0f1c36;--line:#1b2f5e;--ink-dim:#8fa3c7;--glow-top:#122859;--glow-bottom:#0f204d;--sun-deep:#0e2f7a;--grid-a:rgba(46,107,255,.35);--grid-b:rgba(110,168,255,.30)}
+[data-accent="yellow"]{--bg-deep:#171505;--bg-panel:#292408;--bg-card:#35300c;--line:#5e551b;--ink-dim:#c7c08f;--glow-top:#595012;--glow-bottom:#4d440f;--sun-deep:#7a6c0e;--grid-a:rgba(255,238,50,.30);--grid-b:rgba(255,247,138,.25)}
+[data-accent="orange"]{--bg-deep:#180d05;--bg-panel:#2b1708;--bg-card:#361f0c;--line:#5e3a1b;--ink-dim:#c7ab8f;--glow-top:#593212;--glow-bottom:#4d2a0f;--sun-deep:#7a420e;--grid-a:rgba(255,140,26,.35);--grid-b:rgba(255,178,102,.30)}
+[data-accent="purple"]{--bg-deep:#0b0518;--bg-panel:#140a2b;--bg-card:#1a0f36;--line:#2c1b5e;--ink-dim:#9a8fc7;--glow-top:#2a1259;--glow-bottom:#240f4d;--sun-deep:#3d0e7a;--grid-a:rgba(139,92,246,.35);--grid-b:rgba(183,148,255,.30)}
+/* ---------- Classic: kill every neon glow so nothing bleeds through ---------- */
+[data-theme="light"] *{text-shadow:none!important}
+[data-theme="light"] .appsearch:focus{box-shadow:none}
+[data-theme="light"] .approw .aplay:active{background:#fff;color:#0a8a0a}
+[data-theme="light"] .card .go:hover{box-shadow:none}
+[data-theme="light"] .theme-toggle:hover{border-color:#fff}
+[data-theme="light"] .tab:focus-visible,[data-theme="light"] .theme-toggle:focus-visible,
+[data-theme="light"] .card .go:focus-visible{outline-color:#fff}
 /* Un-ported canvas games get a neon-free green-phosphor CRT treatment in classic mode.
    Games with a native classic skin (freecell, mine-sweeper) skip this class. */
 [data-theme="light"] .stage iframe.mono-classic{
@@ -373,7 +399,7 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
     <div class="credits">
       TOTAL CREDITS EARNED<br><b id="totalScore">0</b><br>
       <span id="gamesPlayed">0 sessions logged</span><br>
-      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch color theme">&#9788; Classic</button>
+      <select class="theme-toggle" id="themeToggle" aria-label="Color theme"><option value="classic">&#9788; Classic</option><option value="pink">Neon Pink</option><option value="red">Neon Red</option><option value="green">Neon Green</option><option value="blue">Neon Blue</option><option value="yellow">Neon Yellow</option><option value="orange">Neon Orange</option><option value="purple">Neon Purple</option></select>
     </div>
   </header>
 
@@ -460,7 +486,7 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
       <span>LEVEL <b id="liveLevel">1</b></span>
       <span>BEST <b id="liveBest">0</b></span>
     </span>
-    <button class="theme-toggle" id="stageThemeToggle" type="button" aria-label="Switch color theme" style="margin-top:0">&#9788; Classic</button>
+    <select class="theme-toggle" id="stageThemeToggle" aria-label="Color theme" style="margin-top:0"><option value="classic">&#9788; Classic</option><option value="pink">Neon Pink</option><option value="red">Neon Red</option><option value="green">Neon Green</option><option value="blue">Neon Blue</option><option value="yellow">Neon Yellow</option><option value="orange">Neon Orange</option><option value="purple">Neon Purple</option></select>
     <button class="theme-toggle" id="hiScoresBtn" type="button" style="margin-top:0;display:none">&#9733; Scores</button>
     <button class="close" id="closeBtn" type="button">Exit [ESC]</button>
   </div>
@@ -2588,7 +2614,7 @@ function drawMenu(t){
   ctx.shadowBlur=(NG_CLASSIC()?0:24);ctx.shadowColor="hsl("+game.cfg.hue+" 100% 60%)";
   ctx.fillStyle="hsl("+game.cfg.hue+" 100% 70%)";
   ctx.font="700 "+Math.min(44,W*0.09)+"px ui-monospace,monospace";
-  ctx.fillText("NEON MAHJONG",W/2,H*0.24);
+  ctx.fillText("MAHJONG",W/2,H*0.24);
   ctx.shadowBlur=0;ctx.fillStyle=NG_P("#9a8fc7");ctx.font="13px ui-monospace,monospace";
   ctx.fillText("1000 LEVELS \u00B7 EVERY DEAL UNIQUE \u00B7 ALWAYS SOLVABLE",W/2,H*0.24+30);
   MENUBTNS=[];
@@ -3534,7 +3560,11 @@ requestAnimationFrame(frame);
   [data-theme="light"] .cell{background:#c0c0c0;border-color:#fff #808080 #808080 #fff}
   [data-theme="light"] .cell.open{border:1px solid #808080;border-width:0 0 1px 1px;background:#c0c0c0}
   [data-theme="light"] .cell.boom{background:#f00}
-  [data-theme="light"] .mine::after{color:#000}
+  [data-theme="light"] .c1{color:#0000ff;text-shadow:none}[data-theme="light"] .c2{color:#008000;text-shadow:none}
+  [data-theme="light"] .c3{color:#ff0000;text-shadow:none}[data-theme="light"] .c4{color:#000080;text-shadow:none}
+  [data-theme="light"] .c5{color:#800000;text-shadow:none}[data-theme="light"] .c6{color:#008080;text-shadow:none}
+  [data-theme="light"] .c7{color:#000000;text-shadow:none}[data-theme="light"] .c8{color:#808080;text-shadow:none}
+  [data-theme="light"] .mine::after{color:#000;text-shadow:none}
   [data-theme="light"] .wrongflag::before{color:#f00}
   [data-theme="light"] #status{color:#555}
 </style>
@@ -4298,7 +4328,7 @@ requestAnimationFrame(frame);
     -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
   #wrap{position:absolute;inset:0;display:flex;flex-direction:column;
     background:
-      radial-gradient(ellipse 120% 60% at 50% -10%, #2a1259 0%, transparent 60%),
+      radial-gradient(ellipse 120% 60% at 50% -10%, var(--glow-top,#2a1259) 0%, transparent 60%),
       radial-gradient(ellipse 80% 45% at 50% 115%, #3d0f4d 0%, transparent 70%),
       var(--bg)}
   #wrap:before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
@@ -4444,7 +4474,7 @@ requestAnimationFrame(frame);
 </style>
 <div id="wrap">
   <div id="topbar">
-    <span id="gameName">Neon FreeCell</span>
+    <span id="gameName">FreeCell</span>
     <button class="tbtn green" id="newBtn">New Game</button>
     <button class="tbtn green" id="shuffleBtn">Random Shuffle <span class="car">&#9660;</span></button>
     <button class="tbtn green" id="restartBtn">Restart</button>
@@ -4493,7 +4523,7 @@ const GAME_ID="freecell";
   // classic mode drops the "Neon" from the title
   new MutationObserver(()=>{
     const el=document.getElementById("gameName");
-    if(el) el.textContent = document.documentElement.getAttribute("data-theme")==="light" ? "FreeCell" : "Neon FreeCell";
+    if(el) el.textContent = document.documentElement.getAttribute("data-theme")==="light" ? "FreeCell" : "FreeCell";
   }).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
 function send(type,payload){ parent.postMessage({source:"GameBridge",v:1,gameId:GAME_ID,type,payload},"*"); }
 const GameBridge={
@@ -6260,7 +6290,7 @@ function renderMenu(){
   ctx.font="bold "+(Math.min(30,W*0.07))+"px ui-monospace,Menlo,monospace";
   ctx.fillStyle=NG_P("#ff2ea6");
   if(!NG_CLASSIC()){ctx.shadowColor=NG_P("#ff2ea6");ctx.shadowBlur=16;}
-  ctx.fillText("NEON CHESS",cx,y0-rowH*1.2);
+  ctx.fillText("CHESS",cx,y0-rowH*1.2);
   ctx.shadowBlur=0;
 
   function btn(x,y,w,h,label,on){
@@ -8450,14 +8480,14 @@ const REGISTRY=[
   {id:"photon-pop",  title:"Photon Pop",  genre:"Retro",  src:"embedded:boilerplate"},
   {id:"maze-runner", title:"Maze Runner", genre:"Retro",  src:"embedded:maze-runner"},
   {id:"gridfall",    title:"Gridfall",    genre:"Puzzle", src:"embedded:gridfall"},
-  {id:"neon-mahjong",title:"Neon Mahjong",genre:"Puzzle", src:"embedded:neon-mahjong"},
-  {id:"neon-solitaire",title:"Neon Solitaire",genre:"Strategy",src:"embedded:neon-solitaire"},
-  {id:"freecell",    title:"Neon FreeCell",genre:"Strategy",src:"embedded:freecell"},
+  {id:"neon-mahjong",title:"Mahjong",genre:"Puzzle", src:"embedded:neon-mahjong"},
+  {id:"neon-solitaire",title:"Solitaire",genre:"Strategy",src:"embedded:neon-solitaire"},
+  {id:"freecell",    title:"FreeCell",genre:"Strategy",src:"embedded:freecell"},
   {id:"mine-sweeper",title:"Mine Sweeper",genre:"Puzzle",src:"embedded:mine-sweeper"},
   {id:"word-search",title:"Word Grid 10K",genre:"Puzzle",src:"embedded:word-search"},
   {id:"pyramid-13",title:"Pyramid 13",genre:"Strategy",src:"embedded:pyramid-13"},
   {id:"gem-drop",title:"Gem Drop",genre:"Puzzle",src:"embedded:gem-drop"},
-  {id:"neon-chess",title:"Neon Chess",genre:"Strategy",src:"embedded:neon-chess"},
+  {id:"neon-chess",title:"Chess",genre:"Strategy",src:"embedded:neon-chess"},
   {id:"space-cadet",title:"3D Pinball: Space Cadet",genre:"Retro",
    src:"3DPinballSpaceCadet.htm",external:true}
 ];
@@ -9087,6 +9117,7 @@ $("#closeBtn").onclick=closeStage;
 $("#stageBar").addEventListener("auxclick", e=>{ if(e.button===1) e.preventDefault(); });
 $("#stageBar").addEventListener("click", e=>{
   if(e.target.closest("#closeBtn")) return;
+  if(e.target.closest("#stageThemeToggle")) return; /* let the dropdown stay open until a color is picked */
   setTimeout(refocusGame, 0);
 });
 addEventListener("keydown",e=>{ if(e.key==="Escape"&&stage.classList.contains("open")) closeStage(); });
@@ -9193,22 +9224,34 @@ renderTabs(); renderGrid(); renderBoard(); renderStats();
 <script>
 /* ---------- Theme: dark neon (default) / light classic-green ---------- */
 (() => {
-  const btns = [document.getElementById("themeToggle"), document.getElementById("stageThemeToggle")].filter(Boolean);
+  const sels = [document.getElementById("themeToggle"), document.getElementById("stageThemeToggle")].filter(Boolean);
   const meta = document.querySelector('meta[name="theme-color"]');
-  const apply = t => {
+  const ACCENTS = ["pink","red","green","blue","yellow","orange","purple"];
+  const apply = v => {
+    // v is "classic" or one of the 7 neon accents
+    const isClassic = v === "classic";
+    const t = isClassic ? "light" : "dark";
     document.documentElement.setAttribute("data-theme", t);
-    meta.setAttribute("content", t === "light" ? "#9bbc0f" : "#140a2b");
-    btns.forEach(b => b.innerHTML = t === "light" ? "&#9789; Neon" : "&#9788; Classic");
-    try { localStorage.setItem("ng_theme", t); } catch {}
+    if (isClassic) document.documentElement.removeAttribute("data-accent");
+    else document.documentElement.setAttribute("data-accent", v);
+    const METAC = {pink:"#26082b",red:"#2b0a0a",green:"#08260c",blue:"#0a142b",yellow:"#292408",orange:"#2b1708",purple:"#140a2b"};
+    meta.setAttribute("content", isClassic ? "#9bbc0f" : (METAC[v] || "#140a2b"));
+    sels.forEach(s => { if (s.value !== v) s.value = v; });
+    try { localStorage.setItem("ng_theme", v); } catch {}
     // let a running game know (GameBridge hub message; games may natively theme)
     const gf = document.getElementById("gameFrame");
     if (gf && gf.contentWindow) gf.contentWindow.postMessage({ source: "GameBridgeHub", v: 1, type: "SET_THEME", theme: t }, "*");
   };
-  let saved = "dark";
-  try { saved = localStorage.getItem("ng_theme") || "dark"; } catch {}
+  let saved = "pink";
+  try { saved = localStorage.getItem("ng_theme") || "pink"; } catch {}
+  if (saved === "dark") saved = "pink";          // migrate old values
+  if (saved === "light") saved = "classic";
+  if (saved !== "classic" && !ACCENTS.includes(saved)) saved = "pink";
   apply(saved);
-  btns.forEach(b => b.addEventListener("click", () => {
-    apply(document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light");
+  sels.forEach(s => s.addEventListener("change", () => {
+    apply(s.value);
+    /* hand focus back to the running game once a color has been picked */
+    if (typeof refocusGame === "function") { s.blur(); setTimeout(refocusGame, 0); }
   }));
 })();
 
