@@ -6188,7 +6188,7 @@ const NG_P = c => (NG_CLASSIC() && NG_MAP[c]) || c;
      BLITZ   — 60s; time gems (+5s) & score multiplier ramps
      ZEN     — endless calm; auto-reshuffle
      DIAMOND MINE — excavate dirt & treasure before time runs out
-     BUTTERFLIES — butterflies rise each move; catch them before they escape
+     BUTTERFLIES — butterflies rise each move; catch them before the spider does
      ICE STORM — ice climbs the columns; smash it with vertical matches
      POKER   — every match deals a card; build 5-card color hands
    BOOSTS (pick one per run): Head Start, Overdrive, Stopwatch/Insight
@@ -6483,7 +6483,7 @@ const MODES=[
   {id:"blitz",  name:"BLITZ",  desc:"60s. Time gems. Multiplier."},
   {id:"zen",    name:"ZEN",    desc:"Pure calm. Never ends."},
   {id:"mine", name:"DIAMOND MINE", desc:"Unearth buried treasure."},
-  {id:"butterfly",  name:"BUTTERFLIES", desc:"Catch them before they escape."},
+  {id:"butterfly",  name:"BUTTERFLIES", desc:"Watch out for the spider!"},
   {id:"icestorm",  name:"ICE STORM", desc:"Ice climbs. Smash vertically."},
   {id:"poker",  name:"POKER",  desc:"Matches deal cards. Build hands."}
 ];
@@ -7135,7 +7135,6 @@ function cellAt(px,py){
   if(x<0||x>=N||y<0||y>=N)return null;
   const i=idx(x,y);
   if(dirt[i]||grid[i]==null)return null;
-  if(mode==="icestorm"&&y>=N-iceH[x])return null; /* frozen */
   return{x,y};
 }
 function hitBtn(px,py,b){const dx=px-b.x,dy=py-b.y;return dx*dx+dy*dy<b.r*b.r*2;}
@@ -7411,17 +7410,30 @@ function roundBtn(b,label,on){
   ctx.fillText(label,b.x,b.y+1);
   ctx.globalAlpha=1;ctx.textBaseline="top";
 }
+function fitText(txt,maxW,base,weight){
+  /* largest font size <= base that keeps txt inside maxW */
+  let fs=base;
+  ctx.font=(weight?weight+" ":"")+fs+"px ui-monospace,Menlo,monospace";
+  while(fs>7&&ctx.measureText(txt).width>maxW){
+    fs--;
+    ctx.font=(weight?weight+" ":"")+fs+"px ui-monospace,Menlo,monospace";
+  }
+  return fs;
+}
 function panelBtn(b,ink,dim){
   ctx.fillStyle="rgba(255,255,255,0.07)";
   ctx.strokeStyle=NG_CLASSIC()?"rgba(255,255,255,0.35)":"#8b5cf6";ctx.lineWidth=2;
   ctx.beginPath();ctx.roundRect?ctx.roundRect(b.x,b.y,b.w,b.h,12):ctx.rect(b.x,b.y,b.w,b.h);ctx.fill();ctx.stroke();
-  ctx.fillStyle=ink;ctx.font="bold 15px ui-monospace,Menlo,monospace";ctx.textAlign="center";ctx.textBaseline="top";
+  const inW=b.w-16;
+  ctx.textAlign="center";ctx.textBaseline="top";
+  ctx.fillStyle=ink;fitText(b.name,inW,15,"bold");
   ctx.fillText(b.name,b.x+b.w/2,b.y+9);
-  ctx.fillStyle=dim;ctx.font="10px ui-monospace,Menlo,monospace";
+  ctx.fillStyle=dim;fitText(b.desc,inW,10,"");
   ctx.fillText(b.desc,b.x+b.w/2,b.y+31);
   if(b.id&&bests[b.id]){
-    ctx.fillStyle="#ffd700";ctx.font="bold 9px ui-monospace,Menlo,monospace";
-    ctx.fillText("BEST "+bests[b.id].toLocaleString(),b.x+b.w/2,b.y+43);
+    const bt="BEST "+bests[b.id].toLocaleString();
+    ctx.fillStyle="#ffd700";fitText(bt,inW,9,"bold");
+    ctx.fillText(bt,b.x+b.w/2,b.y+43);
   }
 }
 
@@ -8536,17 +8548,20 @@ renderTabs(); renderGrid(); renderBoard(); renderStats();
 </script>
 <div id="swUpdateBanner" style="position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(80px);
   z-index:9999;background:var(--bg-panel);border:1px solid var(--neon-cyan);color:var(--ink);border-radius:12px;
-  padding:12px 18px;display:flex;align-items:center;gap:14px;font-family:ui-monospace,Menlo,Consolas,monospace;
+  padding:14px 16px;display:flex;flex-direction:column;gap:12px;font-family:ui-monospace,Menlo,Consolas,monospace;
   font-size:14px;box-shadow:0 8px 30px rgba(0,0,0,.35);
+  width:max-content;max-width:min(420px,calc(100vw - 24px));box-sizing:border-box;
   opacity:0;transition:transform .35s ease,opacity .35s ease;pointer-events:none">
-  <div style="display:flex;flex-direction:column;gap:6px;max-width:320px">
-    <div><span>&#128377;&#65039; New version available</span> <span id="swNewVer" style="color:var(--neon-cyan);font-weight:700"></span></div>
+  <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+    <div style="white-space:nowrap">&#128377;&#65039; New version available <span id="swNewVer" style="color:var(--neon-cyan);font-weight:700"></span></div>
     <ul id="swNotes" style="margin:0;padding-left:18px;font-size:12px;line-height:1.55;color:var(--ink-dim);display:none"></ul>
   </div>
-  <button id="swUpdateBtn" style="background:transparent;border:1px solid var(--neon-magenta);color:var(--neon-magenta);border-radius:8px;
-    padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.04em">UPDATE</button>
-  <button id="swDismissBtn" style="background:transparent;border:1px solid var(--ink-dim);color:var(--ink-dim);border-radius:8px;
-    padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.04em">LATER</button>
+  <div style="display:flex;gap:10px;justify-content:flex-end">
+    <button id="swUpdateBtn" style="background:transparent;border:1px solid var(--neon-magenta);color:var(--neon-magenta);border-radius:8px;
+      padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.04em">UPDATE</button>
+    <button id="swDismissBtn" style="background:transparent;border:1px solid var(--ink-dim);color:var(--ink-dim);border-radius:8px;
+      padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.04em">LATER</button>
+  </div>
 </div>
 <div id="appVersion" style="position:fixed;left:10px;bottom:8px;z-index:9998;color:#9a8fc7;opacity:.55;
   font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;letter-spacing:.06em;pointer-events:none"></div>
