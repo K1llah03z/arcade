@@ -3834,15 +3834,29 @@ GameBridge.ready();
 /* Classic-theme palette shim: NG_P maps neon colors to classic ones when
    the hub sets data-theme="light". Neon mode passes colors through untouched. */
 const NG_CLASSIC = () => document.documentElement.getAttribute("data-theme") === "light";
-const NG_MAP = {
-  "#05030c":"#0a8a0a","#160a33":"#0a8a0a",
-  "#e8e4ff":"#ffffff","#c9c2ea":"#ffffff","#9a8fc7":"#d9f2d9","#5a5480":"#9fce9f",
-  "#22e6ff":"#ffd700","#7CFF6B":"#ffffff","#ff2ea6":"#ffd700","#ffc857":"#ffd700",
-  "rgba(34,230,255,.25)":"rgba(255,215,0,.35)",
-  "rgba(139,92,246,.35)":"rgba(255,255,255,.55)",
-  "rgba(20,10,43,.88)":"rgba(4,70,4,.92)"
+const NG_FELTS = {
+  "":      {deep:"#0a8a0a",panel:"rgba(4,70,4,.92)", dim:"#d9f2d9",dim2:"#9fce9f",gold:"#ffd700"},
+  green:   {deep:"#0a8a0a",panel:"rgba(4,70,4,.92)", dim:"#d9f2d9",dim2:"#9fce9f",gold:"#ffd700"},
+  red:     {deep:"#8a0a0a",panel:"rgba(70,4,4,.92)", dim:"#f2d9d9",dim2:"#ce9f9f",gold:"#ffd700"},
+  pink:    {deep:"#8a0a5a",panel:"rgba(70,4,42,.92)",dim:"#f2d9ea",dim2:"#ce9fbf",gold:"#ffd700"},
+  blue:    {deep:"#0a2a8a",panel:"rgba(4,22,70,.92)",dim:"#d9e2f2",dim2:"#9fb0ce",gold:"#ffd700"},
+  yellow:  {deep:"#7a7a0a",panel:"rgba(62,62,4,.92)",dim:"#f2f2d9",dim2:"#cece9f",gold:"#ffffff"},
+  orange:  {deep:"#8a4a0a",panel:"rgba(70,36,4,.92)",dim:"#f2e5d9",dim2:"#ceb89f",gold:"#ffd700"},
+  purple:  {deep:"#4a0a8a",panel:"rgba(38,4,70,.92)",dim:"#e5d9f2",dim2:"#b89fce",gold:"#ffd700"}
 };
-const NG_P = c => (NG_CLASSIC() && NG_MAP[c]) || c;
+function NG_MAP(){
+  const a=document.documentElement.getAttribute("data-accent")||"";
+  const f=NG_FELTS[a]||NG_FELTS[""];
+  return {
+    "#05030c":f.deep,"#160a33":f.deep,
+    "#e8e4ff":"#ffffff","#c9c2ea":"#ffffff","#9a8fc7":f.dim,"#5a5480":f.dim2,
+    "#22e6ff":f.gold,"#7CFF6B":"#ffffff","#ff2ea6":f.gold,"#ffc857":f.gold,
+    "rgba(34,230,255,.25)":"rgba(255,215,0,.35)",
+    "rgba(139,92,246,.35)":"rgba(255,255,255,.55)",
+    "rgba(20,10,43,.88)":f.panel
+  };
+}
+const NG_P = c => (NG_CLASSIC() && NG_MAP()[c]) || c;
 </script>
 <script>
 /* ================= GameBridge CLIENT STUB (v1) ================= */
@@ -8779,7 +8793,7 @@ const THEME_SNIPPET = `
   addEventListener("message",e=>{
     const d=e.data;
     if(!d||d.source!=="GameBridgeHub")return;
-    if(d.type==="SET_THEME")document.documentElement.setAttribute("data-theme",d.theme);
+    if(d.type==="SET_THEME"){document.documentElement.setAttribute("data-theme",d.theme);if(d.accent)document.documentElement.setAttribute("data-accent",d.accent);else document.documentElement.removeAttribute("data-accent");}
     if(d.type==="SET_SOUND"){SOUND=!!d.on;CTXS.forEach(c=>{try{SOUND?c.resume():c.suspend();}catch(err){}});}
   });
 })();
@@ -9098,7 +9112,7 @@ function launch(entry){
   frame.onload = () => {
     const t = document.documentElement.getAttribute("data-theme") || "dark";
     if (frame.contentWindow){
-      frame.contentWindow.postMessage({ source: "GameBridgeHub", v: 1, type: "SET_THEME", theme: t }, "*");
+      frame.contentWindow.postMessage({ source: "GameBridgeHub", v: 1, type: "SET_THEME", theme: t, accent: document.documentElement.getAttribute("data-accent") || "" }, "*");
       frame.contentWindow.postMessage({ source: "GameBridgeHub", v: 1, type: "SET_SOUND", on: Sound.on() }, "*");
     }
   };
@@ -9251,7 +9265,7 @@ renderTabs(); renderGrid(); renderBoard(); renderStats();
     try { localStorage.setItem("ng_theme", v); } catch {}
     // let a running game know (GameBridge hub message; games may natively theme)
     const gf = document.getElementById("gameFrame");
-    if (gf && gf.contentWindow) gf.contentWindow.postMessage({ source: "GameBridgeHub", v: 1, type: "SET_THEME", theme: t }, "*");
+    if (gf && gf.contentWindow) gf.contentWindow.postMessage({ source: "GameBridgeHub", v: 1, type: "SET_THEME", theme: t, accent: document.documentElement.getAttribute("data-accent") || "" }, "*");
   };
   let saved = "pink";
   try { saved = localStorage.getItem("ng_theme") || "pink"; } catch {}
