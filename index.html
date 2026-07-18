@@ -246,12 +246,30 @@ section.board{max-width:720px;margin-left:auto;margin-right:auto}
 }
 .approw .aplay:active{background:var(--neon-cyan);color:#04101a}
 .appempty{color:var(--ink-dim);font-size:12px;text-align:center;padding:30px 0;letter-spacing:.08em}
-.setpanel{border:1px solid var(--line);border-radius:8px;background:var(--bg-panel);padding:16px}
+.setpanel{border:1px solid var(--line);border-radius:8px;background:var(--bg-panel);padding:16px;margin-bottom:14px}
 .setpanel h2{font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:var(--neon-cyan);margin-bottom:14px;text-shadow:0 0 8px rgba(34,230,255,.5)}
 [data-theme="light"] .setpanel h2{text-shadow:none}
 .setrow{display:flex;align-items:center;gap:12px;padding:6px 0;color:var(--ink);font-size:13px}
 .setrow .theme-toggle{margin-top:0}
 .setnote{color:var(--ink-dim);font-size:10px;letter-spacing:.1em;margin-top:10px}
+.setstats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center}
+.setstats .stat{border:1px dashed var(--line);border-radius:6px;padding:12px 4px}
+.setstats .stat b{display:block;font-size:17px;color:var(--neon-amber);margin-bottom:4px}
+.setstats .stat span{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-dim)}
+.achrow{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px dashed var(--line);font-size:12px;color:var(--ink)}
+.achrow:last-child{border-bottom:0}
+.achrow .medal{color:var(--neon-amber);text-shadow:0 0 8px rgba(255,200,87,.6)}
+.achrow .from{margin-left:auto;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--neon-violet)}
+.achempty{color:var(--ink-dim);font-size:11px;letter-spacing:.08em;padding:4px 0}
+.databox{
+  width:100%;resize:vertical;border:1px solid var(--line);border-radius:6px;background:var(--bg-deep);
+  color:var(--ink);font-family:inherit;font-size:10px;padding:10px;outline:none;
+}
+.databox:focus{border-color:var(--neon-cyan)}
+.setbtns{display:flex;gap:10px;margin-top:10px}
+.setbtns .theme-toggle{margin-top:0}
+.aboutbody{font-size:11px;color:var(--ink-dim);line-height:1.9;letter-spacing:.06em}
+.aboutbody b{color:var(--ink)}
 .tabbar{
   position:fixed;left:0;right:0;bottom:0;z-index:60;
   display:flex;justify-content:center;gap:0;
@@ -367,10 +385,42 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
     </div>
 
     <div class="appview" id="viewSettings" hidden>
-      <div class="setpanel" id="settingsPanel">
+      <div class="setpanel">
         <h2>&#9881; Settings</h2>
         <div class="setrow" id="setThemeRow"></div>
-        <div class="setnote">Theme applies to the hub and every cabinet.</div>
+        <div class="setrow"><span>Sound</span>
+          <button class="theme-toggle" id="soundToggle" type="button">&#128266; On</button>
+        </div>
+        <div class="setnote">Theme and sound apply to the hub and every cabinet.</div>
+      </div>
+
+      <div class="setpanel">
+        <h2>&#128202; Playtime</h2>
+        <div id="setStats" class="setstats"></div>
+      </div>
+
+      <div class="setpanel">
+        <h2>&#127894; Achievements</h2>
+        <div id="setAchievements"></div>
+      </div>
+
+      <div class="setpanel">
+        <h2>&#128190; Data</h2>
+        <div class="setnote" style="margin:0 0 10px">Scores, saves, favorites &amp; achievements live in this browser. Export to move them to another device.</div>
+        <textarea id="dataBox" class="databox" rows="4" spellcheck="false" placeholder="Exported data appears here &mdash; or paste a backup and hit Import"></textarea>
+        <div class="setbtns">
+          <button class="theme-toggle" id="exportBtn" type="button">&#11015; Export</button>
+          <button class="theme-toggle" id="importBtn" type="button">&#11014; Import</button>
+        </div>
+      </div>
+
+      <div class="setpanel">
+        <h2>&#8505; About</h2>
+        <div class="aboutbody">
+          <b>NEON//GRID</b> <span id="aboutVersion"></span><br>
+          Retro arcade hub &middot; GameBridge protocol v1<br>
+          All audio &amp; art generated at runtime &mdash; zero external assets.
+        </div>
       </div>
     </div>
 
@@ -8501,6 +8551,71 @@ const Faves={
   toggle(id){const a=this.load();const i=a.indexOf(id);if(i>=0)a.splice(i,1);else a.push(id);this.save(a);return i<0;}
 };
 let appQuery="";
+let playStamp=0;
+/* Master sound switch: hub-wide, pushed to the running cabinet via GameBridge */
+const Sound={
+  KEY:"neonGrid.sound",
+  on(){try{return localStorage.getItem(this.KEY)!=="off";}catch(e){return true;}},
+  set(v){try{localStorage.setItem(this.KEY,v?"on":"off");}catch(e){}
+    if(frame&&frame.contentWindow)frame.contentWindow.postMessage({source:"GameBridgeHub",v:1,type:"SET_SOUND",on:v},"*");
+    const b=document.getElementById("soundToggle");
+    if(b)b.innerHTML=v?"&#128266; On":"&#128263; Off";
+  }
+};
+const ACH_NAMES={ /* friendly labels; unknown ids fall back to the raw id */
+  "photon-pop:level5":["Overclocked","Photon Pop"],
+  "gridfall:quad-clear":["Quad Clear","Gridfall"],
+  "gridfall:level5":["Cascade Cadet","Gridfall"],
+  "gridfall:level10":["Terminal Velocity","Gridfall"]
+};
+function fmtPlaytime(ms){
+  const m=Math.floor(ms/60000);
+  if(m<60)return m+"m";
+  return Math.floor(m/60)+"h "+(m%60)+"m";
+}
+function renderSettings(){
+  const d=Store.load();
+  const el=document.getElementById("setStats");
+  if(el)el.innerHTML=
+    '<div class="stat"><b>'+d.sessions+'</b><span>Sessions</span></div>'+
+    '<div class="stat"><b>'+fmtPlaytime(d.playMs||0)+'</b><span>Playtime</span></div>'+
+    '<div class="stat"><b>'+(d.achievements||[]).length+'</b><span>Medals</span></div>';
+  const ach=document.getElementById("setAchievements");
+  if(ach){
+    const list=d.achievements||[];
+    ach.innerHTML=list.length
+      ? list.map(id=>{
+          const [nm,game]=ACH_NAMES[id]||[id.split(":").pop().replace(/-/g," "),(REGISTRY.find(r=>id.startsWith(r.id+":"))||{title:id.split(":")[0]}).title];
+          return '<div class="achrow"><span class="medal">&#127942;</span>'+nm+'<span class="from">'+game+'</span></div>';
+        }).join("")
+      : '<div class="achempty">Nothing unlocked yet &mdash; medals appear as you play.</div>';
+  }
+}
+function exportData(){
+  const payload={neonGrid:1,exported:new Date().toISOString(),
+    store:Store.load(),faves:Faves.load(),
+    theme:document.documentElement.getAttribute("data-theme")||"dark",
+    sound:Sound.on()?"on":"off"};
+  const box=document.getElementById("dataBox");
+  box.value=JSON.stringify(payload);
+  box.select();
+  if(navigator.clipboard&&navigator.clipboard.writeText)
+    navigator.clipboard.writeText(box.value).then(()=>notify("Backup copied to clipboard."),()=>notify("Backup ready — copy the text below."));
+  else notify("Backup ready — copy the text below.");
+}
+function importData(){
+  const box=document.getElementById("dataBox");
+  let p;
+  try{p=JSON.parse(box.value);}catch(e){notify("That doesn't parse as a backup.");return;}
+  if(!p||p.neonGrid!==1||!p.store){notify("Not a Neon//Grid backup.");return;}
+  if(!confirm("Import this backup? It replaces your current scores, saves and favorites."))return;
+  Store.save(p.store);
+  Faves.save(Array.isArray(p.faves)?p.faves:[]);
+  if(p.theme)try{localStorage.setItem("ng_theme",p.theme);}catch(e){}
+  Sound.set(p.sound!=="off");
+  renderStats();renderBoard();renderGrid();renderSettings();
+  notify("Backup imported \u2713");
+}
 function monogram(t){return t.replace(/[^A-Za-z0-9 ]/g,"").split(/\s+/).filter(Boolean).map(w=>w[0]).join("").slice(0,2).toUpperCase()||"?";}
 function appRow(r){
   const best=Store.best(r.id);
@@ -8542,6 +8657,7 @@ function showView(v){
   document.getElementById("viewSettings").hidden=v!=="settings";
   document.querySelector("section.board").hidden=v!=="scores";
   document.querySelectorAll("#tabbar button").forEach(b=>b.classList.toggle("on",b.dataset.view===v));
+  if(v==="settings")renderSettings();
 }
 function initAppShell(){
   document.querySelectorAll("#tabbar button").forEach(b=>b.onclick=()=>showView(b.dataset.view));
@@ -8551,6 +8667,11 @@ function initAppShell(){
   const tr=document.getElementById("setThemeRow");
   const tt=document.getElementById("themeToggle");
   if(tr&&tt){tr.appendChild(tt);tr.insertAdjacentHTML("afterbegin","<span>Color theme</span>");}
+  /* sound / data controls */
+  Sound.set(Sound.on()); /* sync button label to stored state */
+  document.getElementById("soundToggle").onclick=()=>Sound.set(!Sound.on());
+  document.getElementById("exportBtn").onclick=exportData;
+  document.getElementById("importBtn").onclick=importData;
   showView("games");
 }
 function renderGrid(){
@@ -8589,11 +8710,22 @@ function renderBoard(){
    colors that collide in luminance are respaced so they stay distinct shades. */
 const THEME_SNIPPET = `
 <script>
-addEventListener("message",e=>{
-  const d=e.data;
-  if(d&&d.source==="GameBridgeHub"&&d.type==="SET_THEME")
-    document.documentElement.setAttribute("data-theme",d.theme);
-});
+/* Hub-injected: theme + master sound control. Wraps AudioContext so every
+   context the game creates can be suspended/resumed by the hub's toggle. */
+(function(){
+  const CTXS=[];let SOUND=true;
+  for(const k of ["AudioContext","webkitAudioContext"]){
+    const AC=window[k];if(!AC)continue;
+    const W=function(...a){const c=new AC(...a);CTXS.push(c);if(!SOUND)c.suspend();return c;};
+    W.prototype=AC.prototype;window[k]=W;
+  }
+  addEventListener("message",e=>{
+    const d=e.data;
+    if(!d||d.source!=="GameBridgeHub")return;
+    if(d.type==="SET_THEME")document.documentElement.setAttribute("data-theme",d.theme);
+    if(d.type==="SET_SOUND"){SOUND=!!d.on;CTXS.forEach(c=>{try{SOUND?c.resume():c.suspend();}catch(err){}});}
+  });
+})();
 <\/script>`;
 
 /* Games that ship their own full classic skin; all others get the CRT filter */
@@ -8908,11 +9040,19 @@ function launch(entry){
   document.body.classList.add("in-game");
   frame.onload = () => {
     const t = document.documentElement.getAttribute("data-theme") || "dark";
-    if (frame.contentWindow) frame.contentWindow.postMessage({ source: "GameBridgeHub", v: 1, type: "SET_THEME", theme: t }, "*");
+    if (frame.contentWindow){
+      frame.contentWindow.postMessage({ source: "GameBridgeHub", v: 1, type: "SET_THEME", theme: t }, "*");
+      frame.contentWindow.postMessage({ source: "GameBridgeHub", v: 1, type: "SET_SOUND", on: Sound.on() }, "*");
+    }
   };
+  playStamp=Date.now();
   frame.focus();
 }
 function closeStage(){
+  if(playStamp){
+    const d=Store.load();d.playMs=(d.playMs||0)+(Date.now()-playStamp);Store.save(d);
+    playStamp=0;
+  }
   $("#hiScoresModal").classList.remove("open");
   clearInterval(romPoll); romPoll=null;
   syncRomScore(true); // capture + persist final score before tearing down the frame
@@ -9058,6 +9198,8 @@ renderTabs(); renderGrid(); renderBoard(); renderStats();
    patch = small fix, minor = new feature/game, major = big overhaul.
    The page asks the running worker for its version at load. */
 const setVersion = v => {
+  const av=document.getElementById("aboutVersion");
+  if(av)av.textContent="v"+v;
   document.getElementById("appVersion").textContent = "v" + v;
   document.getElementById("hubVersion").textContent = "v" + v;
 };
