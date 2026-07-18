@@ -4176,10 +4176,48 @@ function drawCardBack(x,y,w,h){
   ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("\u2739",x+w/2,y+h/2);
   ctx.restore();
 }
+function mxLabelW(){return Math.max(70,W*0.16);}
 function oppSpots(){
-  const n=G.players.length-1,y=18;
-  if(n===1)return[{x:W/2,y}];
-  const out=[];for(let i=0;i<n;i++)out.push({x:W*(i+1)/(n+1),y});
+  const n=G.players.length-1;
+  const portrait=H>W;
+  if(n===1)return[{x:W/2,y:portrait?48:16,side:"T"}];
+  let nL,nR,nT;
+  if(n===2){nL=1;nR=1;nT=0;}
+  else{
+    nL=portrait?Math.min(3,Math.ceil(n/3)):Math.floor(n/3);
+    nR=nL;nT=n-2*nL;
+    if(nT<0){nL=nR=Math.floor(n/2);nT=n-2*nL;}
+  }
+  const {ch}=cardSize(),out=[];
+  if(portrait){
+    /* MOBILE: top row below the NEW GAME tag; sides evenly padded with
+       equal gaps at the ends (interior spacing) */
+    const mx=Math.max(44,W*0.13),topY=64; /* padded down from the NEW GAME tag */
+    /* uniform vertical rhythm: the gap from the top row down to the first
+       side seat equals the gap between side seats */
+    const rowBot=topY+66,sideBot=H-ch-150;
+    for(let i=0;i<nL;i++)
+      out.push({x:mx,y:sideBot-(sideBot-rowBot)*i/nL,side:"L"});
+    /* top row spreads edge-to-edge: first and last seats anchor near the
+       margins, the rest space evenly between them */
+    const pad=34;
+    for(let i=0;i<nT;i++)
+      out.push({x:nT===1?W/2:(mx+pad)+(W-2*(mx+pad))*i/(nT-1),y:topY,side:"T"});
+    for(let i=0;i<nR;i++)
+      out.push({x:W-mx,y:rowBot+(sideBot-rowBot)*(i+1)/nR,side:"R"});
+  }else{
+    /* DESKTOP: the layout that looked right — top row at the very top
+       (clear of the tag horizontally), sides anchored across full height */
+    const mx=Math.max(44,W*0.11),topY=16;
+    const sideTop=Math.max(96,H*0.14),sideBot=H-ch-140;
+    for(let i=0;i<nL;i++)
+      out.push({x:mx,y:nL===1?(sideTop+sideBot)/2:sideBot-(sideBot-sideTop)*i/(nL-1),side:"L"});
+    const tx0=Math.max(mx,150),tx1=W-mx;
+    for(let i=0;i<nT;i++)
+      out.push({x:tx0+(tx1-tx0)*(i+1)/(nT+1),y:topY,side:"T"});
+    for(let i=0;i<nR;i++)
+      out.push({x:W-mx,y:nR===1?(sideTop+sideBot)/2:sideTop+(sideBot-sideTop)*i/(nR-1),side:"R"});
+  }
   return out;
 }
 function draw(dt){
@@ -4190,27 +4228,42 @@ function draw(dt){
   /* opponents */
   const spots=oppSpots();
   G.players.slice(1).forEach((p,i)=>{
-    const nOpp=G.players.length-1,scale=nOpp<=3?0.62:nOpp<=6?0.46:0.36;
-    const sp=spots[i],w=cw*scale,h=ch*scale;
-    const slot=W/(nOpp+1)-10;
-    const n=Math.min(p.hand.length,nOpp<=3?8:5),step=Math.min(w*0.45,Math.max(4,(slot-w)/Math.max(1,n)));
-    const x0=sp.x-((n-1)*step+w)/2;
-    const cy2=sp.y+(nOpp>=5?27:14);
-    for(let k=0;k<n;k++)drawCardBack(x0+k*step,cy2,w,h);
+    const nOpp=G.players.length-1;
+    const sp=spots[i],side=sp.side||"T";
+    const scale=nOpp<=3?0.6:0.46;
+    const w=cw*scale,h=ch*scale;
+    const n=Math.min(p.hand.length,6);
     const active=G.turn===i+1&&G.state===S.PLAYING;
+    /* every seat: compact horizontal fan (short, so side seats never collide) */
+    const step=Math.min(w*0.4,Math.max(4,54/Math.max(1,n)));
+    const fanW=(n-1)*step+w;
+    let fx; /* fan left x */
+    if(side==="L")fx=sp.x-w/2;              /* hug left edge   */
+    else if(side==="R")fx=sp.x+w/2-fanW;    /* hug right edge  */
+    else fx=sp.x-fanW/2;                    /* centered on top */
+    const fy=sp.y+14;
+    for(let k=0;k<n;k++)drawCardBack(fx+k*step,fy,w,h);
+    /* label above the fan, same alignment as the fan */
     ctx.fillStyle=active?NG_P("#ffc857"):NG_P("#9a8fc7");
-    /* fit the label inside this seat's slot: shrink font, then truncate,
-       and stagger alternate labels onto two rows when seats are tight */
-    const slotW=W/(nOpp+1)-6;
     let fs=nOpp<=3?12:nOpp<=6?11:10;
     ctx.font=(active?"700 ":"")+fs+"px ui-monospace,monospace";
+    const maxW=side==="T"?Math.max(80,(W-260)/Math.max(1,nOpp)-8):Math.max(84,W*0.2);
     let lbl=p.name+" \u00B7 "+p.hand.length+(p.hand.length===1?" \u2014 UNO!":"");
-    if(ctx.measureText(lbl).width>slotW)
-      lbl=p.name+"\u00B7"+p.hand.length+(p.hand.length===1?"!":"");
-    while(ctx.measureText(lbl).width>slotW&&lbl.length>4)
+    if(ctx.measureText(lbl).width>maxW)lbl=p.name+"\u00B7"+p.hand.length+(p.hand.length===1?"!":"");
+    while(ctx.measureText(lbl).width>maxW&&lbl.length>4)
       lbl=lbl.slice(0,3)+"\u2026\u00B7"+p.hand.length;
-    const stagger=(nOpp>=5&&i%2===1)?13:0;
-    ctx.fillText(lbl,sp.x,sp.y+8+stagger);
+    if(side==="L"){ctx.textAlign="left";ctx.fillText(lbl,fx,sp.y+8);}
+    else if(side==="R"){ctx.textAlign="right";ctx.fillText(lbl,fx+fanW,sp.y+8);}
+    else ctx.fillText(lbl,sp.x,sp.y+8);
+    ctx.textAlign="center";
+    if(active){ /* gold marker beside the active seat */
+      const mxp=side==="L"?fx+fanW+10:side==="R"?fx-10:sp.x;
+      const myp=side==="T"?sp.y-8:fy+h/2;
+      ctx.beginPath();ctx.arc(mxp,myp,4,0,7);
+      ctx.fillStyle=NG_P("#ffc857");
+      if(!NG_CLASSIC()){ctx.shadowBlur=10;ctx.shadowColor=NG_P("#ffc857");}
+      ctx.fill();ctx.shadowBlur=0;
+    }
   });
   /* NEW GAME tag, top-left */
   {
