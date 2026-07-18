@@ -6475,6 +6475,7 @@ let frzBtn={x:0,y:0,r:16},gustBtn={x:0,y:0,r:16};
 let timeBtn={x:0,y:0,r:16},drillBtn={x:0,y:0,r:16};
 let overBtns=null; /* game-over popup buttons */
 let iceH=[],iceTimer=0,iceGap=3.2;       /* ice storm */
+let colComboN=0,colComboT=0,lastShatterX=-1; /* ice storm: column combos & regrow queue */
 let hand=[],handFlash=0,handName="";     /* poker */
 let overMsg="";
 
@@ -6973,12 +6974,34 @@ function commitSwap(){
 function beginClear(cells,specials,runs){
   chain++;
   const fired=detonate(cells);
-  /* ice storm: vertical runs smash ice in their column */
+  /* ice storm: vertical matches SHATTER whole columns; horizontal matches push them down */
   if(mode==="icestorm"&&runs){
     let smashed=false;
-    for(const r of runs)if(r.dir==="v"&&iceH[r.x]>0){
-      iceH[r.x]=Math.max(0,iceH[r.x]-r.len);smashed=true;
-      burst(BX+r.x*CS+CS/2,BY+(N-Math.max(1,iceH[r.x]))*CS,"#bfe6ff",14);
+    for(const r of runs){
+      if(r.dir==="v"&&iceH[r.x]>0){
+        /* shatter: column destroyed completely, restarts from the bottom */
+        const h=iceH[r.x];iceH[r.x]=0;smashed=true;lastShatterX=r.x;
+        for(let k=0;k<h;k++)burst(BX+r.x*CS+CS/2,BY+(N-1-k)*CS+CS/2,"#bfe6ff",8);
+        /* column destroy bonus + column combo for quick successive shatters */
+        colComboN=(colComboT>0)?colComboN+1:1;colComboT=2.5;
+        const bonus=1000*level*colComboN*boostMult();
+        score+=bonus;
+        if(colComboN>=2){
+          popText(W/2,BY+CS*1.6,"COLUMN COMBO x"+colComboN+"  +"+bonus.toLocaleString(),"#ffd700");
+          AudioFX.level();
+        } else {
+          popText(BX+r.x*CS+CS/2,BY+(N-2)*CS,"+"+bonus.toLocaleString(),"#bfe6ff");
+        }
+      } else if(r.dir==="h"){
+        /* push down every ice column the horizontal match sits over */
+        for(let k=0;k<r.len;k++){
+          const cx2=r.x+k;
+          if(iceH[cx2]>0){
+            iceH[cx2]=Math.max(0,iceH[cx2]-1);smashed=true;
+            burst(BX+cx2*CS+CS/2,BY+(N-Math.max(1,iceH[cx2]))*CS,"#bfe6ff",5);
+          }
+        }
+      }
     }
     if(smashed)AudioFX.iceSmash();
   }
@@ -7219,6 +7242,7 @@ function startRun(m){
   blzTimeUses=3;blzShufUses=3;clsShufUses=3;gemUses=5;
   hand=[];handFlash=0;runTime=0;overMsg="";finale=false;
   iceH=new Array(N).fill(0);iceTimer=0;iceGap=3.2;
+  colComboN=0;colComboT=0;lastShatterX=-1;
   timeLeft=(mode==="blitz")?60:(mode==="mine")?90:0;panOff=0;
   if(boost==="time"&&timeLeft)timeLeft+=15;
   lastTick=-1;
@@ -7562,10 +7586,13 @@ function frame(now){
     if(mode==="icestorm"&&state!=="menu"){
       if(iceFrzLeft>0){iceFrzLeft=Math.max(0,iceFrzLeft-dt);} /* frozen: ice doesn't climb */
       else{
+        if(colComboT>0){colComboT-=dt;if(colComboT<=0)colComboN=0;}
         iceTimer+=dt;
         if(iceTimer>=iceGap){
         iceTimer=0;iceGap=Math.max(1.5,iceGap-0.05);
-        const x=rnd(N);
+        let x=rnd(N);
+        if(x===lastShatterX&&N>1){x=(x+1+rnd(N-1))%N;} /* shattered column regrows last */
+        if(iceH[x]===0&&x!==lastShatterX)lastShatterX=-1;
         iceH[x]=Math.min(N,iceH[x]+1);
         burst(BX+x*CS+CS/2,BY+(N-iceH[x])*CS+CS/2,"#bfe6ff",6);
         if(iceH[x]>=N){overMsg="FROZEN SOLID";endRun();}
