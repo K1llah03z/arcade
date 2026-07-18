@@ -3849,6 +3849,76 @@ const AudioFX=(function(){
     wild:()=>{blip(440,880,.12,"triangle",.05);setTimeout(()=>blip(660,1320,.12,"triangle",.04),80);},
     uno:()=>{blip(880,1320,.14,"triangle",.06);setTimeout(()=>blip(1100,1760,.14,"triangle",.05),90);},
     turn:()=>{blip(660,660,.16,"triangle",.07);setTimeout(()=>blip(990,990,.22,"triangle",.06),140);},
+    /* Gendered laughs, formant-synthesized to sound like a human voice:
+       a sawtooth "glottal" source is run through two bandpass filters tuned
+       to the vowel formants of "ha", with falling pitch, vibrato, breath
+       noise and a decaying envelope. 5 male + 5 female profiles, 2-5s. */
+    laugh(gender){
+      try{
+        const a=actx(),t0=a.currentTime+0.05;
+        /* [f0 Hz, syllables, syllDur, gap, sylFall, laughFall, F1, F2, vowelQ, breath] */
+        const MALE=[
+          [130,12,.22,.10,.82,.985,660,1100,9,.020],  /* hearty deep ha-ha    */
+          [105,10,.26,.14,.85,.980,610,1000,8,.016],  /* villain belly laugh  */
+          [145,16,.17,.08,.80,.988,700,1150,10,.024], /* rolling chuckle      */
+          [120,11,.24,.16,.86,.978,640,1050,8,.014],  /* slow mocking laugh   */
+          [155,18,.15,.07,.78,.990,720,1200,11,.030]  /* wheezy snicker       */
+        ];
+        const FEMALE=[
+          [235,16,.17,.07,.80,.985,850,1900,10,.024], /* bright ha-ha-ha      */
+          [290,15,.16,.08,.76,.980,900,2100,11,.028], /* high cackle          */
+          [255,22,.13,.06,.82,.988,880,2000,12,.026], /* giggle spree         */
+          [270,20,.14,.06,.78,.982,920,2150,11,.030], /* hysterical fit       */
+          [215,12,.21,.11,.84,.984,820,1800,9,.018]   /* warm melodic laugh   */
+        ];
+        const P=(gender==="F"?FEMALE:MALE)[(Math.random()*5)|0];
+        const [f0,n,dur,gap,sylFall,laughFall,F1,F2,Q,breathV]=P;
+        /* shared vocal tract */
+        const bp1=a.createBiquadFilter();bp1.type="bandpass";bp1.frequency.value=F1;bp1.Q.value=Q;
+        const bp2=a.createBiquadFilter();bp2.type="bandpass";bp2.frequency.value=F2;bp2.Q.value=Q;
+        const mix=a.createGain();mix.gain.value=1;
+        const out=a.createGain();out.gain.value=0.85;
+        bp1.connect(mix);bp2.connect(mix);mix.connect(out);out.connect(a.destination);
+        let t=t0,pitch=f0;
+        for(let i=0;i<n;i++){
+          const d=dur*(0.85+Math.random()*0.3);
+          const p=pitch*(1+(Math.random()-0.5)*0.06);
+          /* glottal source */
+          const o=a.createOscillator();o.type="sawtooth";
+          o.frequency.setValueAtTime(p*1.12,t);
+          o.frequency.exponentialRampToValueAtTime(p*sylFall,t+d);      /* falling "ha" */
+          const vib=a.createOscillator(),vg=a.createGain();
+          vib.frequency.value=5.5+Math.random()*2;vg.gain.value=p*0.03; /* vibrato */
+          vib.connect(vg);vg.connect(o.frequency);
+          const env=a.createGain();
+          env.gain.setValueAtTime(0.0001,t);
+          env.gain.exponentialRampToValueAtTime(0.30,t+0.018);          /* hard "h" attack */
+          env.gain.exponentialRampToValueAtTime(0.0001,t+d);
+          o.connect(env);env.connect(bp1);env.connect(bp2);
+          o.start(t);o.stop(t+d+0.02);vib.start(t);vib.stop(t+d+0.02);
+          /* breath layer */
+          const bl=Math.max(1,(a.sampleRate*d)|0),buf=a.createBuffer(1,bl,a.sampleRate),ch=buf.getChannelData(0);
+          for(let k=0;k<bl;k++)ch[k]=(Math.random()*2-1)*Math.pow(1-k/bl,1.6);
+          const nz=a.createBufferSource();nz.buffer=buf;
+          const ng=a.createGain();ng.gain.value=breathV;
+          nz.connect(ng);ng.connect(bp2);nz.start(t);
+          pitch*=laughFall;                                             /* whole laugh sags */
+          t+=d+gap*(0.7+Math.random()*0.6);
+          if(i%4===3)t+=0.16+Math.random()*0.08;                        /* breath between phrases */
+        }
+        /* final trailing sigh */
+        const sig=a.createOscillator(),sg=a.createGain();
+        sig.type="sawtooth";
+        sig.frequency.setValueAtTime(pitch*1.05,t);
+        sig.frequency.exponentialRampToValueAtTime(pitch*0.7,t+0.5);
+        sg.gain.setValueAtTime(0.0001,t);
+        sg.gain.exponentialRampToValueAtTime(0.10,t+0.06);
+        sg.gain.exponentialRampToValueAtTime(0.0001,t+0.5);
+        sig.connect(sg);sg.connect(bp1);sig.start(t);sig.stop(t+0.55);
+        out.gain.setValueAtTime(0.85,t0);
+        out.gain.linearRampToValueAtTime(0.55,t+0.6);
+      }catch(e){}
+    },
     win:i=>blip(440*Math.pow(1.06,i%24),660*Math.pow(1.06,i%24),.15,"triangle",.05)
   };
 })();
@@ -3882,14 +3952,16 @@ function say(m,t=2){G.msg=m;G.msgT=t;}
 const BOY_NAMES=["James", "Liam", "Noah", "Oliver", "Elijah", "William", "Henry", "Lucas", "Benjamin", "Theodore", "Mateo", "Levi", "Sebastian", "Daniel", "Jack", "Michael", "Alexander", "Owen", "Asher", "Samuel", "Ethan", "Leo", "Jackson", "Mason", "Ezra", "John", "Hudson", "Luca", "Aiden", "Joseph", "David", "Jacob", "Logan", "Luke", "Julian", "Gabriel", "Grayson", "Wyatt", "Matthew", "Maverick", "Dylan", "Isaac", "Elias", "Anthony", "Thomas", "Jayden", "Carter", "Santiago", "Ezekiel", "Charles", "Josiah", "Caleb", "Cooper", "Lincoln", "Miles", "Christopher", "Nathan", "Isaiah", "Kai", "Joshua", "Andrew", "Angel", "Adrian", "Cameron", "Nolan", "Waylon", "Jaxon", "Roman", "Eli", "Wesley", "Aaron", "Ian", "Christian", "Ryan", "Leonardo", "Brooks", "Axel", "Walker", "Jonathan", "Easton", "Everett", "Weston", "Bennett", "Robert", "Jameson", "Landon", "Silas", "Jose", "Beau", "Micah", "Colton", "Jordan", "Jeremiah", "Parker", "Greyson", "Rowan", "Adam", "Nicholas", "Theo", "Xavier", "Hunter", "Dominic", "Jace", "Gael", "River", "Austin", "Kayden", "Damian", "Tristan", "Carson", "Jasper", "Brayden", "Amir", "Cole", "Emmett", "Corbin", "Knox", "Declan", "Chase", "Vincent", "Finn", "Atlas", "Kaiden", "Emiliano", "Archer", "Arthur", "Felix", "George", "Ryder", "Zion", "Malachi", "Ashton", "Edward", "Patrick", "Karter", "Milo", "Antonio", "Barrett", "Enzo", "Abel", "Bryson", "Nathaniel", "Marcus", "Simon", "Judah", "Blake", "Harrison", "Peter", "Otto", "Calvin"];
 const GIRL_NAMES=["Olivia", "Emma", "Charlotte", "Amelia", "Sophia", "Isabella", "Ava", "Mia", "Evelyn", "Luna", "Harper", "Camila", "Sofia", "Scarlett", "Elizabeth", "Eleanor", "Emily", "Chloe", "Mila", "Violet", "Penelope", "Gianna", "Aria", "Abigail", "Ella", "Avery", "Hazel", "Nora", "Layla", "Lily", "Aurora", "Nova", "Ellie", "Madison", "Grace", "Isla", "Willow", "Zoe", "Riley", "Stella", "Eliana", "Ivy", "Victoria", "Emilia", "Zoey", "Naomi", "Hannah", "Lucy", "Elena", "Lillian", "Maya", "Leah", "Paisley", "Addison", "Natalie", "Valentina", "Everly", "Delilah", "Leilani", "Madelyn", "Kinsley", "Ruby", "Sophie", "Alice", "Genesis", "Claire", "Audrey", "Sadie", "Aaliyah", "Josephine", "Autumn", "Brooklyn", "Quinn", "Kennedy", "Cora", "Savannah", "Caroline", "Athena", "Natalia", "Hailey", "Aubrey", "Emery", "Anna", "Iris", "Bella", "Eloise", "Skylar", "Jade", "Gabriella", "Ariana", "Maria", "Adeline", "Lydia", "Sarah", "Nevaeh", "Serenity", "Liliana", "Ayla", "Everleigh", "Raelynn", "Allison", "Margaret", "Sara", "Amara", "Josie", "Alina", "Melody", "Freya", "Juniper", "Piper", "Vivian", "Gemma", "Julia", "Clara", "Rylee", "Hadley", "Katherine", "Millie", "Sienna", "Daisy", "Kaylee", "Vera", "Rose", "Amira", "Eden", "Remi", "Mackenzie", "Charlie", "Reagan", "Alaia", "Dahlia", "Peyton", "Lyla", "Faith", "Margot", "Ophelia", "Wren", "Andrea", "Alani", "Norah", "Selena", "Rebecca", "Michelle", "Summer", "Esther", "Georgia", "Catalina", "Magnolia", "Arabella", "Fiona"];
 function randomNames(n){
-  const pool=BOY_NAMES.concat(GIRL_NAMES),out=[];
-  while(out.length<n){const nm=pool[(Math.random()*pool.length)|0];if(!out.includes(nm))out.push(nm);}
+  /* returns [{name, gender}] so laughs can match the CPU's gender */
+  const pool=BOY_NAMES.map(nm=>({name:nm,gender:"M"})).concat(GIRL_NAMES.map(nm=>({name:nm,gender:"F"})));
+  const out=[];
+  while(out.length<n){const p=pool[(Math.random()*pool.length)|0];if(!out.some(o=>o.name===p.name))out.push(p);}
   return out;
 }
 function newGame(nOpp){
-  const names=["YOU"].concat(randomNames(nOpp));
-  G.players=[];
-  for(let i=0;i<=nOpp;i++)G.players.push({name:names[i],hand:[],ai:i>0});
+  const cpus=randomNames(nOpp);
+  G.players=[{name:"YOU",gender:null,hand:[],ai:false}];
+  for(let i=0;i<nOpp;i++)G.players.push({name:cpus[i].name,gender:cpus[i].gender,hand:[],ai:true});
   G.deck=mkDeck();G.discard=[];G.dir=1;G.turn=0;G.over=null;G.drawnIdx=-1;G.fx=[];
   for(let r=0;r<7;r++)for(const p of G.players)p.hand.push(G.deck.pop());
   let first=G.deck.pop();
@@ -3952,7 +4024,7 @@ function endRound(winner){
     GameBridge.reportScore(pts);GameBridge.gameOver(pts);
     GameBridge.achievement("neon-uno:win");
     for(let i=0;i<50;i++)setTimeout(()=>AudioFX.win(i),i*60);
-  }else{GameBridge.gameOver(0);}
+  }else{GameBridge.gameOver(0);AudioFX.laugh(winner.gender);}
 }
 
 /* ---------- Human actions ---------- */
@@ -4037,6 +4109,7 @@ function handLayout(){
   const x0=(W-total)/2,y=H-ch-14;
   return {cw,ch,step,x0,y};
 }
+function newGameBtn(){return {x:12,y:10,w:104,h:30};}
 function pileRects(){
   const {cw,ch}=cardSize();
   const cy=H/2-ch/2-10;
@@ -4128,6 +4201,15 @@ function draw(dt){
     ctx.font=(active?"700 ":"")+"12px ui-monospace,monospace";
     ctx.fillText(p.name+" \u00B7 "+p.hand.length+(p.hand.length===1?" \u2014 UNO!":""),sp.x,sp.y+8);
   });
+  /* NEW GAME tag, top-left */
+  {
+    const b=newGameBtn();
+    rr(b.x,b.y,b.w,b.h,7);
+    ctx.fillStyle=NG_P("rgba(20,10,43,.92)");ctx.fill();
+    ctx.lineWidth=1.5;ctx.strokeStyle=NG_P("#8b5cf6");ctx.stroke();
+    ctx.fillStyle=NG_P("#22e6ff");ctx.font="700 12px ui-monospace,monospace";
+    ctx.textBaseline="middle";ctx.fillText("NEW GAME",b.x+b.w/2,b.y+b.h/2+1);ctx.textBaseline="alphabetic";
+  }
   /* piles */
   const pr=pileRects();
   if(G.deck.length||G.discard.length>1)drawCardBack(pr.deck.x,pr.deck.y,pr.deck.w,pr.deck.h);
@@ -4148,7 +4230,7 @@ function draw(dt){
   if(myTurn){
     /* big pulsing YOUR TURN banner above the hand */
     const pulse=1+Math.sin(performance.now()/280)*0.06;
-    ctx.save();ctx.translate(W/2,hl.y-44);ctx.scale(pulse,pulse);
+    ctx.save();ctx.translate(W/2,hl.y-64);ctx.scale(pulse,pulse);
     ctx.font="700 "+Math.min(34,W*0.06)+"px ui-monospace,monospace";
     ctx.textAlign="center";ctx.textBaseline="middle";
     if(!NG_CLASSIC()){ctx.shadowBlur=22;ctx.shadowColor=NG_P("#ffc857");}
@@ -4158,7 +4240,7 @@ function draw(dt){
   }
   ctx.fillStyle=myTurn?NG_P("#ffc857"):NG_P("#9a8fc7");
   ctx.font=(myTurn?"700 ":"")+"12px ui-monospace,monospace";
-  ctx.fillText("YOU \u00B7 "+me.hand.length+(me.hand.length===1?" \u2014 UNO!":""),W/2,hl.y-10);
+  ctx.fillText("YOU \u00B7 "+me.hand.length+(me.hand.length===1?" \u2014 UNO!":""),W/2,hl.y-28);
   me.hand.forEach((cd,i)=>{
     const lift=(myTurn&&legal(cd))?-10:0;
     const glow=i===G.drawnIdx;
@@ -4307,6 +4389,7 @@ function onTap(e){
     for(const b of menuBtns())if(hit(p,b)){newGame(b.n);return;}
     return;
   }
+  if(G.state!==S.MENU&&hit(p,newGameBtn())){G.state=S.MENU;AudioFX.draw();return;}
   if(G.state===S.OVER){G.state=S.MENU;return;}
   if(G.state===S.PICK){
     for(const b of pickBtns())if(hit(p,b)){
