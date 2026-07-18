@@ -5961,7 +5961,10 @@ function drawPiece(p,x,y,size){
      color differs, so white & black pieces look like a matched set. */
   ctx.font=(size*0.82)+"px serif";
   ctx.textAlign="center";ctx.textBaseline="middle";
-  const w=isW(p), g=GLYPH[p.toLowerCase()], gy=y+size*0.04;
+  /* \uFE0E = variation selector-15: forces TEXT presentation so iOS
+     doesn't render U+265F (black pawn) as a color emoji that ignores
+     canvas fill/stroke colors. */
+  const w=isW(p), g=GLYPH[p.toLowerCase()]+"\uFE0E", gy=y+size*0.04;
   if(NG_CLASSIC()){
     /* identical black outline under both, then side-colored fill */
     ctx.lineWidth=Math.max(1.5,size*0.05);
@@ -6185,7 +6188,7 @@ const NG_P = c => (NG_CLASSIC() && NG_MAP[c]) || c;
 /* ================= GEM DROP =================
    MODES
      CLASSIC — endless; ends when no moves remain
-     BLITZ   — 60s; time gems (+5s) & score multiplier ramps
+     LIGHTNING — 60s; time gems (+5s) & score multiplier ramps
      ZEN     — endless calm; auto-reshuffle
      DIAMOND MINE — excavate dirt & treasure before time runs out
      BUTTERFLIES — butterflies rise each move; catch them before the spider does
@@ -6470,7 +6473,7 @@ let pokShufBtn={x:0,y:0,r:16},wildBtn={x:0,y:0,r:16};
 let blzTimeUses=3,blzShufUses=3;             /* blitz power-ups */
 let blzTimeBtn={x:0,y:0,r:16},blzShufBtn={x:0,y:0,r:16};
 let clsShufUses=3,gemUses=5;                 /* classic power-ups */
-let extTank=0,speedBonus=0,lastSpeedAt=0,ignition=0,blazing=0; /* blitz: lightning mechanics */
+let extTank=0,speedBonus=0,lastSpeedAt=0,ignition=0,blazing=0,roundFreeze=0; /* blitz: lightning mechanics */
 let mineMoved=false,mineRose=false;          /* diamond mine: gem-type progression */
 /* gem indices: 0 red, 1 orange, 2 yellow, 3 green, 4 blue, 5 purple, 6 white */
 function spawnType(){
@@ -6496,7 +6499,7 @@ let overMsg="";
 
 const MODES=[
   {id:"classic",name:"CLASSIC",desc:"Endless. Ends when stuck."},
-  {id:"blitz",  name:"BLITZ",  desc:"60s. Time gems. Multiplier."},
+  {id:"blitz",  name:"LIGHTNING",  desc:"60s rounds. Time gems. Up to x10."},
   {id:"zen",    name:"ZEN",    desc:"Pure calm. Never ends."},
   {id:"mine", name:"DIAMOND MINE", desc:"Unearth buried treasure."},
   {id:"butterfly",  name:"BUTTERFLIES", desc:"Watch out for the spider!"},
@@ -7118,11 +7121,12 @@ function beginClear(cells,specials,runs){
   /* blitz: time gems fill the Time Extension tank (replenishes the next round) */
   if(mode==="blitz"){
     for(const i of cells)if(tg[i]){
-      tg[i]=0;
-      if(finale){score+=250*mult*boostMult(); /* Last Hurrah: time gems pay 5x base */
-        popText(BX+(i%N)*CS+CS/2,BY+((i/N)|0)*CS,"+"+(250*mult*boostMult()),"#22e6ff");}
-      else{extTank=Math.min(60,extTank+5);
-        popText(BX+(i%N)*CS+CS/2,BY+((i/N)|0)*CS,"+5s","#22e6ff");}
+      const v=tg[i]===2?10:5;tg[i]=0;
+      if(finale){const pts=v*50*mult*boostMult(); /* Last Hurrah: time gems pay out as points */
+        score+=pts;
+        popText(BX+(i%N)*CS+CS/2,BY+((i/N)|0)*CS,"+"+pts,"#22e6ff");}
+      else{extTank=Math.min(60,extTank+v); /* tank caps at 60s; excess is wasted */
+        popText(BX+(i%N)*CS+CS/2,BY+((i/N)|0)*CS,"+"+v+"s",v===10?"#ffd700":"#22e6ff");}
       AudioFX.timeGem();
     }
     /* Speed Bonus: quick successive matches pay +100 more each, up to +1000;
@@ -7148,13 +7152,32 @@ function beginClear(cells,specials,runs){
   }
   let gained;
   if(mode==="blitz"){
-    /* Bejeweled base values: match-3 = 50, match-4 = 100, match-5+ = 200;
-       gems cleared by special-gem blasts pay 20 each. Scaled by round multiplier. */
+    /* Bejeweled Lightning base values: match-3 = 250, match-4 (flame) = 500,
+       T/L match (star) = 750, match-5+ (hypercube) = 2,500.
+       Score = Base Value x Current Round Multiplier. Gems swept up by
+       special-gem blasts pay 20 each. */
     let base=0,runGems=0;
-    if(runs)for(const r of runs){base+=r.len>=5?200:r.len===4?100:50;runGems+=r.len;}
+    if(runs){
+      /* pair intersecting h+v runs of the same color into single T/L matches */
+      const tl=new Set();
+      for(let a2=0;a2<runs.length;a2++)for(let b2=a2+1;b2<runs.length;b2++){
+        const A=runs[a2],B=runs[b2];
+        if(A.dir===B.dir||A.t!==B.t||tl.has(A)||tl.has(B))continue;
+        const h=A.dir==="h"?A:B,v2=A.dir==="h"?B:A;
+        if(v2.x>=h.x&&v2.x<h.x+h.len&&h.y>=v2.y&&h.y<v2.y+v2.len){
+          tl.add(A);tl.add(B);A._rv=750*mult*boostMult();B._rv=0;
+          base+=750;runGems+=A.len+B.len;
+        }
+      }
+      for(const r of runs)if(!tl.has(r)){
+        const bv=r.len>=5?2500:r.len===4?500:250;
+        r._rv=bv*mult*boostMult();
+        base+=bv;runGems+=r.len;
+      }
+    }
     base+=Math.max(0,cells.size-runGems)*20;
     if(!base)base=cells.size*20; /* prism swaps / Last Hurrah: per-gem payout */
-    gained=base*chain*mult*boostMult();
+    gained=base*mult*boostMult();
   } else {
     gained=(mode==="mine"?0:cells.size*10*chain*level*(mode==="butterfly"?5*flyMoveMult:1)*(mode==="icestorm"?2*iceMult:1)*boostMult());
   }
@@ -7165,7 +7188,7 @@ function beginClear(cells,specials,runs){
     let runTotal=0,runGems2=0;
     if(runs)for(const r of runs){
       let rv;
-      if(mode==="blitz")rv=(r.len>=5?200:r.len===4?100:50)*chain*mult*boostMult();
+      if(mode==="blitz"){rv=r._rv||0;if(!rv){runGems2+=r.len;continue;}} /* second half of a T/L pair: already counted */
       else rv=r.len*10*chain*level*(mode==="butterfly"?5*flyMoveMult:1)*(mode==="icestorm"?2*iceMult:1)*boostMult();
       runTotal+=rv;runGems2+=r.len;
       const mx=r.dir==="h"?BX+(r.x+r.len/2)*CS:BX+r.x*CS+CS/2;
@@ -7291,7 +7314,10 @@ function collapse(){
       if(dirt[i])break;
       if(grid[i]==null){
         grid[i]=spawnType();spec[i]=0;fly[i]=0;
-        tg[i]=(mode==="blitz"&&Math.random()<(mult<=2?0.14:mult<=4?0.09:0.06))?1:0;
+        /* flat ~10% time-gem chance on refill drops; 1 in 4 is a +10 gem.
+           Spawned gems must settle before they can match (matches only
+           resolve once falling completes), per the spawn-logic rule. */
+        tg[i]=(mode==="blitz"&&!finale&&Math.random()<0.10)?(Math.random()<0.25?2:1):0;
         offY[i]=-(y+1)*CS-CS*0.5;vel[i]=0;
       }
     }
@@ -7361,18 +7387,26 @@ function down(px,py){
     }
     return;
   }
-  if(state!=="idle"||finale)return;
-  const c=cellAt(px,py);if(!c)return;
+  if(roundFreeze>0)return; /* freeze frame: board locked during round transition */
+  /* Lightning: swaps are allowed while gems are still cascading, as long as
+     both gems involved have settled */
+  const canAct=state==="idle"||(mode==="blitz"&&state==="fall");
+  if(!canAct||finale)return;
+  const settled=c2=>{const i2=idx(c2.x,c2.y);return offY[i2]===0&&vel[i2]===0;};
+  const c=cellAt(px,py);if(!c||!settled(c))return;
   dragFrom=c;
   if(sel){
     const d=Math.abs(sel.x-c.x)+Math.abs(sel.y-c.y);
-    if(d===1){startSwap(sel,c);dragFrom=null;return;}
+    if(d===1&&settled(sel)){startSwap(sel,c);dragFrom=null;return;}
     sel=(d===0)?null:c;
   } else sel=c;
 }
 function move(px,py){
-  if(state!=="idle"||!dragFrom)return;
+  if(roundFreeze>0||!dragFrom)return;
+  if(state!=="idle"&&!(mode==="blitz"&&state==="fall"))return;
   const c=cellAt(px,py);if(!c)return;
+  const i2=idx(c.x,c.y),i3=idx(dragFrom.x,dragFrom.y);
+  if(offY[i2]!==0||vel[i2]!==0||offY[i3]!==0||vel[i3]!==0)return;
   const dx=c.x-dragFrom.x,dy=c.y-dragFrom.y;
   if(Math.abs(dx)+Math.abs(dy)===1){startSwap(dragFrom,c);dragFrom=null;}
 }
@@ -7387,7 +7421,7 @@ function startRun(m){
   freezeLeft=0;freezeUses=3;gustUses=3;timeUses=3;drillUses=3;overBtns=null;
   iceShufUses=3;iceFrzUses=3;iceFrzLeft=0;pokShufUses=3;wildUses=3;
   blzTimeUses=3;blzShufUses=3;clsShufUses=3;gemUses=5;
-  extTank=0;speedBonus=0;lastSpeedAt=0;ignition=0;blazing=0;
+  extTank=0;speedBonus=0;lastSpeedAt=0;ignition=0;blazing=0;roundFreeze=0;
   mineMoved=false;mineRose=false;
   hand=[];handFlash=0;runTime=0;overMsg="";finale=false;
   iceH=new Array(N).fill(0);iceLink=new Array(N).fill(-1);iceTimer=0;iceGap=3.2;
@@ -7564,13 +7598,14 @@ function drawGem(x,y,s,t,sp,glow,rot,isFly,isTg){
   }
   /* blitz time gem badge */
   if(isTg){
-    ctx.fillStyle="#052e38";
-    ctx.strokeStyle="#22e6ff";ctx.lineWidth=1.5;
+    const ten=isTg===2;
+    ctx.fillStyle=ten?"#3a2e05":"#052e38";
+    ctx.strokeStyle=ten?"#ffd700":"#22e6ff";ctx.lineWidth=1.5;
     ctx.beginPath();ctx.arc(cx,cy,r*0.44,0,Math.PI*2);ctx.fill();ctx.stroke();
-    ctx.fillStyle="#22e6ff";
-    ctx.font="bold "+Math.max(8,r*0.5)+"px ui-monospace,Menlo,monospace";
+    ctx.fillStyle=ten?"#ffd700":"#22e6ff";
+    ctx.font="bold "+Math.max(8,r*(ten?0.42:0.5))+"px ui-monospace,Menlo,monospace";
     ctx.textAlign="center";ctx.textBaseline="middle";
-    ctx.fillText("+5",cx,cy+0.5);
+    ctx.fillText(ten?"+10":"+5",cx,cy+0.5);
     ctx.textBaseline="top";
   }
   ctx.restore();
@@ -7741,6 +7776,7 @@ function frame(now){
   if(state!=="over"){
     runTime+=dt;
     if(mode==="blitz"||mode==="mine"){
+      if(roundFreeze>0)roundFreeze=Math.max(0,roundFreeze-dt);
       if(mode==="blitz"&&blazing>0){blazing=Math.max(0,blazing-dt);timeLeft-=dt*0.4;} /* blazing slows the clock */
       else timeLeft-=dt;
       const c=Math.ceil(timeLeft);
@@ -7749,17 +7785,31 @@ function frame(now){
         timeLeft=0;
         if(mode==="blitz"&&!finale){
           if(extTank>0){
-            /* tank time replenishes the timer; multiplier climbs one per round */
-            timeLeft=extTank;extTank=0;mult++;lastTick=-1;
+            /* tank seconds dump into the main clock; multiplier climbs +1 per
+               round, capped at 10x */
+            timeLeft=extTank;extTank=0;mult=Math.min(10,mult+1);lastTick=-1;
+            /* FREEZE FRAME: board locks down while leftover time gems convert
+               into special gems (+5 -> Flame, +10 -> Star) */
+            let converted=0;
+            for(let i=0;i<N*N;i++)if(tg[i]){
+              const v2=tg[i];tg[i]=0;spec[i]=v2===2?2:1;converted++;
+              burst(BX+(i%N)*CS+CS/2,BY+((i/N)|0)*CS+CS/2,v2===2?"#ffd700":"#ff9d42",8);
+            }
+            roundFreeze=converted?1.0:0.5;
+            sel=null;dragFrom=null;
+            /* Round 5 (5x) runs with Blazing Speed for the entire round */
+            if(mult===5&&blazing<1e8){blazing=1e9;popText(W/2,BY+CS*1.6,"BLAZING SPEED ROUND!","#ff6a00");}
+            else if(blazing>1e8)blazing=0; /* round-5 perma-blaze ends with the round */
             popText(W/2,BY+CS,"ROUND CLEARED! x"+mult+" MULTIPLIER","#ffd700");
             AudioFX.level();
           } else {
-            /* LAST HURRAH: leftover time gems become Flame Gems, then every
-               special on the board detonates (handled by the finale watchdog below,
-               so it can never stall regardless of the state we're in right now) */
+            /* LAST HURRAH: leftover time gems become special gems (+5 -> Flame,
+               +10 -> Star), then every special on the board detonates (handled
+               by the finale watchdog below, so it can never stall regardless of
+               the state we're in right now) */
             finale=true;
-            for(let i=0;i<N*N;i++)if(tg[i]){tg[i]=0;if(!spec[i])spec[i]=1;
-              burst(BX+(i%N)*CS+CS/2,BY+((i/N)|0)*CS+CS/2,"#ff9d42",8);}
+            for(let i=0;i<N*N;i++)if(tg[i]){const v2=tg[i];tg[i]=0;if(!spec[i])spec[i]=v2===2?2:1;
+              burst(BX+(i%N)*CS+CS/2,BY+((i/N)|0)*CS+CS/2,v2===2?"#ffd700":"#ff9d42",8);}
             popText(W/2,BY+CS,"LAST HURRAH!","#ffd700");
             AudioFX.level();
           }
@@ -7939,7 +7989,7 @@ function frame(now){
           if(res.cells.size){resolveMatches();}
           else{state="swapback";swapT=0;commitSwap();AudioFX.bad();pendingFlyStep=false;}
         }
-      } else {state="idle";swapA=swapB=null;}
+      } else {swapA=swapB=null;let mid=false;for(let i=0;i<N*N;i++)if(offY[i]<0){mid=true;break;}state=mid?"fall":"idle";}
     }
   }
 
@@ -7981,7 +8031,7 @@ function frame(now){
       ctx.strokeStyle="rgba(255,225,77,"+(0.3+p*0.6)+")";ctx.lineWidth=3;
       ctx.strokeRect(BX+x*CS+2,BY+y*CS+2,CS-4,CS-4);
     }
-    drawGem(px,py,s,t,spec[i],glow,rot,!!fly[i],!!tg[i]);
+    drawGem(px,py,s,t,spec[i],glow,rot,!!fly[i],tg[i]);
   }
   /* ice overlay */
   if(mode==="icestorm"){
