@@ -1,7 +1,7 @@
 {
   "name": "NEON//GRID — Retro Arcade Hub",
   "short_name": "NEON//GRID",
-  "description": "Retro-synthwave arcade hub: FreeCell Neon, Solitaire, Gridfall, Maze Runner, Mahjong, Minesweeper, Word Grid and more. Fully offline.",
+  "description": "Retro-synthwave arcade hub: FreeCell, Solitaire, Gridfall, Maze Runner, Mahjong, Minesweeper, Chess, Word Grid and more — with neon and classic color themes. Fully offline.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
