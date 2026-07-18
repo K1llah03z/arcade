@@ -3856,7 +3856,29 @@ function NG_MAP(){
     "rgba(20,10,43,.88)":f.panel
   };
 }
-const NG_P = c => (NG_CLASSIC() && NG_MAP()[c]) || c;
+const NG_NEONS = { /* r,g,b of primary + light tint, plus tinted darks */
+  red:    {p:"#ff2e2e",l:"#ff8a8a",a:"#ffc4c4",deep:"#180505",top:"#2b0a0a",panel:"rgba(43,10,10,.88)",dim:"#c78f8f",prgb:"255,46,46",lrgb:"255,138,138"},
+  green:  {p:"#39ff14",l:"#8aff70",a:"#ccffcc",deep:"#041505",top:"#08260c",panel:"rgba(8,38,12,.88)", dim:"#8fc79a",prgb:"57,255,20",lrgb:"138,255,112"},
+  blue:   {p:"#2e6bff",l:"#6ea8ff",a:"#bcd6ff",deep:"#050a18",top:"#0a142b",panel:"rgba(10,20,43,.88)",dim:"#8fa3c7",prgb:"46,107,255",lrgb:"110,168,255"},
+  yellow: {p:"#ffee32",l:"#fff78a",a:"#fffbc4",deep:"#171505",top:"#292408",panel:"rgba(41,36,8,.88)", dim:"#c7c08f",prgb:"255,238,50",lrgb:"255,247,138"},
+  orange: {p:"#ff8c1a",l:"#ffb266",a:"#ffd9b0",deep:"#180d05",top:"#2b1708",panel:"rgba(43,23,8,.88)", dim:"#c7ab8f",prgb:"255,140,26",lrgb:"255,178,102"},
+  purple: {p:"#a06bff",l:"#b794ff",a:"#ddccff",deep:"#0b0518",top:"#140a2b",panel:"rgba(20,10,43,.88)",dim:"#9a8fc7",prgb:"160,107,255",lrgb:"183,148,255"}
+};
+function NG_NMAP(){
+  const a=document.documentElement.getAttribute("data-accent")||"";
+  const n=NG_NEONS[a]; if(!n) return null; /* pink (default) keeps original art */
+  return {
+    "#ff2ea6":n.p,"#22e6ff":n.l,"#7CFF6B":n.a,"#ffc857":n.l,
+    "#160a33":n.top,"#05030c":n.deep,"#9a8fc7":n.dim,
+    "rgba(20,10,43,.88)":n.panel,
+    "rgba(34,230,255,.25)":"rgba("+n.prgb+",.25)",
+    "rgba(139,92,246,.35)":"rgba("+n.lrgb+",.35)"
+  };
+}
+const NG_P = c => {
+  if(NG_CLASSIC()) return NG_MAP()[c]||c;
+  const m=NG_NMAP(); return (m&&m[c])||c;
+};
 </script>
 <script>
 /* ================= GameBridge CLIENT STUB (v1) ================= */
@@ -4299,21 +4321,31 @@ function render(tNow){
   ctx.strokeStyle=NG_P("rgba(139,92,246,.35)");ctx.lineWidth=1.5;
   ctx.strokeRect(GX-6,GY-6,CELL*G.N+12,CELL*G.N+12);
 
-  // word list
+  // word list — lay out words into centered lines
   ctx.font="bold "+Math.max(15,Math.min(19,W*0.036))+"px ui-monospace,monospace";
   ctx.textAlign="left";ctx.textBaseline="middle";
-  let lx=12,ly=LISTY+12;
+  const GAP=22, maxW=W-24;
+  const lines=[[]];let lw=0;
   for(const w of G.words){
-    const txt=w.word;
-    const tw=ctx.measureText(txt).width+22;
-    if(lx+tw>W-12){lx=12;ly+=27;}
-    ctx.fillStyle=NG_P(w.found?"#5a5480":"#e8e4ff");
-    ctx.fillText(txt,lx,ly);
-    if(w.found){
-      ctx.strokeStyle=NG_P("#ff2ea6");ctx.lineWidth=2;
-      ctx.beginPath();ctx.moveTo(lx-2,ly);ctx.lineTo(lx+tw-20,ly);ctx.stroke();
+    const tw=ctx.measureText(w.word).width;
+    if(lw>0&&lw+GAP+tw>maxW){lines.push([]);lw=0;}
+    lines[lines.length-1].push({w,tw});
+    lw+=(lw>0?GAP:0)+tw;
+  }
+  let ly=LISTY+12;
+  for(const line of lines){
+    const total=line.reduce((a,e,i)=>a+e.tw+(i>0?GAP:0),0);
+    let lx=Math.max(12,(W-total)/2);
+    for(const e of line){
+      ctx.fillStyle=NG_P(e.w.found?"#5a5480":"#e8e4ff");
+      ctx.fillText(e.w.word,lx,ly);
+      if(e.w.found){
+        ctx.strokeStyle=NG_P("#ff2ea6");ctx.lineWidth=2;
+        ctx.beginPath();ctx.moveTo(lx-2,ly);ctx.lineTo(lx+e.tw+2,ly);ctx.stroke();
+      }
+      lx+=e.tw+GAP;
     }
-    lx+=tw;
+    ly+=27;
   }
 }
 
