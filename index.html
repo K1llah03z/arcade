@@ -372,6 +372,14 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 [data-theme="light"][data-accent="yellow"]{--bg-deep:#7a7a0a;--bg-panel:#6b6b06;--bg-card:#85850c;--line:#4d4d04;--ink-dim:#f2f2d9;--neon-violet:#f2f2d9}
 [data-theme="light"][data-accent="orange"]{--bg-deep:#8a4a0a;--bg-panel:#783e06;--bg-card:#93520c;--line:#5c3004;--ink-dim:#f2e5d9;--neon-violet:#f2e5d9}
 [data-theme="light"][data-accent="purple"]{--bg-deep:#4a0a8a;--bg-panel:#3e0678;--bg-card:#520c93;--line:#30045c;--ink-dim:#e5d9f2;--neon-violet:#e5d9f2}
+[data-theme="light"][data-accent="gray"]{--bg-deep:#c0c0c0;--bg-panel:#b0b0b0;--bg-card:#c8c8c8;--line:#808080;
+  --ink:#000000;--ink-dim:#404040;--neon-magenta:#000080;--neon-cyan:#000000;--neon-violet:#404040;--neon-amber:#000080}
+[data-theme="light"][data-accent="gray"] .logo .a{color:#000}
+[data-theme="light"][data-accent="gray"] .logo .b{color:#000080}
+[data-theme="light"][data-accent="gray"] .tab[aria-selected="true"]{color:#000;background:#fff}
+[data-theme="light"][data-accent="gray"] .card .go:hover{background:#000080;color:#fff}
+[data-theme="light"][data-accent="gray"] .tabbar button.on{color:#000080}
+[data-theme="light"][data-accent="gray"] .approw .aplay:active{background:#000080;color:#fff}
 /* Un-ported canvas games get a neon-free green-phosphor CRT treatment in classic mode.
    Games with a native classic skin (freecell, mine-sweeper) skip this class. */
 [data-theme="light"] .stage iframe.mono-classic{
@@ -408,7 +416,7 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
     <div class="credits">
       TOTAL CREDITS EARNED<br><b id="totalScore">0</b><br>
       <span id="gamesPlayed">0 sessions logged</span><br>
-      <select class="theme-toggle" id="themeToggle" aria-label="Color theme"><optgroup label="Classic"><option value="classic">Classic Green</option><option value="classic-red">Classic Red</option><option value="classic-pink">Classic Pink</option><option value="classic-blue">Classic Blue</option><option value="classic-yellow">Classic Yellow</option><option value="classic-orange">Classic Orange</option><option value="classic-purple">Classic Purple</option></optgroup><optgroup label="Neon"><option value="pink">Neon Pink</option><option value="red">Neon Red</option><option value="green">Neon Green</option><option value="blue">Neon Blue</option><option value="yellow">Neon Yellow</option><option value="orange">Neon Orange</option><option value="purple">Neon Purple</option></optgroup></select>
+      <select class="theme-toggle" id="themeToggle" aria-label="Color theme"><optgroup label="Classic"><option value="classic">Classic Green</option><option value="classic-red">Classic Red</option><option value="classic-pink">Classic Pink</option><option value="classic-blue">Classic Blue</option><option value="classic-yellow">Classic Yellow</option><option value="classic-orange">Classic Orange</option><option value="classic-purple">Classic Purple</option><option value="classic-gray">Classic Gray</option></optgroup><optgroup label="Neon"><option value="pink">Neon Pink</option><option value="red">Neon Red</option><option value="green">Neon Green</option><option value="blue">Neon Blue</option><option value="yellow">Neon Yellow</option><option value="orange">Neon Orange</option><option value="purple">Neon Purple</option></optgroup></select>
     </div>
   </header>
 
@@ -495,7 +503,7 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
       <span>LEVEL <b id="liveLevel">1</b></span>
       <span>BEST <b id="liveBest">0</b></span>
     </span>
-    <select class="theme-toggle" id="stageThemeToggle" aria-label="Color theme" style="margin-top:0"><optgroup label="Classic"><option value="classic">Classic Green</option><option value="classic-red">Classic Red</option><option value="classic-pink">Classic Pink</option><option value="classic-blue">Classic Blue</option><option value="classic-yellow">Classic Yellow</option><option value="classic-orange">Classic Orange</option><option value="classic-purple">Classic Purple</option></optgroup><optgroup label="Neon"><option value="pink">Neon Pink</option><option value="red">Neon Red</option><option value="green">Neon Green</option><option value="blue">Neon Blue</option><option value="yellow">Neon Yellow</option><option value="orange">Neon Orange</option><option value="purple">Neon Purple</option></optgroup></select>
+    <select class="theme-toggle" id="stageThemeToggle" aria-label="Color theme" style="margin-top:0"><optgroup label="Classic"><option value="classic">Classic Green</option><option value="classic-red">Classic Red</option><option value="classic-pink">Classic Pink</option><option value="classic-blue">Classic Blue</option><option value="classic-yellow">Classic Yellow</option><option value="classic-orange">Classic Orange</option><option value="classic-purple">Classic Purple</option><option value="classic-gray">Classic Gray</option></optgroup><optgroup label="Neon"><option value="pink">Neon Pink</option><option value="red">Neon Red</option><option value="green">Neon Green</option><option value="blue">Neon Blue</option><option value="yellow">Neon Yellow</option><option value="orange">Neon Orange</option><option value="purple">Neon Purple</option></optgroup></select>
     <button class="theme-toggle" id="hiScoresBtn" type="button" style="margin-top:0;display:none">&#9733; Scores</button>
     <button class="close" id="closeBtn" type="button">Exit [ESC]</button>
   </div>
@@ -1861,7 +1869,8 @@ const NG_FELTS={
   "blue":{deep:"#0a2a8a",panel:"rgba(4,22,70,.92)",dim:"#d9e2f2",gold:"#ffd700",b1:"#1040a0",b2:"#0a2f80"},
   "yellow":{deep:"#7a7a0a",panel:"rgba(62,62,4,.92)",dim:"#f2f2d9",gold:"#ffffff",b1:"#8a8a10",b2:"#6b6b0a"},
   "orange":{deep:"#8a4a0a",panel:"rgba(70,36,4,.92)",dim:"#f2e5d9",gold:"#ffd700",b1:"#a05a10",b2:"#80460a"},
-  "purple":{deep:"#4a0a8a",panel:"rgba(38,4,70,.92)",dim:"#e5d9f2",gold:"#ffd700",b1:"#5a10a0",b2:"#460a80"}
+  "purple":{deep:"#4a0a8a",panel:"rgba(38,4,70,.92)",dim:"#e5d9f2",gold:"#ffd700",b1:"#5a10a0",b2:"#460a80"},
+  "gray":{deep:"#c0c0c0",panel:"rgba(176,176,176,.92)",dim:"#404040",gold:"#000080",b1:"#1040a0",b2:"#0a2f80",ink:"#000000"}
 };
 const NG_NEONS={
   red:{p:"#ff2e2e",l:"#ff8a8a",a:"#ffc4c4",deep:"#180505",dsq:"#3e0f0f",lsq:"#2a0808",pc:"#4d1414",dim:"#c78f8f",prgb:"255,46,46",lrgb:"255,138,138",panel:"rgba(43,10,10,.92)"},
@@ -1877,7 +1886,7 @@ function NG_MAP(){
   return {
     "#05030c":f.deep,
     "#ff2ea6":f.gold,"#ff8dcf":f.gold,"#ffc857":f.gold,"#e0619c":"#c00000",
-    "#9a8fc7":f.dim,"#e8e4ff":"#ffffff"
+    "#9a8fc7":f.dim,"#e8e4ff":(f.ink||"#ffffff")
   };
 }
 function NG_NMAP(){
@@ -2820,7 +2829,8 @@ const NG_FELTS={
   "blue":{deep:"#0a2a8a",panel:"rgba(4,22,70,.92)",dim:"#d9e2f2",gold:"#ffd700",b1:"#1040a0",b2:"#0a2f80"},
   "yellow":{deep:"#7a7a0a",panel:"rgba(62,62,4,.92)",dim:"#f2f2d9",gold:"#ffffff",b1:"#8a8a10",b2:"#6b6b0a"},
   "orange":{deep:"#8a4a0a",panel:"rgba(70,36,4,.92)",dim:"#f2e5d9",gold:"#ffd700",b1:"#a05a10",b2:"#80460a"},
-  "purple":{deep:"#4a0a8a",panel:"rgba(38,4,70,.92)",dim:"#e5d9f2",gold:"#ffd700",b1:"#5a10a0",b2:"#460a80"}
+  "purple":{deep:"#4a0a8a",panel:"rgba(38,4,70,.92)",dim:"#e5d9f2",gold:"#ffd700",b1:"#5a10a0",b2:"#460a80"},
+  "gray":{deep:"#c0c0c0",panel:"rgba(176,176,176,.92)",dim:"#404040",gold:"#000080",b1:"#1040a0",b2:"#0a2f80",ink:"#000000"}
 };
 const NG_NEONS={
   red:{p:"#ff2e2e",l:"#ff8a8a",a:"#ffc4c4",deep:"#180505",dsq:"#3e0f0f",lsq:"#2a0808",pc:"#4d1414",dim:"#c78f8f",prgb:"255,46,46",lrgb:"255,138,138",panel:"rgba(43,10,10,.92)"},
@@ -2838,11 +2848,11 @@ function NG_MAP(){
     "#1c0f3e":f.b1,"#12082a":f.b2,"#8b5cf6":"#ffffff",
     "rgba(34,230,255,.25)":"rgba(255,255,255,.4)",
     "#f4f1ff":"#ffffff","#d8d2f0":"#ffffff",
-    "#22e6ff":"#ffffff","#ffc857":f.gold,
+    "#22e6ff":(f.ink||"#ffffff"),"#ffc857":f.gold,
     "#e11d6f":"#c00000","#241a4d":"#000000",
     "rgba(139,92,246,.5)":"rgba(255,255,255,.5)",
     "rgba(154,143,199,.5)":"rgba(255,255,255,.4)",
-    "#9a8fc7":f.dim,"#ff2ea6":f.gold,"#7CFF6B":f.dim,"#e8e4ff":"#ffffff",
+    "#9a8fc7":f.dim,"#ff2ea6":f.gold,"#7CFF6B":f.dim,"#e8e4ff":(f.ink||"#ffffff"),
     "rgba(20,10,43,.92)":f.panel,
     "rgba(34,230,255,.15)":"rgba(255,255,255,.15)"
   };
@@ -3915,15 +3925,16 @@ const NG_FELTS = {
   blue:    {deep:"#0a2a8a",panel:"rgba(4,22,70,.92)",dim:"#d9e2f2",dim2:"#9fb0ce",gold:"#ffd700"},
   yellow:  {deep:"#7a7a0a",panel:"rgba(62,62,4,.92)",dim:"#f2f2d9",dim2:"#cece9f",gold:"#ffffff"},
   orange:  {deep:"#8a4a0a",panel:"rgba(70,36,4,.92)",dim:"#f2e5d9",dim2:"#ceb89f",gold:"#ffd700"},
-  purple:  {deep:"#4a0a8a",panel:"rgba(38,4,70,.92)",dim:"#e5d9f2",dim2:"#b89fce",gold:"#ffd700"}
+  purple:  {deep:"#4a0a8a",panel:"rgba(38,4,70,.92)",dim:"#e5d9f2",dim2:"#b89fce",gold:"#ffd700"},
+  gray:    {deep:"#c0c0c0",panel:"rgba(176,176,176,.92)",dim:"#404040",dim2:"#606060",gold:"#000080",ink:"#000000"}
 };
 function NG_MAP(){
   const a=document.documentElement.getAttribute("data-accent")||"";
   const f=NG_FELTS[a]||NG_FELTS[""];
   return {
     "#05030c":f.deep,"#160a33":f.deep,
-    "#e8e4ff":"#ffffff","#c9c2ea":"#ffffff","#9a8fc7":f.dim,"#5a5480":f.dim2,
-    "#22e6ff":f.gold,"#7CFF6B":"#ffffff","#ff2ea6":f.gold,"#ffc857":f.gold,
+    "#e8e4ff":(f.ink||"#ffffff"),"#c9c2ea":(f.ink||"#ffffff"),"#9a8fc7":f.dim,"#5a5480":f.dim2,
+    "#22e6ff":f.gold,"#7CFF6B":(f.ink||"#ffffff"),"#ff2ea6":f.gold,"#ffc857":f.gold,
     "rgba(34,230,255,.25)":"rgba(255,215,0,.35)",
     "rgba(139,92,246,.35)":"rgba(255,255,255,.55)",
     "rgba(20,10,43,.88)":f.panel
@@ -4574,6 +4585,8 @@ requestAnimationFrame(frame);
   [data-theme="light"][data-accent="yellow"]{--bg:#7a7a0a;--panel:#6b6b06;--line:#4d4d04;--vio:#f2f2d9;--dim:#f2f2d9;--amb:#ffffff}
   [data-theme="light"][data-accent="orange"]{--bg:#8a4a0a;--panel:#783e06;--line:#5c3004;--vio:#f2e5d9;--dim:#f2e5d9}
   [data-theme="light"][data-accent="purple"]{--bg:#4a0a8a;--panel:#3e0678;--line:#30045c;--vio:#e5d9f2;--dim:#e5d9f2}
+  [data-theme="light"][data-accent="gray"]{--bg:#c0c0c0;--panel:#b0b0b0;--line:#808080;--mag:#c00000;--cyn:#000000;--vio:#404040;--amb:#000080;--ink:#000000;--dim:#404040}
+  [data-theme="light"][data-accent="gray"] #gameName{color:#000}
   [data-theme="light"] *{text-shadow:none!important}
   [data-theme="light"] #wrap{background:var(--bg)}
   [data-theme="light"] #wrap:before{display:none}
@@ -5356,7 +5369,8 @@ const NG_FELTS={
   "blue":{deep:"#0a2a8a",panel:"rgba(4,22,70,.92)",dim:"#d9e2f2",gold:"#ffd700",b1:"#1040a0",b2:"#0a2f80"},
   "yellow":{deep:"#7a7a0a",panel:"rgba(62,62,4,.92)",dim:"#f2f2d9",gold:"#ffffff",b1:"#8a8a10",b2:"#6b6b0a"},
   "orange":{deep:"#8a4a0a",panel:"rgba(70,36,4,.92)",dim:"#f2e5d9",gold:"#ffd700",b1:"#a05a10",b2:"#80460a"},
-  "purple":{deep:"#4a0a8a",panel:"rgba(38,4,70,.92)",dim:"#e5d9f2",gold:"#ffd700",b1:"#5a10a0",b2:"#460a80"}
+  "purple":{deep:"#4a0a8a",panel:"rgba(38,4,70,.92)",dim:"#e5d9f2",gold:"#ffd700",b1:"#5a10a0",b2:"#460a80"},
+  "gray":{deep:"#c0c0c0",panel:"rgba(176,176,176,.92)",dim:"#404040",gold:"#000080",b1:"#1040a0",b2:"#0a2f80",ink:"#000000"}
 };
 const NG_NEONS={
   red:{p:"#ff2e2e",l:"#ff8a8a",a:"#ffc4c4",deep:"#180505",dsq:"#3e0f0f",lsq:"#2a0808",pc:"#4d1414",dim:"#c78f8f",prgb:"255,46,46",lrgb:"255,138,138",panel:"rgba(43,10,10,.92)"},
@@ -5374,11 +5388,11 @@ function NG_MAP(){
     "#1c0f3e":f.b1,"#12082a":f.b2,"#8b5cf6":"#ffffff",
     "rgba(34,230,255,.25)":"rgba(255,255,255,.4)",
     "#f4f1ff":"#ffffff","#d8d2f0":"#ffffff",
-    "#22e6ff":"#ffffff","#ffc857":f.gold,
+    "#22e6ff":(f.ink||"#ffffff"),"#ffc857":f.gold,
     "#e11d6f":"#c00000","#241a4d":"#000000",
     "rgba(139,92,246,.5)":"rgba(255,255,255,.5)",
     "rgba(154,143,199,.5)":"rgba(255,255,255,.4)",
-    "#9a8fc7":f.dim,"#ff2ea6":f.gold,"#7CFF6B":f.dim,"#e8e4ff":"#ffffff",
+    "#9a8fc7":f.dim,"#ff2ea6":f.gold,"#7CFF6B":f.dim,"#e8e4ff":(f.ink||"#ffffff"),
     "rgba(20,10,43,.92)":f.panel,
     "rgba(34,230,255,.15)":"rgba(255,255,255,.15)"
   };
@@ -5830,7 +5844,8 @@ const NG_FELTS={
   blue:   {deep:"#0a2a8a",p94:"rgba(4,22,70,.94)", p75:"rgba(4,22,70,.75)", dim:"#d9e2f2",dark:"#6b8cbf",hl:"#3a5a7a",gold:"#ffd700"},
   yellow: {deep:"#7a7a0a",p94:"rgba(62,62,4,.94)", p75:"rgba(62,62,4,.75)", dim:"#f2f2d9",dark:"#b0a85e",hl:"#7a743a",gold:"#ffffff"},
   orange: {deep:"#8a4a0a",p94:"rgba(70,36,4,.94)", p75:"rgba(70,36,4,.75)", dim:"#f2e5d9",dark:"#c08a5a",hl:"#7a5a3a",gold:"#ffd700"},
-  purple: {deep:"#4a0a8a",p94:"rgba(38,4,70,.94)", p75:"rgba(38,4,70,.75)", dim:"#e5d9f2",dark:"#8a6bb0",hl:"#5a3a7a",gold:"#ffd700"}
+  purple: {deep:"#4a0a8a",p94:"rgba(38,4,70,.94)", p75:"rgba(38,4,70,.75)", dim:"#e5d9f2",dark:"#8a6bb0",hl:"#5a3a7a",gold:"#ffd700"},
+  gray:   {deep:"#c0c0c0",p94:"rgba(176,176,176,.94)",p75:"rgba(176,176,176,.75)",dim:"#404040",dark:"#989898",hl:"#6a6a6a",gold:"#000080",ink:"#000000"}
 };
 function NG_MAP(){
   const a=document.documentElement.getAttribute("data-accent")||"";
@@ -5840,13 +5855,13 @@ function NG_MAP(){
     "#1c0f3e":f.dark,"#12082a":"#eeeed2",
     "#241a4d":"#000000","#f4f1ff":"#ffffff",
     "#8b5cf6":f.hl,
-    "#22e6ff":"#ffffff","#ffc857":f.gold,
+    "#22e6ff":(f.ink||"#ffffff"),"#ffc857":f.gold,
     "#e11d6f":"#c00000",
     "rgba(34,230,255,.9)":"rgba(255,255,0,.9)",
     "rgba(255,200,87,.9)":"rgba(255,215,0,.95)",
     "rgba(255,46,166,.85)":"rgba(200,0,0,.85)",
     "rgba(124,255,107,.5)":"rgba(0,0,0,.35)",
-    "#9a8fc7":f.dim,"#ff2ea6":f.gold,"#7CFF6B":f.dim,"#e8e4ff":"#ffffff",
+    "#9a8fc7":f.dim,"#ff2ea6":f.gold,"#7CFF6B":f.dim,"#e8e4ff":(f.ink||"#ffffff"),
     "rgba(20,10,43,.94)":f.p94,
     "rgba(20,10,43,.75)":f.p75
   };
@@ -9451,7 +9466,15 @@ renderTabs(); renderGrid(); renderBoard(); renderStats();
 /* ---------- Theme: dark neon (default) / light classic-green ---------- */
 (() => {
   const sels = [document.getElementById("themeToggle"), document.getElementById("stageThemeToggle")].filter(Boolean);
-  const meta = document.querySelector('meta[name="theme-color"]');
+  /* iOS Safari often ignores in-place edits to an existing theme-color meta.
+     Replacing the node each time forces it to re-read the color live. */
+  const setMetaColor = col => {
+    document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.remove());
+    const m = document.createElement("meta");
+    m.name = "theme-color"; m.content = col;
+    document.head.appendChild(m);
+  };
+  const meta = { setAttribute: (_k, col) => setMetaColor(col) };
   const ACCENTS = ["pink","red","green","blue","yellow","orange","purple"];
   const apply = v => {
     // v is "classic", "classic-<color>", or one of the 7 neon accents
@@ -9462,7 +9485,7 @@ renderTabs(); renderGrid(); renderBoard(); renderStats();
     if (accent) document.documentElement.setAttribute("data-accent", accent);
     else document.documentElement.removeAttribute("data-accent");
     const METAC = {pink:"#26082b",red:"#2b0a0a",green:"#08260c",blue:"#0a142b",yellow:"#292408",orange:"#2b1708",purple:"#140a2b"};
-    const METAL = {"":"#067806",red:"#780606",pink:"#780650",blue:"#062078",yellow:"#6b6b06",orange:"#783e06",purple:"#3e0678"};
+    const METAL = {"":"#067806",red:"#780606",pink:"#780650",blue:"#062078",yellow:"#6b6b06",orange:"#783e06",purple:"#3e0678",gray:"#b0b0b0"};
     meta.setAttribute("content", isClassic ? (METAL[accent] || "#067806") : (METAC[v] || "#140a2b"));
     sels.forEach(s => { if (s.value !== v) s.value = v; });
     try { localStorage.setItem("ng_theme", v); } catch {}
@@ -9474,7 +9497,7 @@ renderTabs(); renderGrid(); renderBoard(); renderStats();
   try { saved = localStorage.getItem("ng_theme") || "pink"; } catch {}
   if (saved === "dark") saved = "pink";          // migrate old values
   if (saved === "light") saved = "classic";
-  const CLASSICS = ["classic", ...ACCENTS.filter(a=>a!=="green").map(a=>"classic-"+a)];
+  const CLASSICS = ["classic", "classic-gray", ...ACCENTS.filter(a=>a!=="green").map(a=>"classic-"+a)];
   if (!ACCENTS.includes(saved) && !CLASSICS.includes(saved)) saved = "pink";
   apply(saved);
   sels.forEach(s => s.addEventListener("change", () => {
