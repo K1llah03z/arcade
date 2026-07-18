@@ -4195,11 +4195,22 @@ function draw(dt){
     const slot=W/(nOpp+1)-10;
     const n=Math.min(p.hand.length,nOpp<=3?8:5),step=Math.min(w*0.45,Math.max(4,(slot-w)/Math.max(1,n)));
     const x0=sp.x-((n-1)*step+w)/2;
-    for(let k=0;k<n;k++)drawCardBack(x0+k*step,sp.y+14,w,h);
+    const cy2=sp.y+(nOpp>=5?27:14);
+    for(let k=0;k<n;k++)drawCardBack(x0+k*step,cy2,w,h);
     const active=G.turn===i+1&&G.state===S.PLAYING;
     ctx.fillStyle=active?NG_P("#ffc857"):NG_P("#9a8fc7");
-    ctx.font=(active?"700 ":"")+"12px ui-monospace,monospace";
-    ctx.fillText(p.name+" \u00B7 "+p.hand.length+(p.hand.length===1?" \u2014 UNO!":""),sp.x,sp.y+8);
+    /* fit the label inside this seat's slot: shrink font, then truncate,
+       and stagger alternate labels onto two rows when seats are tight */
+    const slotW=W/(nOpp+1)-6;
+    let fs=nOpp<=3?12:nOpp<=6?11:10;
+    ctx.font=(active?"700 ":"")+fs+"px ui-monospace,monospace";
+    let lbl=p.name+" \u00B7 "+p.hand.length+(p.hand.length===1?" \u2014 UNO!":"");
+    if(ctx.measureText(lbl).width>slotW)
+      lbl=p.name+"\u00B7"+p.hand.length+(p.hand.length===1?"!":"");
+    while(ctx.measureText(lbl).width>slotW&&lbl.length>4)
+      lbl=lbl.slice(0,3)+"\u2026\u00B7"+p.hand.length;
+    const stagger=(nOpp>=5&&i%2===1)?13:0;
+    ctx.fillText(lbl,sp.x,sp.y+8+stagger);
   });
   /* NEW GAME tag, top-left */
   {
