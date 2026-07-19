@@ -386,6 +386,15 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
   background:#021802;
   filter:grayscale(1) sepia(1) hue-rotate(55deg) saturate(3) brightness(1.02) contrast(1.12);
 }
+/* Neon accent fallback: games without native accent recoloring get a hub-side
+   hue shift so every board follows the theme picker. Dark theme only —
+   classic mode uses native skins or the CRT filter above. */
+:root:not([data-theme="light"]) .stage iframe.acc-red{filter:hue-rotate(40deg)}
+:root:not([data-theme="light"]) .stage iframe.acc-orange{filter:hue-rotate(70deg)}
+:root:not([data-theme="light"]) .stage iframe.acc-yellow{filter:hue-rotate(95deg)}
+:root:not([data-theme="light"]) .stage iframe.acc-green{filter:hue-rotate(160deg)}
+:root:not([data-theme="light"]) .stage iframe.acc-blue{filter:hue-rotate(265deg)}
+:root:not([data-theme="light"]) .stage iframe.acc-purple{filter:hue-rotate(310deg)}
 [data-theme="light"] .toast{box-shadow:0 4px 14px rgba(15,56,15,.3)}
 #hiScoresModal{position:absolute;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(5,3,12,.72);backdrop-filter:blur(2px)}
 #hiScoresModal.open{display:flex}
@@ -1598,7 +1607,7 @@ addEventListener("keydown",e=>{
     case"ArrowUp":case"w":case"W":case"x":case"X":e.preventDefault();tryRotate(1);break;
     case"z":case"Z":e.preventDefault();tryRotate(-1);break;
     case" ":e.preventDefault();hardDrop();break;
-    case"c":case"C":case"Shift":e.preventDefault();holdPiece();break;
+    case"h":case"H":case"Shift":e.preventDefault();holdPiece();break;
   }
 });
 addEventListener("keyup",e=>{
@@ -10345,11 +10354,25 @@ const THEME_SNIPPET = `
     if(d.type==="SET_THEME"){document.documentElement.setAttribute("data-theme",d.theme);if(d.accent)document.documentElement.setAttribute("data-accent",d.accent);else document.documentElement.removeAttribute("data-accent");}
     if(d.type==="SET_SOUND"){SOUND=!!d.on;CTXS.forEach(c=>{try{SOUND?c.resume():c.suspend();}catch(err){}});}
   });
+  /* Esc closes the cabinet even while the game iframe has focus */
+  addEventListener("keydown",e=>{
+    if(e.key==="Escape")parent.postMessage({source:"GameBridge",v:1,type:"esc"},"*");
+  });
 })();
 <\/script>`;
 
 /* Games that ship their own full classic skin; all others get the CRT filter */
 const NATIVE_CLASSIC = new Set(["neon-chess","neon-uno","pyramid-13","mine-sweeper","freecell","neon-solitaire","neon-mahjong","word-search","gridfall","maze-runner","photon-pop","boilerplate","space-cadet","gem-drop"]);
+/* Games that recolor themselves when data-accent changes; the rest get the
+   hub-side .acc-* hue-shift filter so every board follows the theme picker */
+const ACCENT_NATIVE = new Set(["gridfall","neon-mahjong","neon-solitaire","neon-uno","word-search","pyramid-13","neon-chess","freecell"]);
+function applyAccentClass(gid){
+  const f=document.getElementById("gameFrame");if(!f)return;
+  f.classList.remove("acc-red","acc-orange","acc-yellow","acc-green","acc-blue","acc-purple");
+  const acc=document.documentElement.getAttribute("data-accent")||"";
+  const dark=document.documentElement.getAttribute("data-theme")!=="light";
+  if(dark&&acc&&acc!=="pink"&&gid&&!ACCENT_NATIVE.has(gid))f.classList.add("acc-"+acc);
+}
 
 /* ---------- External ROM score link ----------
    WASM ports (e.g. Space Cadet) keep their high-score table in an ini
@@ -10642,6 +10665,8 @@ function launch(entry){
   liveBest.textContent=Store.best(entry.id).toLocaleString();
   const gid = entry.src.startsWith("embedded:") ? entry.src.slice(9) : entry.id;
   frame.classList.toggle("mono-classic", !NATIVE_CLASSIC.has(gid));
+  frame.dataset.gid=gid;
+  applyAccentClass(gid);
   if(entry.src.startsWith("embedded:")){
     frame.setAttribute("sandbox","allow-scripts");
     frame.removeAttribute("src");
@@ -10703,6 +10728,9 @@ addEventListener("message",(e)=>{
   if(e.source!==frame.contentWindow) return;
   const id=activeGame.id;
   switch(m.type){
+    case "esc":
+      if(stage.classList.contains("open")) closeStage();
+      break;
     case "ready":{
       notify(activeGame.title+" linked to GameBridge \u2713");
       const saved=Store.loadGame(id);
@@ -10833,6 +10861,7 @@ renderTabs(); renderGrid(); renderBoard(); renderStats();
     // let a running game know (GameBridge hub message; games may natively theme)
     const gf = document.getElementById("gameFrame");
     if (gf && gf.contentWindow) gf.contentWindow.postMessage({ source: "GameBridgeHub", v: 1, type: "SET_THEME", theme: t, accent: document.documentElement.getAttribute("data-accent") || "" }, "*");
+    if (gf && typeof applyAccentClass === "function") applyAccentClass(gf.dataset.gid || "");
   };
   let saved = "pink";
   try { saved = localStorage.getItem("ng_theme") || "pink"; } catch {}
