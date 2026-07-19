@@ -914,6 +914,7 @@ requestAnimationFrame(frame);
     box-shadow:inset 0 0 40px rgba(0,0,0,.9);
   }
   canvas{display:block;image-rendering:pixelated;width:min(480px,calc(100vw - 68px),calc((100vh - 190px)*0.8108));height:auto;touch-action:none;-webkit-tap-highlight-color:transparent}
+  /* JS overrides the width per level so big boards keep full-size tiles */
   /* CRT scanlines + vignette */
   #screenwrap::after{
     content:"";position:absolute;inset:0;pointer-events:none;
@@ -1012,71 +1013,60 @@ cv.width=COLS*TILE; cv.height=ROWS*TILE+HUD_TOP+HUD_BOT; // HUD bands above/belo
 /* Maze legend: #=wall .=pellet o=power  space=empty  P=player  E=enemy spawn  -=gate */
 const LEVELS=[
 [
-/* LEVEL 1 — classic 28x31 arcade board, transcribed from reference image */
-"############################",
-"#............##............#",
-"#.####.#####.##.#####.####.#",
-"#o####.#####.##.#####.####o#",
-"#.####.#####.##.#####.####.#",
-"#..........................#",
-"#.####.##.########.##.####.#",
-"#.####.##.########.##.####.#",
-"#......##....##....##......#",
-"######.##### ## #####.######",
-"######.##### ## #####.######",
-"######.##          ##.######",
-"######.## ###--### ##.######",
-"######.## #      # ##.######",
-"      .   # EEEE #   .      ",
-"######.## #      # ##.######",
-"######.## ######## ##.######",
-"######.##          ##.######",
-"######.## ######## ##.######",
-"######.## ######## ##.######",
-"#............##............#",
-"#.####.#####.##.#####.####.#",
-"#.####.#####.##.#####.####.#",
-"#o..##.......P .......##..o#",
-"###.##.##.########.##.##.###",
-"###.##.##.########.##.##.###",
-"#......##....##....##......#",
-"#.##########.##.##########.#",
-"#.##########.##.##########.#",
-"#..........................#",
-"############################"],
+/* LEVEL 1 — classic compressed to single-tile walls, orig 28x31 arcade board, transcribed from reference image */
+"########################",
+"#..........##..........#",
+"#o###.####.##.####.###o#",
+"#......................#",
+"#.###.#.########.#.###.#",
+"#.....#....##....#.....#",
+"#####.#### ## ####.#####",
+"#####.#          #.#####",
+"#####.# ###--### #.#####",
+"#####.# #      # #.#####",
+"     .  # EEEE #  .     ",
+"#####.# #      # #.#####",
+"#####.# ######## #.#####",
+"#####.#          #.#####",
+"#####.# ######## #.#####",
+"#..........##..........#",
+"#.###.####.##.####.###.#",
+"#o..#......P ......#..o#",
+"###.#.#.########.#.#.###",
+"#.....#....##....#.....#",
+"#.########.##.########.#",
+"#......................#",
+"########################"
+],
 [
-/* LEVEL 2 — 28x31 board transcribed from reference image */
-"############################",
-"#########..........#########",
-"#########.########.#########",
-"#########.########.#########",
-"#o...........##...........o#",
-"#.#######.##.##.##.#######.#",
-"#.#######.##.##.##.#######.#",
-"#.##......##.##.##......##.#",
-"#.##.#######....#######.##.#",
-"#.##.#### ######## ####.##.#",
-"#......##  ######  ##......#",
-"######.##          ##.######",
-"######.## ###--### ##.######",
-"#......## #      # ##......#",
-"#.####.## # EEEE # ##.####.#",
-"#.####.## #      # ##.####.#",
-"#...##.## ######## ##.##...#",
-"###.##.##          ##.##.###",
-"###.##.###   ##   ###.##.###",
-"###.##.###  ####  ###.##.###",
-"###.........####.........###",
-"###.#######.####.#######.###",
-"###.#######.####.#######.###",
-"   ....##....P.....##....   ",
-"###.##.##.########.##.##.###",
-"###.##.##.########.##.##.###",
-"#o..##.......##.......##..o#",
-"#.####.#####.##.#####.####.#",
-"#.####.#####.##.#####.####.#",
-"#..........................#",
-"############################"],
+/* LEVEL 2 — compressed to single-tile walls, orig 28x31 board transcribed from reference image */
+"##########################",
+"########..........########",
+"########.########.########",
+"#o..........##..........o#",
+"#.######.##.##.##.######.#",
+"#.##.....##.##.##.....##.#",
+"#.##.######....######.##.#",
+"#.##.### ######## ###.##.#",
+"#......#  ######  #......#",
+"######.#          #.######",
+"######.# ###--### #.######",
+"#......# #      # #......#",
+"#.####.# # EEEE # #.####.#",
+"#.####.# #      # #.####.#",
+"#...##.# ######## #.##...#",
+"###.##.#          #.##.###",
+"###.##.##   ##   ##.##.###",
+"###.##.##  ####  ##.##.###",
+"###........####........###",
+"###.######.####.######.###",
+"   ....#....P.....#....   ",
+"###.##.#.########.#.##.###",
+"#o..##......##......##..o#",
+"#.####.####.##.####.####.#",
+"#........................#",
+"##########################"
+],
 [
 "####################",
 "#........##........#",
@@ -1156,7 +1146,7 @@ const LEVELS=[
 "#.##.##########.##.#",
 "#..................#",
 "##.#.##--##--##.#.##",
-"#..#.#EEE##EEE#.#..#",
+"#..#.#EE ## EE#.#..#",
 "#.##.##########.##.#",
 "#..#............#..#",
 "##.#.##########.#.##",
@@ -1253,9 +1243,20 @@ let enemies=[];
 const ECOLORS=['--enemy-red','--enemy-pink','--enemy-cyan','--runner-amber'];
 /* scatter corners per ghost (Dossier: each ghost owns a corner) */
 const CORNERS=i=>[{x:COLS-2,y:1},{x:1,y:1},{x:COLS-2,y:ROWS-2},{x:1,y:ROWS-2}][i]; // fn: dims vary per level
-/* scatter/chase wave schedule in frames (7s scatter / 20s chase, x4, then chase forever) */
-const WAVES=[420,1200,420,1200,300,1200,300,Infinity];
+/* scatter/chase wave schedules in frames, per the arcade level tables
+   (level 1 / levels 2-4 / levels 5+), then chase forever */
+const WAVE_TABLES=[
+  [420,1200,420,1200,300,1200,300,Infinity],
+  [420,1200,420,1200,300,61980,1,Infinity],
+  [300,1200,300,1200,300,62220,1,Infinity]];
+let WAVES=WAVE_TABLES[0];
+/* fright duration in frames per level (arcade: 6s,5s,4s,3s,2s,5s,2s,2s,1s,5s,...) */
+const FRIGHT_T=[360,300,240,180,120,300,120,120,60,300,120,60,60,180,60,60,60,60,60,60];
+/* Elroy-1 dots-remaining thresholds per level (Elroy-2 = half) */
+const ELROY_DOTS=[20,30,40,40,40,50,50,50,60,60,60,80,80,80,100,100,100,100,120,120];
 let waveIdx=0,waveT=0;
+const REDZ=new Set();          /* no-up red-zone tiles, rebuilt per level */
+const TUNROWS=new Set();       /* wrap-tunnel rows, rebuilt per level */
 
 function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
 function chaseMode(){ return waveIdx%2===1 || waveIdx>=WAVES.length-1; }
@@ -1398,17 +1399,29 @@ function parseMap(map){
   ROWS=map.length;COLS=map[0].length;
   const w=COLS*TILE,h=ROWS*TILE+HUD_TOP+HUD_BOT;
   if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}
-  grid=[];pellets=0;enemies=[];
+  /* display at native size (24px tiles, like the 20x22 boards) but stay
+     responsive: never wider than the viewport, never taller than fits */
+  cv.style.width='min('+w+'px, calc(100vw - 68px), calc((100vh - 190px)*'+(w/h).toFixed(4)+'))';
+  grid=[];pellets=0;enemies=[];REDZ.clear();
+  let gx0=-1,gy=-1;
   for(let y=0;y<ROWS;y++){
     grid[y]=[];
     for(let x=0;x<COLS;x++){
       let ch=map[y][x];
       if(ch==='P'){player.x=x;player.y=y;player.px=x;player.py=y;player.dir=null;player.want=null;player.sx=x;player.sy=y;ch='.';}
       if(ch==='E'){enemies.push(mkEnemy(x,y,enemies.length));ch=' ';}
+      if(ch==='-'&&gx0<0){gx0=x;gy=y;}
       if(ch==='.'||ch==='o')pellets++;
       grid[y][x]=ch;
     }
   }
+  /* arcade red zones: the 4-tile strips above the ghost house and above the
+     player spawn, where scattering/chasing ghosts may never turn upward */
+  TUNROWS.clear();
+  for(let y=0;y<ROWS;y++)if(grid[y][0]!=='#'&&grid[y][COLS-1]!=='#')TUNROWS.add(y);
+  if(gx0>=0)for(const zy of [gy-2,player.sy])
+    for(let zx=gx0-1;zx<gx0+3;zx++)
+      if(zy>0&&zx>=0&&zx<COLS&&grid[zy]&&grid[zy][zx]!=='#')REDZ.add(zx+','+zy);
 }
 
 function loadLevel(n){
@@ -1425,6 +1438,7 @@ function loadLevel(n){
       if(mazeQuality())break;
     }
   }
+  WAVES=WAVE_TABLES[n===0?0:(n<4?1:2)];
   pelletsTotal=pellets;pelletsEaten=0;
   frightT=0;eatChain=0;fruitObj=null;fruitSpawned=0;
   waveIdx=0;waveT=0;popups=[];
@@ -1587,15 +1601,20 @@ function walk(x,y,d,ghost){
 }
 
 function effSpeed(a){
-  if(a===player)return a.speed+level*.004;
+  if(a===player){let s=a.speed+level*.004; if(frightT>0)s*=1.12; return s;} /* powered = faster */
   if(a.dead)return a.speed*1.9;                   /* eyes sprint home */
-  if(frightT>0)return a.speed*.55;                /* frightened crawl */
-  let s=a.speed+level*.005;
-  /* Cruise Elroy: the red chaser accelerates as the board empties */
-  if(a.idx%4===0&&pelletsTotal>0){
-    const eaten=pelletsEaten/pelletsTotal;
-    if(eaten>.85)s*=1.14; else if(eaten>.7)s*=1.07;
+  let s;
+  if(frightT>0)s=a.speed*.65;                     /* frightened crawl */
+  else{
+    s=a.speed+level*.005;
+    /* Cruise Elroy: red chaser accelerates on dots REMAINING (arcade table) */
+    if(a.idx%4===0&&pelletsTotal>0){
+      const left=pelletsTotal-pelletsEaten, d1=ELROY_DOTS[Math.min(level,ELROY_DOTS.length-1)];
+      if(left<=d1/2)s*=1.14; else if(left<=d1)s*=1.07;
+    }
   }
+  /* tunnel slowdown (arcade: ghosts crawl through the wrap tunnels) */
+  if(TUNROWS.has(a.y)&&(a.x<=1||a.x>=COLS-2))s=Math.min(s,a.speed*.53);
   return s;
 }
 
@@ -1667,6 +1686,7 @@ function enemyAI(e){
   const rev=REV[e.dir];
   for(const d in DIRS){
     if(d===rev)continue;
+    if(d==='up'&&!e.dead&&frightT<=0&&REDZ.has(e.x+','+e.y))continue; /* red zone */
     if(walk(e.x,e.y,d,true))opts.push(d);
   }
   if(!opts.length){e.dir=rev;return;}
@@ -1759,7 +1779,7 @@ function update(){
   if(t==='.'||t==='o'){
     grid[player.y][player.x]=' ';pellets--;pelletsEaten++;
     score+=t==='.'?10:50;GameBridge.reportScore(score);
-    if(t==='.')SFX.waka(); else {SFX.power();frightT=420;eatChain=0;reverseAll();}
+    if(t==='.')SFX.waka(); else {SFX.power();frightT=FRIGHT_T[Math.min(level,FRIGHT_T.length-1)];eatChain=0;reverseAll();}
     maybeSpawnFruit();
     if(score>=nextLifeAt){lives++;nextLifeAt+=10000;SFX.extra();addPopup(player.px,player.py,'1UP','#3ef05c');}
     if(pellets===0){
