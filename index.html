@@ -1151,9 +1151,16 @@ const LEVELS=[
 ];
 
 /* ================= PROCEDURAL AUDIO ENGINE =================
-   All sounds synthesized live — square/triangle blips, a two-tone
-   "waka" chomp, a rising siren that tracks remaining pellets, a
-   fright-mode warble, an intro jingle and a falling death sweep. */
+   Modeled on Ms. Pac-Man's Namco WSG (3-voice wavetable) character:
+   · munch  — ONE repeating "bwip" chirp per dot (Ms. Pac has no
+              alternating waka-waka; that's the original Pac-Man)
+   · siren  — fast up/down whine that steps through pitch stages as
+              the board empties (the arcade's 5 siren stages)
+   · eyes   — high two-tone "wee-woo" klaxon while eaten eyes fly home
+   · fright — low pulsing wah-wah-wah sweep
+   · boing  — the bouncing fruit's spring, one per bounce
+   · death  — descending spiral warble ending in a low bloop
+   · jingle — bouncy swing riff in the spirit of the Ms. Pac intro tune */
 const SFX=(function(){
   let ac=null, master=null;
   function ctx(){
@@ -1176,52 +1183,66 @@ const SFX=(function(){
     g.gain.exponentialRampToValueAtTime(.0001,t+dur);
     o.connect(g).connect(master);o.start(t);o.stop(t+dur+.02);
   }
-  /* alternating chomp — the classic two-note munch */
-  let wakaHi=false,wakaT=0;
+  /* Ms. Pac munch: the same quick falling chirp for every dot */
+  let munchT=0;
   function waka(){
     const now=performance.now();
-    if(now-wakaT<70)return; wakaT=now;
-    wakaHi=!wakaHi;
-    if(wakaHi)blip(520,180,.07,'square',.045);
-    else      blip(180,520,.07,'square',.045);
+    if(now-munchT<66)return; munchT=now;
+    blip(640,210,.055,'square',.05);
   }
-  /* continuous siren: one oscillator, pitch swept every frame */
+  /* continuous siren voice, shaped every frame by sirenTick */
   let sirO=null,sirG=null;
   function sirenOn(){
     const a=ctx(); if(!a||sirO)return;
     sirO=a.createOscillator();sirG=a.createGain();
-    sirO.type='triangle';sirG.gain.value=.028;
+    sirO.type='square';sirG.gain.value=.02;
     sirO.connect(sirG).connect(master);sirO.start();
   }
   function sirenOff(){ if(sirO){try{sirO.stop()}catch(e){} sirO=null;sirG=null;} }
-  function sirenTick(frame,urgency,fright){
+  function sirenTick(frame,urgency,fright,eyes){
     if(!sirO)return;
-    if(fright){ /* wobbling low warble */
-      sirO.frequency.value=170+40*Math.sin(frame*.5);
-      sirG.gain.value=.03;
+    if(eyes){            /* eaten eyes flying home: fast smooth gliding whine */
+      const ph=(frame*.085)%1, tri=ph<.5?ph*2:2-ph*2;
+      sirO.frequency.value=680+520*tri;       /* continuous up-down glide, no steps */
+      sirG.gain.value=.02;
+    }else if(fright){    /* fright: low pulsing wah-wah-wah */
+      const ph=(frame*.22)%1;
+      sirO.frequency.value=140+180*ph;          /* repeating quick up-sweep */
+      sirG.gain.value=.028;
     }else{
-      const base=300+urgency*260;          /* rises as pellets vanish */
-      sirO.frequency.value=base+70*Math.sin(frame*.12);
-      sirG.gain.value=.022;
+      /* 5 siren stages, stepping up as the board empties, each a fast
+         triangle-shaped up/down glide (~3.5 sweeps per second) */
+      const stage=Math.min(4,Math.floor(urgency*5));
+      const base=380+stage*110;
+      const ph=(frame*.058)%1, tri=ph<.5?ph*2:2-ph*2;
+      sirO.frequency.value=base+170*tri;
+      sirG.gain.value=.019;
     }
   }
-  function jingle(){ /* original 8-note start-up run */
-    const seq=[262,330,392,523,392,523,659,784];
-    seq.forEach((f,i)=>blip(f,f,.1,'square',.05,i*.11));
-    blip(784,1046,.25,'triangle',.05,seq.length*.11);
+  function jingle(){ /* bouncy swing riff in the spirit of the arcade intro */
+    const N={C5:523,D5:587,Eb5:622,E5:659,F5:698,G5:784,A5:880,Bb4:466,B4:494,G4:392,A4:440,C6:1046};
+    const seq=[ [N.C5,.10],[N.E5,.10],[N.G5,.10],[N.C6,.16],[N.G5,.08],
+                [N.A5,.10],[N.F5,.10],[N.C5,.16],[0,.06],
+                [N.D5,.10],[N.F5,.10],[N.A5,.10],[N.C6,.20] ];
+    let t=0;
+    for(const [f,d] of seq){ if(f)blip(f,f,d*.92,'square',.05,t); t+=d; }
+    blip(N.C6,N.C6*1.5,.3,'triangle',.045,t);
   }
-  function death(){ /* descending sweep + splat */
-    blip(700,60,.9,'sawtooth',.06);
-    blip(500,40,.9,'square',.04,.05);
-    blip(120,40,.25,'square',.06,.95);
-    blip(120,40,.25,'square',.06,1.15);
+  function death(){ /* Ms. Pac death: down-spiraling warble, then a low bloop */
+    for(let i=0;i<8;i++)blip(900-i*95,620-i*70,.09,'square',.055,i*.09);
+    blip(180,50,.3,'triangle',.06,.78);
   }
   function power(){ blip(140,420,.3,'square',.05); }
-  function eatGhost(chain){ blip(200*(chain+1),900,.22,'sawtooth',.06); blip(400,1400,.18,'square',.04,.05); }
+  function eatGhost(chain){ /* fast rising zwoop, a step higher per ghost in the chain */
+    const f0=180+chain*60;
+    blip(f0,f0*7,.28,'square',.06);
+    blip(f0*2,f0*10,.22,'triangle',.03,.03);
+  }
   function fruit(){ blip(880,220,.12,'triangle',.06); blip(1320,330,.12,'triangle',.05,.1); }
+  function boing(){ blip(260,520,.07,'triangle',.035); }   /* fruit bounce spring */
   function extra(){ for(let i=0;i<3;i++)blip(1046,1568,.09,'square',.05,i*.1); }
   function clearJ(){ blip(523,523,.12,'square',.05); blip(659,659,.12,'square',.05,.13); blip(784,1046,.3,'square',.05,.26); }
-  return {ctx,waka,sirenOn,sirenOff,sirenTick,jingle,death,power,eatGhost,fruit,extra,clearJ,blip};
+  return {ctx,waka,sirenOn,sirenOff,sirenTick,jingle,death,power,eatGhost,fruit,boing,extra,clearJ,blip};
 })();
 
 /* ---- state ---- */
@@ -1900,6 +1921,7 @@ function update(){
   /* bouncing fruit: walks in from a tunnel, laps the house, walks out */
   if(fruitObj){
     fruitStep();
+    if(fruitObj&&frame%13===0)SFX.boing();     /* spring on each landing */
     if(fruitObj&&Math.abs(player.px-fruitObj.px)<.6&&Math.abs(player.py-fruitObj.py)<.6){
       score+=fruitObj.pts;GameBridge.reportScore(score);SFX.fruit();
       addPopup(fruitObj.px,fruitObj.py,fruitObj.pts,fruitObj.col);
@@ -1908,7 +1930,7 @@ function update(){
     }
   }
   if(frightT>0){frightT--; if(frightT===0)eatChain=0;}
-  SFX.sirenTick(frame,pelletsTotal?pelletsEaten/pelletsTotal:0,frightT>0);
+  SFX.sirenTick(frame,pelletsTotal?pelletsEaten/pelletsTotal:0,frightT>0,enemies.some(e=>e.dead));
 
   for(const e of enemies){
     enemyAI(e);stepActor(e,true);
