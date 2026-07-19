@@ -1012,64 +1012,79 @@ cv.width=COLS*TILE; cv.height=ROWS*TILE+HUD_TOP+HUD_BOT; // HUD bands above/belo
 
 /* Maze legend: #=wall .=pellet o=power  space=empty  P=player  E=enemy spawn  -=gate */
 const LEVELS=[
+/* authentic Ms. Pac-Man maze 1 (levels 1-2) — full 28x31 arcade board, shaunlebron/pacman tile data */
 [
-/* LEVEL 1 — classic compressed to single-tile walls, orig 28x31 arcade board, transcribed from reference image */
-"########################",
-"#..........##..........#",
-"#o###.####.##.####.###o#",
-"#......................#",
-"#.###.#.########.#.###.#",
-"#.....#....##....#.....#",
-"#####.#### ## ####.#####",
-"#####.#          #.#####",
-"#####.# ###--### #.#####",
-"#####.# #      # #.#####",
-"     .  # EEEE #  .     ",
-"#####.# #      # #.#####",
-"#####.# ######## #.#####",
-"#####.#          #.#####",
-"#####.# ######## #.#####",
-"#..........##..........#",
-"#.###.####.##.####.###.#",
-"#o..#......P ......#..o#",
-"###.#.#.########.#.#.###",
-"#.....#....##....#.....#",
-"#.########.##.########.#",
-"#......................#",
-"########################"
+"############################",
+"#......##..........##......#",
+"#o####.##.########.##.####o#",
+"#.####.##.########.##.####.#",
+"#..........................#",
+"###.##.#####.##.#####.##.###",
+"###.##.#####.##.#####.##.###",
+"###.##.#####.##.#####.##.###",
+"   .##.......##.......##.   ",
+"###.##### ######## #####.###",
+"###.##### ######## #####.###",
+"###.                    .###",
+"###.##### ###--### #####.###",
+"###.##### #      # #####.###",
+"###.##    # EEEE #    ##.###",
+"###.## ## #      # ## ##.###",
+"###.## ## ######## ## ##.###",
+"   .   ##          ##   .   ",
+"###.######## ## ########.###",
+"###.######## ## ########.###",
+"###.......   ##   .......###",
+"###.#####.########.#####.###",
+"###.#####.########.#####.###",
+"#............ P............#",
+"#.####.#####.##.#####.####.#",
+"#.####.#####.##.#####.####.#",
+"#.####.##....##....##.####.#",
+"#o####.##.########.##.####o#",
+"#.####.##.########.##.####.#",
+"#..........................#",
+"############################"
 ],
+/* authentic Ms. Pac-Man maze 2 (levels 3-5) — full 28x31 arcade board, shaunlebron/pacman tile data */
 [
-/* LEVEL 2 (levels 3-5) — authentic Ms. Pac-Man maze 2, from shaunlebron/pacman arcade data */
-"##########################",
-"       #..........#       ",
-"###### #.########.# ######",
-"#o..........##..........o#",
-"#.######.##.##.##.######.#",
-"#.##.....##.##.##.....##.#",
-"#.##.### ##....## ###.##.#",
-"#.##.### ######## ###.##.#",
-"#......# ######## #......#",
-"######.#          #.######",
-"######.# ###--### #.######",
-"#......# #      # #......#",
-"#.####.# # EEEE # #.####.#",
-"#.####.  #      #  .####.#",
-"#...##.# ######## #.##...#",
-"###.##.#          #.##.###",
-"###.##.### #### ###.##.###",
-"###........####........###",
-"###.######.####.######.###",
-"   ....#... P  ...#....   ",
-"###.##.#.########.#.##.###",
-"#o..##......##......##..o#",
-"#.####.####.##.####.####.#",
-"#........................#",
-"##########################"
+"############################",
+"       ##..........##       ",
+"###### ##.########.## ######",
+"###### ##.########.## ######",
+"#o...........##...........o#",
+"#.#######.##.##.##.#######.#",
+"#.#######.##.##.##.#######.#",
+"#.##......##.##.##......##.#",
+"#.##.#### ##....## ####.##.#",
+"#.##.#### ######## ####.##.#",
+"#......## ######## ##......#",
+"######.##          ##.######",
+"######.## ###--### ##.######",
+"#......## #      # ##......#",
+"#.####.## # EEEE # ##.####.#",
+"#.####.   #      #   .####.#",
+"#...##.## ######## ##.##...#",
+"###.##.##          ##.##.###",
+"###.##.#### #### ####.##.###",
+"###.##.#### #### ####.##.###",
+"###.........####.........###",
+"###.#######.####.#######.###",
+"###.#######.####.#######.###",
+" P ....##...    ...##....   ",
+"###.##.##.########.##.##.###",
+"###.##.##.########.##.##.###",
+"#o..##.......##.......##..o#",
+"#.####.#####.##.#####.####.#",
+"#.####.#####.##.#####.####.#",
+"#..........................#",
+"############################"
 ],
+/* authentic Ms. Pac-Man maze 3 (levels 6-9) — full 28x31 arcade board, shaunlebron/pacman tile data */
 [
-/* LEVEL 3 (levels 6-9) — authentic Ms. Pac-Man maze 3, from shaunlebron/pacman arcade data */
 "############################",
 "#.........##....##.........#",
+"#.#######.##.##.##.#######.#",
 "#o#######.##.##.##.#######o#",
 "#.##.........##.........##.#",
 "#.##.##.####.##.####.##.##.#",
@@ -1086,133 +1101,53 @@ const LEVELS=[
 "#.## #### ######## #### ##.#",
 "#.##                    ##.#",
 "#.#### ##### ## ##### ####.#",
+"#.#### ##### ## ##### ####.#",
 "#......##....##....##......#",
 "###.##.##.########.##.##.###",
-"#o..##.......P .......##..o#",
+"###.##.##.########.##.##.###",
+"#o..##....... P.......##..o#",
+"#.####.#####.##.#####.####.#",
 "#.####.#####.##.#####.####.#",
 "#......##....##....##......#",
 "#.####.##.########.##.####.#",
+"#.####.##.########.##.####.#",
 "#......##..........##......#",
-"############################"],
+"############################"
+],
+/* authentic Ms. Pac-Man maze 4 (levels 10-13) — full 28x31 arcade board, shaunlebron/pacman tile data */
 [
-/* LEVEL 4 (levels 10-13) — authentic Ms. Pac-Man maze 4, from shaunlebron/pacman arcade data */
-"##########################",
-"#........................#",
-"#o##.###.########.###.##o#",
-"#.##.###.##....##.###.##.#",
-"#.##.....##.##.##.....##.#",
-"#.####.#.##.##.##.#.####.#",
-"#......#....##....#......#",
-"###.####### ## #######.###",
-"###....#          #....###",
-"### ##.# ###--### #.## ###",
-"    ##.# #      # #.##    ",
-"######.  # EEEE #  .######",
-"######.# #      # #.######",
-"    ##.# ######## #.##    ",
-"### ##.#          #.## ###",
-"###....#### ## ####....###",
-"###.##.#### ## ####.##.###",
-"###.##...   ##   ...##.###",
-"###.####.## ## ##.####.###",
-"#........## P  ##........#",
-"#.####.#.########.#.####.#",
-"#.##...#..........#...##.#",
-"#o##.######.##.######.##o#",
-"#...........##...........#",
-"##########################"],
-[
-"####################",
-"#........##........#",
-"#o##.###.##.###.##o#",
-"#..................#",
-"#.##.#.######.#.##.#",
-"#....#...##...#....#",
-"##.#.###.##.###.#.##",
-"   #.#........#.#   ",
-"####.#.##--##.#.####",
-"    ...#EEEE#...    ",
-"##.#.#.######.#.#.##",
-"   #.#........#.#   ",
-"####.#.######.#.####",
-"#........##........#",
-"#.##.###.##.###.##.#",
-"#o.#.....P......#.o#",
-"##.#.#.######.#.#.##",
-"#....#...##...#....#",
-"#.######.##.######.#",
-"#.######.##.######.#",
-"#..................#",
-"####################"],
-[
-"####################",
-"#o.......##.......o#",
-"#.######.##.######.#",
-"#.#....#....##...#.#",
-"#.#.##.####.#..#.#.#",
-"#...##...##...##...#",
-"###.####.##.####.###",
-"#...#..........#...#",
-"#.###.##----##.###.#",
-"#.....# EEEE #.....#",
-"#.###.########.###.#",
-"#...#..........#...#",
-"###.#.########.#.###",
-"#.....########.....#",
-"#.################.#",
-"#.#......P.......#.#",
-"#.#.############.#.#",
-"#...#..........#...#",
-"#.#.#.########.#.#.#",
-"#o#.#.########.#.#o#",
-"#..................#",
-"####################"],
-[
-"####################",
-"#o.......##.......o#",
-"#.##.###.##.###.##.#",
-"#.#....#.##.#....#.#",
-"#.#.##.#.##.#.##.#.#",
-"#...##...##...##...#",
-"###.##.######.##.###",
-"#...#..........#...#",
-"#.#.#.##----##.#.#.#",
-"#.#...#EE##EE#...#.#",
-"#.#.#.########.#.#.#",
-"#...#..........#...#",
-"###.#.########.#.###",
-"#.....#......#.....#",
-"#.###.#.####.#.###.#",
-"#.#.....P........#.#",
-"#.#.############.#.#",
-"#...#..........#...#",
-"#.#.#.########.#.#.#",
-"#o#.#.########.#.#o#",
-"#..................#",
-"####################"],
-[
-"####################",
-"#........##........#",
-"#o##.###.##.###.##o#",
-"#........##........#",
-"##.###.######.###.##",
-"#..#............#..#",
-"#.##.##########.##.#",
-"#..................#",
-"##.#.##--##--##.#.##",
-"#..#.#EE ## EE#.#..#",
-"#.##.##########.##.#",
-"#..#............#..#",
-"##.#.##########.#.##",
-"#....#........#....#",
-"#.##.#.######.#.##.#",
-"#..#...P........#..#",
-"##.#.##########.#.##",
-"#..#............#..#",
-"#.##.###.##.###.##.#",
-"#o##.###.##.###.##o#",
-"#........##........#",
-"####################"]
+"############################",
+"#..........................#",
+"#.##.####.########.####.##.#",
+"#o##.####.########.####.##o#",
+"#.##.####.##....##.####.##.#",
+"#.##......##.##.##......##.#",
+"#.####.##.##.##.##.##.####.#",
+"#.####.##.##.##.##.##.####.#",
+"#......##....##....##......#",
+"###.######## ## ########.###",
+"###.######## ## ########.###",
+"###....##          ##....###",
+"### ##.## ###--### ##.## ###",
+"    ##.## #      # ##.##    ",
+"######.   # EEEE #   .######",
+"######.## #      # ##.######",
+"    ##.## ######## ##.##    ",
+"### ##.##          ##.## ###",
+"###....##### ## #####....###",
+"###.##.##### ## #####.##.###",
+"###.##....   ##   ....##.###",
+"###.#####.## ## ##.#####.###",
+"###.#####.## ## ##.#####.###",
+"#.........## P  ##.........#",
+"#.####.##.########.##.####.#",
+"#.####.##.########.##.####.#",
+"#.##...##..........##...##.#",
+"#o##.#######.##.#######.##o#",
+"#.##.#######.##.#######.##.#",
+"#............##............#",
+"############################"
+]
 ];
 
 /* ================= PROCEDURAL AUDIO ENGINE =================
@@ -1291,8 +1226,8 @@ const SFX=(function(){
 
 /* ---- state ---- */
 let grid,pellets,pelletsTotal=0,pelletsEaten=0,level=0,score=0,hi=0,lives=3,state='title',frame=0,frightT=0;
-let eatChain=0,nextLifeAt=10000,popups=[],fruitObj=null,fruitSpawned=0,introT=0,ghostMode=false;
-const player={x:0,y:0,px:0,py:0,dir:null,want:null,speed:.11};
+let eatChain=0,nextLifeAt=10000,popups=[],fruitObj=null,fruitSpawned=0,introT=0,ghostMode=false,houseFront={x:1,y:1};
+const player={x:0,y:0,px:0,py:0,dir:null,want:null,freeze:0};
 let enemies=[];
 const ECOLORS=['--enemy-red','--enemy-pink','--enemy-cyan','--runner-amber'];
 /* scatter corners per ghost (Dossier: each ghost owns a corner) */
@@ -1304,8 +1239,23 @@ const WAVE_TABLES=[
   [420,1200,420,1200,300,61980,1,Infinity],
   [300,1200,300,1200,300,62220,1,Infinity]];
 let WAVES=WAVE_TABLES[0];
-/* fright duration in frames per level (arcade: 6s,5s,4s,3s,2s,5s,2s,2s,1s,5s,...) */
-const FRIGHT_T=[360,300,240,180,120,300,120,120,60,300,120,60,60,180,60,60,60,60,60,60];
+/* fright duration in frames per level — exact arcade table
+   (6,5,4,3,2,5,2,2,1,5,2,1,1,3,1,1,0,1,0,0 seconds; from stage 17 on,
+   except 18, power pellets give NO blue time at all — ghosts only reverse) */
+const FRIGHT_T=[360,300,240,180,120,300,120,120,60,300,120,60,60,180,60,60,0,60,0,0];
+const frightFor=l=>l<FRIGHT_T.length?FRIGHT_T[l]:0;
+/* ---- authentic arcade speed tables (Pac-Man Dossier, % of full speed) ----
+   level 1:   Pac 80 / fright-Pac 90 · ghost 75 / fright 50 / tunnel 40
+   levels 2-4: Pac 90 / 95 · ghost 85 / 55 / 45
+   levels 5-20: Pac 100 / 100 · ghost 95 / 60 / 50
+   level 21+: Pac 90 (no fright) · ghost 95 */
+const FULL=.135;                                  /* 100% speed in tiles/frame */
+function speedRow(l){
+  if(l===0)return {pac:.80,pacFr:.90,gh:.75,ghFr:.50,tun:.40,elroy1:.80,elroy2:.85};
+  if(l<4)  return {pac:.90,pacFr:.95,gh:.85,ghFr:.55,tun:.45,elroy1:.90,elroy2:.95};
+  if(l<20) return {pac:1.0,pacFr:1.0,gh:.95,ghFr:.60,tun:.50,elroy1:1.0,elroy2:1.05};
+  return    {pac:.90,pacFr:.90,gh:.95,ghFr:.60,tun:.50,elroy1:1.0,elroy2:1.05};
+}
 /* Elroy-1 dots-remaining thresholds per level (Elroy-2 = half) */
 const ELROY_DOTS=[20,30,40,40,40,50,50,50,60,60,60,80,80,80,100,100,100,100,120,120];
 let waveIdx=0,waveT=0;
@@ -1462,19 +1412,20 @@ function parseMap(map){
     grid[y]=[];
     for(let x=0;x<COLS;x++){
       let ch=map[y][x];
-      if(ch==='P'){player.x=x;player.y=y;player.px=x;player.py=y;player.dir=null;player.want=null;player.sx=x;player.sy=y;ch='.';}
+      if(ch==='P'){player.x=x;player.y=y;player.px=x;player.py=y;player.dir=null;player.want=null;player.sx=x;player.sy=y;ch=' ';}
       if(ch==='E'){enemies.push(mkEnemy(x,y,enemies.length));ch=' ';}
       if(ch==='-'&&gx0<0){gx0=x;gy=y;}
       if(ch==='.'||ch==='o')pellets++;
       grid[y][x]=ch;
     }
   }
+  houseFront=gx0>=0?{x:gx0,y:Math.max(1,gy-1)}:{x:player.x,y:player.y};
   /* arcade red zones: the 4-tile strips above the ghost house and above the
      player spawn, where scattering/chasing ghosts may never turn upward */
   TUNROWS.clear();
   for(let y=0;y<ROWS;y++)if(grid[y][0]!=='#'&&grid[y][COLS-1]!=='#')TUNROWS.add(y);
-  if(gx0>=0)for(const zy of [gy-2,player.sy])
-    for(let zx=gx0-1;zx<gx0+3;zx++)
+  if(gx0>=0)for(const zy of [gy-1,gy-2,player.sy])
+    for(let zx=gx0-2;zx<gx0+4;zx++)
       if(zy>0&&zx>=0&&zx<COLS&&grid[zy]&&grid[zy][zx]!=='#')REDZ.add(zx+','+zy);
 }
 
@@ -1503,9 +1454,9 @@ function loadLevel(n){
   else if(lv<=5)mi=1;
   else if(lv<=9)mi=2;
   else if(lv<=13)mi=3;
-  else mi=2+(Math.floor((lv-14)/4)%(LEVELS.length-2));
+  else mi=2+(Math.floor((lv-14)/4)%2);   /* arcade: mazes 3 & 4 alternate every 4 boards forever */
   parseMap(LEVELS[mi]);
-  shapeMaze();
+  /* authentic arcade boards are used verbatim — no braid/thin reshaping */
   PAL=MAZE_PAL[mi%MAZE_PAL.length];
   WAVES=WAVE_TABLES[n===0?0:(n<4?1:2)];
   pelletsTotal=pellets;pelletsEaten=0;
@@ -1565,9 +1516,12 @@ function braid(){
   }
 }
 function mkEnemy(x,y,i){
+  /* arcade: all four ghosts share the same base speed; per-level scaling
+     lives entirely in speedRow(). rndT = pseudo-random target used by
+     Blinky & Pinky during the first two scatter periods (the authentic
+     Ms. Pac-Man pattern-breaker). */
   return {x,y,px:x,py:y,dir:'left',home:{x,y},col:ECOLORS[i%4],idx:i,
-          speed:.085+i*.004,dead:false,exitT:i*140,
-          quirk:0,quirkAt:0,quirkMode:'scatter'};   /* Ms. Pac-Man localized chase break */
+          dead:false,exitT:i*140,rndT:null,inHouse:true};
 }
 /* Original-Pac-Man rule #2: every corridor is exactly ONE tile wide.
    thin() finds 2x2 open blocks and re-walls one cell, but only when the
@@ -1670,20 +1624,27 @@ function walk(x,y,d,ghost){
 }
 
 function effSpeed(a){
-  if(a===player){let s=a.speed+level*.004; if(frightT>0)s*=1.12; return s;} /* powered = faster */
-  if(a.dead)return a.speed*1.9;                   /* eyes sprint home */
+  const R=speedRow(level);
+  if(a===player){
+    /* arcade: eating a dot freezes Pac 1 frame (3 for an energizer) */
+    if(a.freeze>0){a.freeze--;return 0;}
+    return FULL*(frightT>0?R.pacFr:R.pac);
+  }
+  if(a.dead)return FULL*1.6;                      /* eyes sprint home at 160% */
   let s;
-  if(frightT>0)s=a.speed*.65;                     /* frightened crawl */
+  if(frightT>0)s=FULL*R.ghFr;                     /* frightened crawl */
   else{
-    s=a.speed+level*.005;
-    /* Cruise Elroy: red chaser accelerates on dots REMAINING (arcade table) */
+    s=FULL*R.gh;
+    /* Cruise Elroy: Blinky accelerates on dots REMAINING (exact arcade table:
+       Elroy 1 = Pac's speed, Elroy 2 = 5% above it) */
     if(a.idx%4===0&&pelletsTotal>0){
       const left=pelletsTotal-pelletsEaten, d1=ELROY_DOTS[Math.min(level,ELROY_DOTS.length-1)];
-      if(left<=d1/2)s*=1.14; else if(left<=d1)s*=1.07;
+      if(left<=d1/2)s=FULL*R.elroy2; else if(left<=d1)s=FULL*R.elroy1;
     }
   }
-  /* tunnel slowdown (arcade: ghosts crawl through the wrap tunnels) */
-  if(TUNROWS.has(a.y)&&(a.x<=1||a.x>=COLS-2))s=Math.min(s,a.speed*.53);
+  /* tunnel slowdown — Ms. Pac-Man: ghosts crawl in tunnels ONLY on the first
+     two rounds; from round 3 onward they keep full speed there */
+  if(level<2&&frightT<=0&&TUNROWS.has(a.y)&&(a.x<=1||a.x>=COLS-2))s=FULL*R.tun;
   return s;
 }
 
@@ -1723,8 +1684,18 @@ function stepActor(a,ghost){
 function ghostTarget(e){
   if(e.dead)return e.home;
   if(frightT>0)return null;                       /* frightened = random turns */
-  if(!chaseMode())return CORNERS(e.idx%4);        /* scatter to own corner */
-  if(e.quirk>0)return e.quirkMode==='random'?null:CORNERS(e.idx%4); /* local chase break */
+  if(!chaseMode()){
+    /* Ms. Pac-Man quirk: during the FIRST TWO scatter periods, Blinky and
+       Pinky ignore their corners and head for pseudo-random tiles — this is
+       what killed the original game's memorizable patterns. Inky and Sue
+       scatter to their corners as usual. */
+    if(waveIdx<4&&e.idx%4<2){
+      if(!e.rndT||((e.x===e.rndT.x&&e.y===e.rndT.y)))
+        e.rndT={x:1+Math.floor(Math.random()*(COLS-2)),y:1+Math.floor(Math.random()*(ROWS-2))};
+      return e.rndT;
+    }
+    return CORNERS(e.idx%4);                      /* scatter to own corner */
+  }
   const pd=DIRS[player.dir]||[0,0];
   switch(e.idx%4){
     case 0: return {x:player.x,y:player.y};
@@ -1745,6 +1716,16 @@ function enemyAI(e){
   const atCenter=Math.abs(e.px-e.x)<.01&&Math.abs(e.py-e.y)<.01;
   if(!atCenter)return;
   if(e.exitT>0){e.exitT--;return;}
+  /* arcade "leaving home": ghosts in the pen path straight to the tile above
+     the gate, then resume normal AI */
+  if(e.inHouse&&!e.dead){
+    if(e.y<=houseFront.y){e.inHouse=false;}
+    else{
+      const d=bfsDir(e.x,e.y,houseFront.x,houseFront.y);
+      if(d){e.dir=d;return;}
+      e.inHouse=false;
+    }
+  }
   /* dead eyes: greedy turning can trap them in concave pockets of generated
      mazes, so route home with a real BFS (reverse allowed, gate passable) */
   if(e.dead){
@@ -1756,7 +1737,11 @@ function enemyAI(e){
   for(const d in DIRS){
     if(d===rev)continue;
     if(d==='up'&&!e.dead&&frightT<=0&&REDZ.has(e.x+','+e.y))continue; /* red zone */
-    if(walk(e.x,e.y,d,true))opts.push(d);
+    const n=walk(e.x,e.y,d,true);
+    if(!n)continue;
+    /* the gate is one-way: only dead eyes (or a ghost still leaving) may cross it */
+    if(grid[n[1]][n[0]]==='-'&&!e.dead&&!e.inHouse)continue;
+    opts.push(d);
   }
   if(!opts.length){e.dir=rev;return;}
   const target=ghostTarget(e);
@@ -1801,22 +1786,72 @@ function bfsDir(x,y,tx,ty){
   return null; /* unreachable (shouldn't happen) — fall through to greedy */
 }
 
-/* ---- bonus fruit ---- */
+/* ---- bonus fruit (authentic Ms. Pac-Man roster & values) ---- */
 const FRUITS=[
-  {name:'CHERRY', pts:100, col:'#ff3355'},
-  {name:'BERRY',  pts:300, col:'#ff7bd5'},
-  {name:'PEACH',  pts:500, col:'#ffb347'},
-  {name:'APPLE',  pts:700, col:'#ff4444'},
-  {name:'MELON',  pts:1000,col:'#57e86b'},
-  {name:'STAR',   pts:2000,col:'#ffe14d'},
-  {name:'KEY',    pts:5000,col:'#7bb8ff'}
+  {name:'CHERRY',    pts:100, col:'#ff3355'},
+  {name:'STRAWBERRY',pts:200, col:'#ff5b8d'},
+  {name:'PEACH',     pts:500, col:'#ffb347'},
+  {name:'PRETZEL',   pts:700, col:'#c98a4b'},
+  {name:'APPLE',     pts:1000,col:'#ff4444'},
+  {name:'PEAR',      pts:2000,col:'#b9e86b'},
+  {name:'BANANA',    pts:5000,col:'#ffe14d'}
 ];
+function fruitForLevel(){
+  /* levels 1-7 fixed order; from level 8 on the arcade picks at random */
+  return level<7?FRUITS[level]:FRUITS[Math.floor(Math.random()*FRUITS.length)];
+}
+function tunnelMouths(){
+  const m=[];
+  for(const y of TUNROWS){m.push({x:0,y});m.push({x:COLS-1,y});}
+  if(!m.length)m.push({x:player.sx,y:player.sy});
+  return m;
+}
 function maybeSpawnFruit(){
-  const th=[Math.floor(pelletsTotal*.3),Math.floor(pelletsTotal*.7)];
-  if(fruitSpawned<2 && pelletsEaten===th[fruitSpawned]){
-    const f=FRUITS[Math.min(level,FRUITS.length-1)];
-    fruitObj={x:player.sx,y:player.sy,life:600,...f};
+  /* arcade triggers: 1st fruit after 64 dots eaten, 2nd when 66 dots remain */
+  const left=pelletsTotal-pelletsEaten;
+  const due=(fruitSpawned===0&&pelletsEaten>=Math.min(64,Math.floor(pelletsTotal*.3)))||
+            (fruitSpawned===1&&left<=Math.max(66,Math.floor(pelletsTotal*.3)));
+  if(fruitSpawned<2&&due&&!fruitObj){
+    const mouths=tunnelMouths();
+    const start=mouths[Math.floor(Math.random()*mouths.length)];
+    fruitObj={x:start.x,y:start.y,px:start.x,py:start.y,dir:start.x===0?'right':'left',
+              phase:'enter',loopT:600,...fruitForLevel()};
     fruitSpawned++;
+  }
+}
+/* Ms. Pac-Man fruit walks the maze: in through a tunnel, laps the ghost
+   house, then out through a tunnel. */
+function fruitStep(){
+  const f=fruitObj,spd=FULL*.5;
+  if(f.phase==='loop')f.loopT--;
+  const atC=Math.abs(f.px-f.x)<.01&&Math.abs(f.py-f.y)<.01;
+  if(atC){
+    f.px=f.x;f.py=f.y;
+    let d=null;
+    if(f.phase==='enter'){
+      d=bfsDir(f.x,f.y,houseFront.x,houseFront.y);
+      if(!d){f.phase='loop';}
+      else if(f.x===houseFront.x&&f.y===houseFront.y){f.phase='loop';d=null;}
+    }
+    if(f.phase==='loop'){
+      if(f.loopT<=0){f.phase='exit';f.exit=tunnelMouths()[Math.floor(Math.random()*tunnelMouths().length)];}
+      else{ /* wander: random turn, no reversing, stay near corridors */
+        const opts=[];
+        for(const dd in DIRS)if(dd!==REV[f.dir]&&walk(f.x,f.y,dd))opts.push(dd);
+        d=opts.length?opts[Math.floor(Math.random()*opts.length)]:REV[f.dir];
+      }
+    }
+    if(f.phase==='exit'){
+      if(f.x===f.exit.x&&f.y===f.exit.y){fruitObj=null;return;}
+      d=bfsDir(f.x,f.y,f.exit.x,f.exit.y)||f.dir;
+    }
+    if(d){f.dir=d;const n=walk(f.x,f.y,d);if(n){f.tx=n[0];f.ty=n[1];}else{f.dir=REV[f.dir];}}
+  }
+  if(f.dir&&f.tx!==undefined){
+    const [dx,dy]=DIRS[f.dir];
+    f.px+=dx*spd;f.py+=dy*spd;
+    if(f.px<-.5)f.px+=COLS; if(f.px>COLS-.5)f.px-=COLS;
+    if(Math.abs(f.px-f.tx)<spd&&Math.abs(f.py-f.ty)<spd){f.x=f.tx;f.y=f.ty;f.px=f.tx;f.py=f.ty;}
   }
 }
 
@@ -1836,10 +1871,7 @@ function update(){
     waveT++;
     if(waveT>=WAVES[waveIdx]){
       waveT=0;waveIdx=Math.min(waveIdx+1,WAVES.length-1);reverseAll();
-      /* Ms. Pac-Man rule: entering a Chase phase arms a randomized local
-         timer per ghost — mid-chase it will briefly defect to scatter or
-         pure random pathing, shattering repeatable player patterns */
-      if(chaseMode())enemies.forEach(e=>{e.quirk=0;e.quirkAt=240+Math.floor(Math.random()*480);});
+      enemies.forEach(e=>e.rndT=null);
     }
   }
 
@@ -1848,38 +1880,39 @@ function update(){
   if(t==='.'||t==='o'){
     grid[player.y][player.x]=' ';pellets--;pelletsEaten++;
     score+=t==='.'?10:50;GameBridge.reportScore(score);
-    if(t==='.')SFX.waka(); else {SFX.power();frightT=FRIGHT_T[Math.min(level,FRIGHT_T.length-1)];eatChain=0;reverseAll();}
+    /* arcade: 1 freeze frame per dot, 3 per energizer */
+    player.freeze=t==='.'?1:3;
+    if(t==='.')SFX.waka();
+    else{
+      SFX.power();
+      const ft=frightFor(level);
+      if(ft>0){frightT=ft;eatChain=0;}
+      reverseAll();                 /* ghosts ALWAYS reverse, even with 0 blue time */
+    }
     maybeSpawnFruit();
-    if(score>=nextLifeAt){lives++;nextLifeAt+=10000;SFX.extra();addPopup(player.px,player.py,'1UP','#3ef05c');}
+    /* arcade default: ONE extra life, at 10,000 points */
+    if(nextLifeAt>0&&score>=nextLifeAt){lives++;nextLifeAt=0;SFX.extra();addPopup(player.px,player.py,'1UP','#3ef05c');}
     if(pellets===0){
       state='clear';SFX.sirenOff();SFX.clearJ();
       setTimeout(()=>{level++;loadLevel(level);startRound();GameBridge.levelUp(level+1);},1600);
     }
   }
-  /* fruit pickup / expiry */
+  /* bouncing fruit: walks in from a tunnel, laps the house, walks out */
   if(fruitObj){
-    if(--fruitObj.life<=0)fruitObj=null;
-    else if(Math.abs(player.px-fruitObj.x)<.6&&Math.abs(player.py-fruitObj.y)<.6){
+    fruitStep();
+    if(fruitObj&&Math.abs(player.px-fruitObj.px)<.6&&Math.abs(player.py-fruitObj.py)<.6){
       score+=fruitObj.pts;GameBridge.reportScore(score);SFX.fruit();
-      addPopup(fruitObj.x,fruitObj.y,fruitObj.pts,fruitObj.col);
+      addPopup(fruitObj.px,fruitObj.py,fruitObj.pts,fruitObj.col);
       fruitObj=null;
+      if(nextLifeAt>0&&score>=nextLifeAt){lives++;nextLifeAt=0;SFX.extra();addPopup(player.px,player.py,'1UP','#3ef05c');}
     }
   }
   if(frightT>0){frightT--; if(frightT===0)eatChain=0;}
   SFX.sirenTick(frame,pelletsTotal?pelletsEaten/pelletsTotal:0,frightT>0);
 
   for(const e of enemies){
-    /* localized chase-break clock (only while genuinely chasing) */
-    if(chaseMode()&&!e.dead&&frightT<=0&&e.exitT<=0){
-      if(e.quirk>0)e.quirk--;
-      else if(e.quirkAt>0&&--e.quirkAt===0){
-        e.quirk=120+Math.floor(Math.random()*180);          /* 2-5s defection */
-        e.quirkMode=Math.random()<.5?'scatter':'random';
-        e.quirkAt=600+Math.floor(Math.random()*600);        /* schedule the next one */
-      }
-    }
     enemyAI(e);stepActor(e,true);
-    if(e.dead&&e.x===e.home.x&&e.y===e.home.y){e.dead=false;e.exitT=180;}
+    if(e.dead&&e.x===e.home.x&&e.y===e.home.y){e.dead=false;e.exitT=180;e.inHouse=true;}
     if(Math.abs(e.px-player.px)<.55&&Math.abs(e.py-player.py)<.55){
       if(e.dead)continue;
       if(ghostMode&&frightT<=0)continue;   /* GHOST mode: phase through hunters */
@@ -1905,8 +1938,8 @@ function startRound(){
 }
 function respawn(){
   player.x=player.sx;player.y=player.sy;player.px=player.sx;player.py=player.sy;
-  player.dir=null;player.want=null;
-  enemies.forEach((e,i)=>{e.x=e.home.x;e.y=e.home.y;e.px=e.x;e.py=e.y;e.dead=false;e.exitT=i*140;e.dir='left'});
+  player.dir=null;player.want=null;player.freeze=0;
+  enemies.forEach((e,i)=>{e.x=e.home.x;e.y=e.home.y;e.px=e.x;e.py=e.y;e.dead=false;e.exitT=i*140;e.dir='left';e.inHouse=true;e.rndT=null});
   frightT=0;eatChain=0;
 }
 
@@ -1978,8 +2011,9 @@ function draw(){
     cx.globalAlpha=1;
   }
   // bonus fruit (drawn last so it's never hidden under maze or sprites)
-  if(fruitObj&&((fruitObj.life>120)||((frame>>3)&1))){
-    const px=fruitObj.x*TILE+TILE/2,py=fruitObj.y*TILE+TILE/2;
+  if(fruitObj){
+    const bob=Math.abs(Math.sin(frame*.25))*4;   /* the trademark bounce */
+    const px=fruitObj.px*TILE+TILE/2,py=fruitObj.py*TILE+TILE/2-bob;
     cx.fillStyle=fruitObj.col;
     cx.beginPath();cx.arc(px,py+1,8,0,7);cx.fill();
     cx.strokeStyle='#3ef05c';cx.lineWidth=2;
