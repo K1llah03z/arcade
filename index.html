@@ -4039,10 +4039,11 @@ function mkDeck(){
 }
 
 /* ---------- State ---------- */
-const S={MENU:0,PLAYING:1,PICK:2,OVER:3,SWAP:4};
+const S={MENU:0,PLAYING:1,PICK:2,OVER:3,SWAP:4,CHAL:5};
 const G={state:S.MENU,players:[],deck:[],discard:[],color:0,dir:1,turn:0,
          msg:"",msgT:0,aiT:0,over:null,unoFlash:0,drawnIdx:-1,fx:[],diff:"hard",
-         rules:{stack:false,drawTo:false,sevenO:false},stack:null};
+         rules:{stack:false,drawTo:false,sevenO:false,jumpIn:false,challenge:false},
+         stack:null,jump:null,w4:null};
 function say(m,t=2){G.msg=m;G.msgT=t;}
 /* 150 boy + 150 girl names; each CPU gets a unique random one */
 const BOY_NAMES=["James", "Liam", "Noah", "Oliver", "Elijah", "William", "Henry", "Lucas", "Benjamin", "Theodore", "Mateo", "Levi", "Sebastian", "Daniel", "Jack", "Michael", "Alexander", "Owen", "Asher", "Samuel", "Ethan", "Leo", "Jackson", "Mason", "Ezra", "John", "Hudson", "Luca", "Aiden", "Joseph", "David", "Jacob", "Logan", "Luke", "Julian", "Gabriel", "Grayson", "Wyatt", "Matthew", "Maverick", "Dylan", "Isaac", "Elias", "Anthony", "Thomas", "Jayden", "Carter", "Santiago", "Ezekiel", "Charles", "Josiah", "Caleb", "Cooper", "Lincoln", "Miles", "Christopher", "Nathan", "Isaiah", "Kai", "Joshua", "Andrew", "Angel", "Adrian", "Cameron", "Nolan", "Waylon", "Jaxon", "Roman", "Eli", "Wesley", "Aaron", "Ian", "Christian", "Ryan", "Leonardo", "Brooks", "Axel", "Walker", "Jonathan", "Easton", "Everett", "Weston", "Bennett", "Robert", "Jameson", "Landon", "Silas", "Jose", "Beau", "Micah", "Colton", "Jordan", "Jeremiah", "Parker", "Greyson", "Rowan", "Adam", "Nicholas", "Theo", "Xavier", "Hunter", "Dominic", "Jace", "Gael", "River", "Austin", "Kayden", "Damian", "Tristan", "Carson", "Jasper", "Brayden", "Amir", "Cole", "Emmett", "Corbin", "Knox", "Declan", "Chase", "Vincent", "Finn", "Atlas", "Kaiden", "Emiliano", "Archer", "Arthur", "Felix", "George", "Ryder", "Zion", "Malachi", "Ashton", "Edward", "Patrick", "Karter", "Milo", "Antonio", "Barrett", "Enzo", "Abel", "Bryson", "Nathaniel", "Marcus", "Simon", "Judah", "Blake", "Harrison", "Peter", "Otto", "Calvin"];
@@ -4061,7 +4062,7 @@ function newGame(nOpp){
   /* hard-AI memory: fails[p][color] counts how often player p had to draw
      while that color was active — i.e. colors they seem unable to play */
   G.fails=G.players.map(()=>[0,0,0,0]);
-  G.deck=mkDeck();G.discard=[];G.dir=1;G.turn=0;G.over=null;G.drawnIdx=-1;G.fx=[];G.stack=null;
+  G.deck=mkDeck();G.discard=[];G.dir=1;G.turn=0;G.over=null;G.drawnIdx=-1;G.fx=[];G.stack=null;G.jump=null;G.w4=null;
   for(let r=0;r<7;r++)for(const p of G.players)p.hand.push(G.deck.pop());
   let first=G.deck.pop();
   while(first.c===4){G.deck.unshift(first);first=G.deck.pop();} /* no wild opener */
@@ -4091,6 +4092,7 @@ function nextPlayer(){return G.players[(G.turn+G.dir+G.players.length)%G.players
 
 /* ---------- Playing a card ---------- */
 function playCard(p,idx,chosenColor){
+  const prevColor=G.color;G.jump=null;
   const cd=p.hand.splice(idx,1)[0];
   G.discard.push(cd);
   G.color=cd.c===4?chosenColor:cd.c;
@@ -4140,17 +4142,32 @@ function playCard(p,idx,chosenColor){
   else if(cd.v==="W4"){
     if(G.rules.stack){G.stack={v:"W4",n:(G.stack?G.stack.n:0)+4};AudioFX.wild();
       say("+"+G.stack.n+" stacked \u00B7 "+CNAMES[G.color]);advance();}
+    else if(G.rules.challenge){
+      AudioFX.wild();
+      const vi=(G.turn+G.dir+G.players.length)%G.players.length,v=G.players[vi];
+      /* official rule: W4 was only legal if the player held NO card of the previous color */
+      G.w4={by:G.turn,vi,legal:!p.hand.some(c=>c.c===prevColor)};
+      if(!v.ai){G.state=S.CHAL;say(p.name+" plays Wild +4 \u00B7 "+CNAMES[G.color]);return;}
+      /* AI victim: hard AIs challenge desperate (low-hand) players more */
+      const prob=G.diff==="easy"?0.10:G.diff==="hard"?(p.hand.length<=3?0.45:0.18):0.25;
+      resolveW4(Math.random()<prob);return;
+    }
     else{const t=nextPlayer();drawN(t,4);AudioFX.wild();say(t.name+" draws 4 \u00B7 "+CNAMES[G.color]);advance();advance();}
   }
   else if(cd.v==="W"){AudioFX.wild();say("Color: "+CNAMES[G.color]);advance();}
   else if(G.rules.sevenO&&cd.v===7){
     AudioFX.play();
-    if(p.ai){ /* AI grabs the smallest hand at the table */
+    if(p.ai){ /* AI swaps only if someone has a smaller hand; else keeps its own */
       let best=null;
       for(const q of G.players)if(q!==p&&(!best||q.hand.length<best.hand.length))best=q;
-      const tmp=p.hand;p.hand=best.hand;best.hand=tmp;
-      say(p.name+" plays 7 \u2014 swaps hands with "+best.name+"!");
-      AudioFX.wild();advance();
+      if(best&&best.hand.length<p.hand.length){
+        const tmp=p.hand;p.hand=best.hand;best.hand=tmp;
+        say(p.name+" plays 7 \u2014 swaps hands with "+best.name+"!");
+        AudioFX.wild();
+      }else{
+        say(p.name+" plays 7 \u2014 keeps their hand");
+      }
+      advance();
     }else{ /* human chooses a victim */
       G.state=S.SWAP;say("You played a 7 \u2014 pick who to swap hands with");
       G.aiT=1.5;return;
@@ -4165,6 +4182,45 @@ function playCard(p,idx,chosenColor){
   }
   else{AudioFX.play();advance();}
   G.aiT=1.5;
+  scheduleJump();
+}
+function resolveW4(challenged){
+  const info=G.w4;G.w4=null;G.state=S.PLAYING;
+  if(!info)return;
+  const off=G.players[info.by],v=G.players[info.vi];
+  if(challenged){
+    if(!info.legal){ /* caught bluffing: offender draws 4, victim keeps their turn */
+      drawN(off,4);AudioFX.bad();
+      say(v.name+" challenges \u2014 CAUGHT! "+off.name+" draws 4",3);
+      advance();
+    }else{ /* it was legal: challenger draws 6 and is skipped */
+      drawN(v,6);AudioFX.draw();
+      say(v.name+" challenges \u2014 it was legal! "+v.name+" draws 6",3);
+      advance();advance();
+    }
+  }else{
+    drawN(v,4);AudioFX.draw();
+    say(v.name+" draws 4 \u00B7 "+CNAMES[G.color]);
+    advance();advance();
+  }
+  G.aiT=1.5;
+  scheduleJump();
+}
+/* Jump-In: after any play, an AI holding the EXACT same card (color+value)
+   may slam it down out of turn. Wilds never jump. */
+function scheduleJump(){
+  G.jump=null;
+  if(!G.rules.jumpIn||G.state!==S.PLAYING||G.stack)return;
+  const top=G.discard[G.discard.length-1];
+  if(top.c===4)return;
+  const order=[];for(let i=0;i<G.players.length;i++)if(G.players[i].ai&&i!==G.turn)order.push(i);
+  for(const i of order){
+    const q=G.players[i];
+    const idx=q.hand.findIndex(c=>c.c===top.c&&c.v===top.v);
+    if(idx<0)continue;
+    const prob=G.diff==="easy"?0.25:G.diff==="hard"?0.85:0.5;
+    if(Math.random()<prob){G.jump={pi:i,t:0.45+Math.random()*0.7};break;}
+  }
 }
 function endRound(winner){
   let pts=0;
@@ -4522,11 +4578,19 @@ function draw(dt){
   ctx.fillStyle=myTurn?NG_P("#ffc857"):NG_P("#9a8fc7");
   ctx.font=(myTurn?"700 ":"")+"12px ui-monospace,monospace";
   ctx.fillText("YOU \u00B7 "+me.hand.length+(me.hand.length===1?" \u2014 UNO!":""),W/2,hl.y-28);
+  const jumpable=cd=>{
+    if(!G.rules.jumpIn||G.stack||G.state!==S.PLAYING||myTurn)return false;
+    const tp=G.discard[G.discard.length-1];
+    return tp.c<4&&cd.c===tp.c&&cd.v===tp.v;
+  };
   me.hand.forEach((cd,i)=>{
     const p2=hl.pos(i);
-    const lift=(myTurn&&legal(cd))?-10:0;
+    const jmp=jumpable(cd);
+    const lift=(myTurn&&legal(cd))||jmp?-10:0;
     const glow=i===G.drawnIdx;
-    drawCardFace(p2.x,p2.y+lift+(glow?-6:0),hl.cw,hl.ch,cd,myTurn&&!legal(cd));
+    /* dim: off-turn with jump-in on, everything except the exact match */
+    const dim=myTurn?!legal(cd):(G.rules.jumpIn&&G.turn!==0&&G.state===S.PLAYING&&!jmp);
+    drawCardFace(p2.x,p2.y+lift+(glow?-6:0),hl.cw,hl.ch,cd,dim);
   });
   /* message strip */
   if(G.msgT>0){
@@ -4546,15 +4610,16 @@ function draw(dt){
   }
   if(G.state===S.PICK)drawPicker();
   if(G.state===S.SWAP)drawSwap();
+  if(G.state===S.CHAL)drawChal();
   if(G.state===S.OVER){
     if(G.over.winner===G.players[0])stepWinFx(dt);
     drawOver();
   }
 }
-function menuY(){return H/2-214;}
+function menuY(){return H/2-258;}
 function drawMenu(){
   const y0=menuY();
-  ctx.fillStyle=NG_P("rgba(20,10,43,.92)");ctx.fillRect(0,y0-14,W,468);
+  ctx.fillStyle=NG_P("rgba(20,10,43,.92)");ctx.fillRect(0,y0-14,W,556);
   ctx.fillStyle=NG_P("#e8e4ff");ctx.font="700 34px ui-monospace,monospace";
   if(!NG_CLASSIC()){ctx.shadowBlur=24;ctx.shadowColor=NG_P("#ff2ea6");}
   ctx.fillText("NEON UNO",W/2,y0+30);ctx.shadowBlur=0;
@@ -4579,7 +4644,7 @@ function drawMenu(){
     ctx.textAlign="center";ctx.textBaseline="alphabetic";
   });
   ctx.fillStyle=NG_P("#9a8fc7");ctx.font="13px ui-monospace,monospace";
-  ctx.fillText("Computer opponents (official UNO seats 2-10 players)",W/2,menuY()+254);
+  ctx.fillText("Computer opponents (official UNO seats 2-10 players)",W/2,menuY()+342);
   menuBtns().forEach(b=>{
     rr(b.x,b.y,b.w,b.h,8);
     ctx.fillStyle=NG_CLASSIC()?"rgba(255,255,255,.12)":"rgba(255,255,255,.05)";ctx.fill();
@@ -4593,7 +4658,9 @@ function ruleBtns(){
   return [
     {k:"stack", label:"STACKING +  (+2 on +2, +4 on +4)",     x,y:y0+100,w,h},
     {k:"drawTo",label:"DRAW UNTIL YOU CAN PLAY",              x,y:y0+144,w,h},
-    {k:"sevenO",label:"SEVEN-0  (7 = swap hands, 0 = rotate)",x,y:y0+188,w,h}
+    {k:"sevenO",label:"SEVEN-0  (7 = swap hands, 0 = rotate)",x,y:y0+188,w,h},
+    {k:"jumpIn",label:"JUMP-IN  (exact match plays anytime)", x,y:y0+232,w,h},
+    {k:"challenge",label:"+4 CHALLENGE  (call bluffed wilds)",x,y:y0+276,w,h}
   ];
 }
 function menuBtns(){
@@ -4602,7 +4669,7 @@ function menuBtns(){
   const rows=[[1,2,3,4,5],[6,7,8,9]];
   const out=[];
   rows.forEach((row,ri)=>{
-    const total=row.length*w+(row.length-1)*gap,x0=W/2-total/2,y=y0+272+ri*(h+12);
+    const total=row.length*w+(row.length-1)*gap,x0=W/2-total/2,y=y0+360+ri*(h+12);
     row.forEach((n,i)=>out.push({n,x:x0+i*(w+gap),y,w,h}));
   });
   return out;
@@ -4614,6 +4681,11 @@ function swapBtns(){
   const x0=W/2-(cols*w+(cols-1)*gap)/2,y0=H/2-((rows*(h+gap))-gap)/2+10;
   return opps.map((o,k)=>({pi:o.i,name:o.q.name,n:o.q.hand.length,
     x:x0+(k%cols)*(w+gap),y:y0+Math.floor(k/cols)*(h+gap),w,h}));
+}
+function keepBtn(){
+  const bs=swapBtns(),last=bs[bs.length-1];
+  const w=Math.min(200,(W-60)/2),h=44;
+  return {x:W/2-w/2,y:(last?last.y+last.h:H/2)+18,w,h};
 }
 function drawSwap(){
   ctx.fillStyle="rgba(0,0,0,0.65)";ctx.fillRect(0,0,W,H);
@@ -4627,6 +4699,35 @@ function drawSwap(){
     ctx.fillStyle=NG_P("#22e6ff");ctx.font="700 14px ui-monospace,monospace";
     ctx.textBaseline="middle";
     ctx.fillText(b.name+" \u00B7 "+b.n+(b.n===1?" card":" cards"),b.x+b.w/2,b.y+b.h/2+1);
+    ctx.textBaseline="alphabetic";
+  });
+  const k=keepBtn();
+  rr(k.x,k.y,k.w,k.h,8);
+  ctx.fillStyle=NG_P("rgba(20,10,43,.92)");ctx.fill();
+  ctx.lineWidth=2;ctx.strokeStyle=NG_P("#ffc857");ctx.stroke();
+  ctx.fillStyle=NG_P("#ffc857");ctx.font="700 14px ui-monospace,monospace";
+  ctx.textBaseline="middle";ctx.fillText("KEEP MY HAND",k.x+k.w/2,k.y+k.h/2+1);
+  ctx.textBaseline="alphabetic";
+}
+function chalBtns(){
+  const w=Math.min(190,(W-60)/2),h=52,gap=16;
+  const x0=W/2-(2*w+gap)/2,y=H/2-h/2+16;
+  return {chal:{x:x0,y,w,h},take:{x:x0+w+gap,y,w,h}};
+}
+function drawChal(){
+  ctx.fillStyle="rgba(0,0,0,0.65)";ctx.fillRect(0,0,W,H);
+  const off=G.w4?G.players[G.w4.by]:null;
+  ctx.fillStyle=NG_P("#ffc857");ctx.font="700 18px ui-monospace,monospace";
+  ctx.fillText((off?off.name:"Opponent")+" played WILD +4 \u00B7 "+CNAMES[G.color],W/2,H/2-52);
+  ctx.fillStyle=NG_P("#9a8fc7");ctx.font="12px ui-monospace,monospace";
+  ctx.fillText("Bluff? Caught = they draw 4. Legal = you draw 6.",W/2,H/2-28);
+  const bs=chalBtns();
+  [["CHALLENGE!",bs.chal,"#ff2ea6"],["TAKE +4",bs.take,"#22e6ff"]].forEach(([lbl,b,col])=>{
+    rr(b.x,b.y,b.w,b.h,8);
+    ctx.fillStyle=NG_P("rgba(20,10,43,.92)");ctx.fill();
+    ctx.lineWidth=2;ctx.strokeStyle=NG_P(col);ctx.stroke();
+    ctx.fillStyle=NG_P(col);ctx.font="700 16px ui-monospace,monospace";
+    ctx.textBaseline="middle";ctx.fillText(lbl,b.x+b.w/2,b.y+b.h/2+1);
     ctx.textBaseline="alphabetic";
   });
 }
@@ -4742,7 +4843,11 @@ function onTap(e){
   }
   if(G.state!==S.MENU&&hit(p,newGameBtn())){G.state=S.MENU;AudioFX.draw();return;}
   if(G.state===S.OVER){G.state=S.MENU;return;}
-  if(G.state===S.SWAP){ /* mandatory swap \u2014 pick someone */
+  if(G.state===S.SWAP){ /* pick someone to swap with \u2014 or keep your hand */
+    if(hit(p,keepBtn())){
+      say("Kept your hand");AudioFX.play();
+      G.state=S.PLAYING;G.drawnIdx=-1;advance();G.aiT=1.5;scheduleJump();return;
+    }
     for(const b of swapBtns())if(hit(p,b)){
       const me=G.players[0],t=G.players[b.pi];
       const tmp=me.hand;me.hand=t.hand;t.hand=tmp;
@@ -4761,15 +4866,34 @@ function onTap(e){
     pickIdx=-1;G.state=S.PLAYING;AudioFX.draw();say("Kept the wild");
     return;
   }
-  if(G.turn!==0)return;
+  if(G.state===S.CHAL){ /* Wild +4 played on you: challenge or take it */
+    const bs=chalBtns();
+    if(hit(p,bs.chal)){resolveW4(true);return;}
+    if(hit(p,bs.take)){resolveW4(false);return;}
+    return;
+  }
+  const myTurn=G.turn===0;
+  const canJump=G.rules.jumpIn&&!G.stack&&G.state===S.PLAYING;
+  if(!myTurn&&!canJump)return;
   /* hand: scan right-to-left so overlapping fans pick the visible card */
   const hl=handLayout(),me=G.players[0];
   for(let i=me.hand.length-1;i>=0;i--){
     const p2=hl.pos(i);
     const b={x:p2.x,y:p2.y-14,
              w:(p2.idxInRow===p2.cnt-1?hl.cw:hl.step),h:hl.ch+14};
-    if(hit(p,b)){humanPlay(i);return;}
+    if(hit(p,b)){
+      if(myTurn){humanPlay(i);return;}
+      /* jump-in: exact color+value match only */
+      const top=G.discard[G.discard.length-1],cd=me.hand[i];
+      if(top.c<4&&cd.c===top.c&&cd.v===top.v){
+        G.jump=null;G.turn=0;AudioFX.skip();say("You JUMP IN!",2.5);
+        humanPlay(i);
+      }else if(top.c<4){AudioFX.bad();say("Jump-in needs the exact card: "+CNAMES[top.c]+" "+label(top),2.5);}
+      else{AudioFX.bad();say("Can't jump in on a wild");}
+      return;
+    }
   }
+  if(!myTurn)return;
   const pr=pileRects();
   if(hit(p,pr.deck)){humanDraw();return;}
 }
@@ -4785,6 +4909,18 @@ function frame(t){
   /* chime once each time the turn comes back to you */
   if(G.state===S.PLAYING&&G.turn===0&&!G.chimed){G.chimed=true;AudioFX.turn();}
   if(G.turn!==0)G.chimed=false;
+  if(G.state===S.PLAYING&&G.jump){
+    G.jump.t-=dt;
+    if(G.jump.t<=0){
+      const j=G.jump;G.jump=null;
+      const q=G.players[j.pi],top=G.discard[G.discard.length-1];
+      const idx=q?q.hand.findIndex(c=>c.c===top.c&&c.v===top.v):-1;
+      if(idx>=0&&!G.stack&&top.c<4){
+        G.turn=j.pi;AudioFX.skip();say(q.name+" JUMPS IN!",2.5);
+        aiPlay(q,idx);
+      }
+    }
+  }
   if(G.state===S.PLAYING&&G.players[G.turn]&&G.players[G.turn].ai){
     G.aiT-=dt;
     if(G.aiT<=0){aiTurn(G.players[G.turn]);G.aiT=1.5;}
