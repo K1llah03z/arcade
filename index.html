@@ -4436,8 +4436,8 @@ function draw(dt){
   ctx.fillStyle=suitColor(G.color);ctx.fill();
   if(!NG_CLASSIC()){ctx.shadowBlur=10;ctx.shadowColor=suitColor(G.color);ctx.fill();ctx.shadowBlur=0;}
   /* direction arrows */
-  ctx.fillStyle=NG_P("#9a8fc7");ctx.font="16px ui-monospace,monospace";
-  ctx.fillText(G.dir===1?"\u21BB":"\u21BA",W/2,pr.disc.y-14);
+  ctx.fillStyle=NG_P("#9a8fc7");ctx.font="32px ui-monospace,monospace";
+  ctx.fillText(G.dir===1?"\u21BB":"\u21BA",W/2,pr.disc.y-18);
   /* your hand */
   const hl=handLayout(),me=G.players[0];
   const myTurn=G.turn===0&&G.state===S.PLAYING;
@@ -4535,6 +4535,18 @@ function drawPicker(){
     ctx.fill();ctx.shadowBlur=0;
     ctx.lineWidth=2;ctx.strokeStyle="rgba(255,255,255,.7)";ctx.stroke();
   });
+  /* misclick escape hatch: puts the wild back in your hand */
+  const c=cancelBtn();
+  rr(c.x,c.y,c.w,c.h,10);
+  ctx.fillStyle=NG_P("rgba(20,10,43,.92)");ctx.fill();
+  ctx.lineWidth=2;ctx.strokeStyle=NG_P("#ff2ea6");ctx.stroke();
+  ctx.fillStyle=NG_P("#ff2ea6");ctx.font="700 15px ui-monospace,monospace";
+  ctx.textBaseline="middle";ctx.fillText("\u2715 CANCEL",c.x+c.w/2,c.y+c.h/2+1);
+  ctx.textBaseline="alphabetic";
+}
+function cancelBtn(){
+  const w=170,h=44;
+  return {x:W/2-w/2,y:H/2+48,w,h};
 }
 function pickBtns(){
   const w=64,h=64,gap=18,total=4*w+3*gap,x0=W/2-total/2,y=H/2-40;
@@ -4629,6 +4641,9 @@ function onTap(e){
       const idx=pickIdx;pickIdx=-1;G.state=S.PLAYING;
       playCard(G.players[0],idx,b.ci);return;
     }
+    /* cancel button — or any tap outside the colors — backs out safely;
+       the wild never left your hand */
+    pickIdx=-1;G.state=S.PLAYING;AudioFX.draw();say("Kept the wild");
     return;
   }
   if(G.turn!==0)return;
