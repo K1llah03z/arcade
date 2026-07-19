@@ -1039,34 +1039,88 @@ const LEVELS=[
 "########################"
 ],
 [
-/* LEVEL 2 — compressed to single-tile walls, orig 28x31 board transcribed from reference image */
+/* LEVEL 2 (levels 3-5) — authentic Ms. Pac-Man maze 2, from shaunlebron/pacman arcade data */
 "##########################",
-"########..........########",
-"########.########.########",
+"       #..........#       ",
+"###### #.########.# ######",
 "#o..........##..........o#",
 "#.######.##.##.##.######.#",
 "#.##.....##.##.##.....##.#",
-"#.##.######....######.##.#",
+"#.##.### ##....## ###.##.#",
 "#.##.### ######## ###.##.#",
-"#......#  ######  #......#",
+"#......# ######## #......#",
 "######.#          #.######",
 "######.# ###--### #.######",
 "#......# #      # #......#",
 "#.####.# # EEEE # #.####.#",
-"#.####.# #      # #.####.#",
+"#.####.  #      #  .####.#",
 "#...##.# ######## #.##...#",
 "###.##.#          #.##.###",
-"###.##.##   ##   ##.##.###",
-"###.##.##  ####  ##.##.###",
+"###.##.### #### ###.##.###",
 "###........####........###",
 "###.######.####.######.###",
-"   ....#....P.....#....   ",
+"   ....#... P  ...#....   ",
 "###.##.#.########.#.##.###",
 "#o..##......##......##..o#",
 "#.####.####.##.####.####.#",
 "#........................#",
 "##########################"
 ],
+[
+/* LEVEL 3 (levels 6-9) — authentic Ms. Pac-Man maze 3, from shaunlebron/pacman arcade data */
+"############################",
+"#.........##....##.........#",
+"#o#######.##.##.##.#######o#",
+"#.##.........##.........##.#",
+"#.##.##.####.##.####.##.##.#",
+"#....##.####.##.####.##....#",
+"####.##.####.##.####.##.####",
+"####.##..............##.####",
+" ....#### ######## ####.... ",
+"#.## #### ######## #### ##.#",
+"#.##                    ##.#",
+"#.#### ## ###--### ## ####.#",
+"#.#### ## #      # ## ####.#",
+"#.     ## # EEEE # ##     .#",
+"#.## #### #      # #### ##.#",
+"#.## #### ######## #### ##.#",
+"#.##                    ##.#",
+"#.#### ##### ## ##### ####.#",
+"#......##....##....##......#",
+"###.##.##.########.##.##.###",
+"#o..##.......P .......##..o#",
+"#.####.#####.##.#####.####.#",
+"#......##....##....##......#",
+"#.####.##.########.##.####.#",
+"#......##..........##......#",
+"############################"],
+[
+/* LEVEL 4 (levels 10-13) — authentic Ms. Pac-Man maze 4, from shaunlebron/pacman arcade data */
+"##########################",
+"#........................#",
+"#o##.###.########.###.##o#",
+"#.##.###.##....##.###.##.#",
+"#.##.....##.##.##.....##.#",
+"#.####.#.##.##.##.#.####.#",
+"#......#....##....#......#",
+"###.####### ## #######.###",
+"###....#          #....###",
+"### ##.# ###--### #.## ###",
+"    ##.# #      # #.##    ",
+"######.  # EEEE #  .######",
+"######.# #      # #.######",
+"    ##.# ######## #.##    ",
+"### ##.#          #.## ###",
+"###....#### ## ####....###",
+"###.##.#### ## ####.##.###",
+"###.##...   ##   ...##.###",
+"###.####.## ## ##.####.###",
+"#........## P  ##........#",
+"#.####.#.########.#.####.#",
+"#.##...#..........#...##.#",
+"#o##.######.##.######.##o#",
+"#...........##...........#",
+"##########################"],
 [
 "####################",
 "#........##........#",
@@ -1424,20 +1478,35 @@ function parseMap(map){
       if(zy>0&&zx>=0&&zx<COLS&&grid[zy]&&grid[zy][zx]!=='#')REDZ.add(zx+','+zy);
 }
 
+/* per-maze palettes — first four are the authentic Ms. Pac-Man arcade
+   colors (wall fill / wall stroke / pellet); the rest style the bonus
+   handcrafted boards in the same spirit */
+const MAZE_PAL=[
+  {fill:'#FFB8AE',stroke:'#FF0000',pel:'#dedeff'},   /* maze 1: pink / red   */
+  {fill:'#47b8ff',stroke:'#dedeff',pel:'#ffff00'},   /* maze 2: light blue   */
+  {fill:'#de9751',stroke:'#dedeff',pel:'#ff0000'},   /* maze 3: orange / tan */
+  {fill:'#2121ff',stroke:'#ffb851',pel:'#dedeff'},   /* maze 4: blue / amber */
+  {fill:'#21a821',stroke:'#defdde',pel:'#ffe9b0'},   /* maze 5: green        */
+  {fill:'#8a2be2',stroke:'#e8d5ff',pel:'#ffe9b0'},   /* maze 6: violet       */
+  {fill:'#b8b8ce',stroke:'#ffffff',pel:'#ffe9b0'},   /* maze 7: steel        */
+  {fill:'#d04f2a',stroke:'#ffd9c9',pel:'#dedeff'}];  /* maze 8: rust         */
+let PAL=MAZE_PAL[0];
+
 function loadLevel(n){
-  /* first tour = the 4 handcrafted boards; after that, generated mazes.
-     Generated boards re-roll their seed until they pass the arcade
-     invariants (deterministic: level N always converges the same way). */
-  if(n<LEVELS.length){
-    parseMap(LEVELS[n]);
-    shapeMaze();
-  }else{
-    for(let attempt=0;attempt<80;attempt++){
-      parseMap(genMaze(n*100+attempt));
-      shapeMaze();
-      if(mazeQuality())break;
-    }
-  }
+  /* Ms. Pac-Man rotation: maze 1 for levels 1-2, maze 2 for 3-5,
+     maze 3 for 6-9, maze 4 for 10-13; from level 14 on, the remaining
+     boards rotate in four-level blocks (arcade alternation, extended to
+     cycle every board beyond the first two). */
+  const lv=n+1;
+  let mi;
+  if(lv<=2)mi=0;
+  else if(lv<=5)mi=1;
+  else if(lv<=9)mi=2;
+  else if(lv<=13)mi=3;
+  else mi=2+(Math.floor((lv-14)/4)%(LEVELS.length-2));
+  parseMap(LEVELS[mi]);
+  shapeMaze();
+  PAL=MAZE_PAL[mi%MAZE_PAL.length];
   WAVES=WAVE_TABLES[n===0?0:(n<4?1:2)];
   pelletsTotal=pellets;pelletsEaten=0;
   frightT=0;eatChain=0;fruitObj=null;fruitSpawned=0;
@@ -1869,16 +1938,16 @@ function draw(){
   for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
     const t=grid[y][x],px=x*TILE,py=y*TILE;
     if(t==='#'){
-      cx.fillStyle=css('--maze-blue');
+      cx.fillStyle=PAL.fill;
       cx.fillRect(px+2,py+2,TILE-4,TILE-4);
-      cx.strokeStyle=css('--maze-glow');cx.lineWidth=2;
+      cx.strokeStyle=PAL.stroke;cx.lineWidth=2;
       cx.strokeRect(px+2,py+2,TILE-4,TILE-4);
     }else if(t==='-'){
       cx.fillStyle=css('--enemy-pink');cx.fillRect(px+2,py+TILE/2-2,TILE-4,4);
     }else if(t==='.'){
-      cx.fillStyle=css('--pellet');cx.fillRect(px+TILE/2-2,py+TILE/2-2,4,4);
+      cx.fillStyle=PAL.pel;cx.fillRect(px+TILE/2-2,py+TILE/2-2,4,4);
     }else if(t==='o'){
-      if((frame>>4)&1){cx.fillStyle=css('--pellet');cx.beginPath();cx.arc(px+TILE/2,py+TILE/2,6,0,7);cx.fill()}
+      if((frame>>4)&1){cx.fillStyle=PAL.pel;cx.beginPath();cx.arc(px+TILE/2,py+TILE/2,6,0,7);cx.fill()}
     }
   }
   // enemies
