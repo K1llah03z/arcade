@@ -4035,20 +4035,9 @@ function playCard(p,idx,chosenColor){
   burst(W/2,H/2,cd.c===4?G.color:cd.c);
   if(p.hand.length===1){
     AudioFX.uno();say(p.name+" \u2014 UNO!");G.unoFlash=1;
-    /* the chime rings, then the voice yells it — real TTS voice, with the
-       synthesized formant shout as a fallback for browsers without speech */
+    /* the chime rings, then the voice yells it */
     const g=p.gender||(Math.random()<.5?"M":"F");
-    setTimeout(()=>{
-      try{
-        if(window.speechSynthesis&&window.SpeechSynthesisUtterance){
-          const u=new SpeechSynthesisUtterance("Uno!");
-          u.rate=1.15;u.volume=1;
-          u.pitch=g==="F"?1.5:0.7;   /* gendered: high for F, low for M */
-          speechSynthesis.cancel();  /* don't queue up overlapping shouts */
-          speechSynthesis.speak(u);
-        } else AudioFX.shout(g);
-      }catch(e){AudioFX.shout(g);}
-    },140);
+    setTimeout(()=>AudioFX.shout(g),140);
   }
   if(p.hand.length===0){
     /* official rule: a final Draw 2 / Wild Draw 4 still makes the next player draw */
