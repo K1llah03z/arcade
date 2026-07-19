@@ -3818,6 +3818,45 @@ const NG_P = c => {
     document.addEventListener(g,e=>e.preventDefault(),{passive:false});
 })();
 
+/* ---------- Voice pack (uno-audio.js) ----------
+   Optional file of real audio clips (UNO shouts + laughs). If it loads,
+   voices play from these MP3 data-URIs — rock solid on iPhone, no TTS or
+   WebAudio quirks. If the file is missing/blocked, everything falls back
+   to the built-in runtime synthesis. */
+const Voice=(function(){
+  let on=true,primed=false;
+  try{
+    const s=document.createElement("script");
+    s.src="uno-audio.js";
+    document.head.appendChild(s);
+  }catch(e){}
+  addEventListener("message",e=>{
+    const d=e.data;
+    if(d&&d.source==="GameBridgeHub"&&d.type==="SET_SOUND")on=!!d.on;
+  });
+  function pick(kind,gender){
+    const P=window.UNO_AUDIO;
+    if(!P||!P[kind])return null;
+    const arr=P[kind][gender==="F"?"F":"M"];
+    return arr&&arr.length?arr[(Math.random()*arr.length)|0]:null;
+  }
+  return {
+    ready:()=>!!window.UNO_AUDIO,
+    prime(){ /* first user tap: unlock HTMLAudio for later gesture-less plays */
+      if(primed||!window.UNO_AUDIO)return;
+      try{const a=new Audio(pick("uno","M"));a.muted=true;
+        a.play().then(()=>{a.pause();primed=true;}).catch(()=>{});}catch(e){}
+    },
+    play(kind,gender){
+      if(!on)return false;
+      const src=pick(kind,gender);
+      if(!src)return false;
+      try{const a=new Audio(src);a.volume=0.9;
+        const p=a.play();if(p&&p.catch)p.catch(()=>{});
+        return true;}catch(e){return false;}
+    }
+  };
+})();
 /* ================= NEON UNO =================
    Standard 108-card UNO vs 1-3 computer opponents.
    Official scoring on a win: opponents' number cards face value,
@@ -4035,9 +4074,26 @@ function playCard(p,idx,chosenColor){
   burst(W/2,H/2,cd.c===4?G.color:cd.c);
   if(p.hand.length===1){
     AudioFX.uno();say(p.name+" \u2014 UNO!");G.unoFlash=1;
-    /* the chime rings, then the voice yells it */
+    /* the chime rings, then the voice yells it — real TTS voice, with the
+       synthesized formant shout as a fallback for browsers without speech */
     const g=p.gender||(Math.random()<.5?"M":"F");
-    setTimeout(()=>AudioFX.shout(g),140);
+    setTimeout(()=>{
+      if(Voice.play("uno",g))return;         /* 1) real clip from uno-audio.js */
+      try{
+        if(window.speechSynthesis&&window.SpeechSynthesisUtterance){
+          const u=new SpeechSynthesisUtterance("Uno!");
+          u.rate=1.15;u.volume=1;
+          u.pitch=g==="F"?1.5:0.7;   /* gendered: high for F, low for M */
+          /* if TTS never actually starts (iOS silent-fail), shout instead */
+          let started=false;
+          u.onstart=()=>{started=true;};
+          const fb=setTimeout(()=>{if(!started){try{speechSynthesis.cancel();}catch(e){}AudioFX.shout(g);}},700);
+          u.onend=()=>clearTimeout(fb);
+          speechSynthesis.cancel();  /* don't queue up overlapping shouts */
+          speechSynthesis.speak(u);
+        } else AudioFX.shout(g);
+      }catch(e){AudioFX.shout(g);}
+    },140);
   }
   if(p.hand.length===0){
     /* official rule: a final Draw 2 / Wild Draw 4 still makes the next player draw */
@@ -4066,7 +4122,7 @@ function endRound(winner){
     GameBridge.reportScore(pts);GameBridge.gameOver(pts);
     GameBridge.achievement("neon-uno:win");
     for(let i=0;i<50;i++)setTimeout(()=>AudioFX.win(i),i*60);
-  }else{GameBridge.gameOver(0);AudioFX.laugh(winner.gender);}
+  }else{GameBridge.gameOver(0);if(!Voice.play("laugh",winner.gender))AudioFX.laugh(winner.gender);}
 }
 
 /* ---------- Human actions ---------- */
@@ -4499,7 +4555,25 @@ function drawOver(){
 /* ---------- Input ---------- */
 function pt(e){const r=cvs.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top};}
 function hit(p,b){return p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h;}
+/* iOS requires speechSynthesis to be "unlocked" by a speak() call made
+   synchronously inside a user gesture; after that, later shouts (even the
+   computers', outside any gesture) are allowed. Prime it with a silent
+   utterance on the first tap. */
+let TTS_OK=false;
+function unlockTTS(){
+  if(TTS_OK)return;
+  try{
+    if(window.speechSynthesis&&window.SpeechSynthesisUtterance){
+      const u=new SpeechSynthesisUtterance(" ");
+      u.volume=0;u.rate=2;
+      speechSynthesis.speak(u);
+      TTS_OK=true;
+    }
+  }catch(e){}
+}
 function onTap(e){
+  unlockTTS();
+  Voice.prime();
   const p=pt(e);
   if(G.state===S.MENU){
     for(const b of diffBtns())if(hit(p,b)){G.diff=b.d;AudioFX.play();return;}
