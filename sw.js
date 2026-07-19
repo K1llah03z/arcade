@@ -6,20 +6,21 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.5.3";
+const APP_VERSION = "1.5.4";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
    about to install). Update these alongside APP_VERSION. */
 const RELEASE_NOTES = [
-  "Added UNO game the the mixup...ENJOY!!!",
-  "Brand New design of the home game page",
- 
+  "UNO: everyone yells UNO! in real voices",
+  "UNO: computer laughs upgraded to the new voice pack",
+  "UNO mobile: 2-row hand + evenly spaced opponents",
 ];
 const CACHE = "neon-grid-" + APP_VERSION;
 const ASSETS = [
   "./",
   "./index.html",
+  "./uno-audio.js",
   "./3DPinballSpaceCadet.htm",
   "./3DPinballSpaceCadet.js",
   "./3DPinballSpaceCadet.wasm",
@@ -33,11 +34,9 @@ const ASSETS = [
   "./icons/favicon-32.png",
   "./icons/favicon-64.png"
 ];
-
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
 });
-
 self.addEventListener("activate", e => {
   e.waitUntil(
     caches.keys()
@@ -45,7 +44,6 @@ self.addEventListener("activate", e => {
       .then(() => self.clients.claim())
   );
 });
-
 /* Cache-first, falling back to network, then to cached index for navigations. */
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
@@ -64,7 +62,6 @@ self.addEventListener("fetch", e => {
     })
   );
 });
-
 self.addEventListener("message", e => {
   if (!e.data) return;
   if (e.data.type === "SKIP_WAITING") self.skipWaiting();
