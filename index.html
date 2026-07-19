@@ -3819,41 +3819,60 @@ const NG_P = c => {
 })();
 
 /* ---------- Voice pack (uno-audio.js) ----------
-   Optional file of real audio clips (UNO shouts + laughs). If it loads,
-   voices play from these MP3 data-URIs — rock solid on iPhone, no TTS or
-   WebAudio quirks. If the file is missing/blocked, everything falls back
-   to the built-in runtime synthesis. */
+   Optional file of real audio clips (UNO shouts + laughs). Clips are
+   decoded into WebAudio buffers and played through an AudioContext —
+   the exact same path as the game's bleeps, so once the first tap has
+   unlocked audio, every shout and laugh plays reliably (iOS included).
+   If the file is missing/blocked, everything falls back to synthesis. */
 const Voice=(function(){
-  let on=true,primed=false;
+  let ac=null;const bufs={},pending={};
   try{
     const s=document.createElement("script");
     s.src="uno-audio.js";
     document.head.appendChild(s);
   }catch(e){}
-  addEventListener("message",e=>{
-    const d=e.data;
-    if(d&&d.source==="GameBridgeHub"&&d.type==="SET_SOUND")on=!!d.on;
-  });
-  function pick(kind,gender){
-    const P=window.UNO_AUDIO;
-    if(!P||!P[kind])return null;
-    const arr=P[kind][gender==="F"?"F":"M"];
-    return arr&&arr.length?arr[(Math.random()*arr.length)|0]:null;
+  function ctx(){
+    if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();
+    if(ac.state==="suspended")ac.resume();
+    return ac;
+  }
+  function b64buf(uri){
+    const b=atob(uri.slice(uri.indexOf(",")+1));
+    const u=new Uint8Array(b.length);
+    for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);
+    return u.buffer;
+  }
+  function load(key,src){
+    if(bufs[key]||pending[key])return;
+    pending[key]=true;
+    try{ctx().decodeAudioData(b64buf(src),
+      b=>{bufs[key]=b;delete pending[key];},
+      ()=>{delete pending[key];});}
+    catch(e){delete pending[key];}
+  }
+  function preloadAll(){
+    const P=window.UNO_AUDIO;if(!P)return;
+    for(const kind in P)for(const g in P[kind])
+      P[kind][g].forEach((s,i)=>load(kind+g+i,s));
   }
   return {
     ready:()=>!!window.UNO_AUDIO,
-    prime(){ /* first user tap: unlock HTMLAudio for later gesture-less plays */
-      if(primed||!window.UNO_AUDIO)return;
-      try{const a=new Audio(pick("uno","M"));a.muted=true;
-        a.play().then(()=>{a.pause();primed=true;}).catch(()=>{});}catch(e){}
-    },
+    prime(){ctx();preloadAll();}, /* first tap: unlock context + start decoding */
     play(kind,gender){
-      if(!on)return false;
-      const src=pick(kind,gender);
-      if(!src)return false;
-      try{const a=new Audio(src);a.volume=0.9;
-        const p=a.play();if(p&&p.catch)p.catch(()=>{});
-        return true;}catch(e){return false;}
+      const P=window.UNO_AUDIO;if(!P||!P[kind])return false;
+      const g=gender==="F"?"F":"M";
+      const arr=P[kind][g];if(!arr||!arr.length)return false;
+      preloadAll();
+      const ready=[];
+      for(let i=0;i<arr.length;i++)if(bufs[kind+g+i])ready.push(i);
+      if(!ready.length)return false; /* not decoded yet -> caller's synth fallback */
+      const i=ready[(Math.random()*ready.length)|0];
+      try{
+        const a=ctx(),src=a.createBufferSource(),gain=a.createGain();
+        src.buffer=bufs[kind+g+i];gain.gain.value=0.9;
+        src.connect(gain).connect(a.destination);src.start();
+        return true;
+      }catch(e){return false;}
     }
   };
 })();
