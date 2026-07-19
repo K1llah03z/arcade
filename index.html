@@ -4039,9 +4039,10 @@ function mkDeck(){
 }
 
 /* ---------- State ---------- */
-const S={MENU:0,PLAYING:1,PICK:2,OVER:3};
+const S={MENU:0,PLAYING:1,PICK:2,OVER:3,SWAP:4};
 const G={state:S.MENU,players:[],deck:[],discard:[],color:0,dir:1,turn:0,
-         msg:"",msgT:0,aiT:0,over:null,unoFlash:0,drawnIdx:-1,fx:[],diff:"medium"};
+         msg:"",msgT:0,aiT:0,over:null,unoFlash:0,drawnIdx:-1,fx:[],diff:"hard",
+         rules:{stack:false,drawTo:false,sevenO:false},stack:null};
 function say(m,t=2){G.msg=m;G.msgT=t;}
 /* 150 boy + 150 girl names; each CPU gets a unique random one */
 const BOY_NAMES=["James", "Liam", "Noah", "Oliver", "Elijah", "William", "Henry", "Lucas", "Benjamin", "Theodore", "Mateo", "Levi", "Sebastian", "Daniel", "Jack", "Michael", "Alexander", "Owen", "Asher", "Samuel", "Ethan", "Leo", "Jackson", "Mason", "Ezra", "John", "Hudson", "Luca", "Aiden", "Joseph", "David", "Jacob", "Logan", "Luke", "Julian", "Gabriel", "Grayson", "Wyatt", "Matthew", "Maverick", "Dylan", "Isaac", "Elias", "Anthony", "Thomas", "Jayden", "Carter", "Santiago", "Ezekiel", "Charles", "Josiah", "Caleb", "Cooper", "Lincoln", "Miles", "Christopher", "Nathan", "Isaiah", "Kai", "Joshua", "Andrew", "Angel", "Adrian", "Cameron", "Nolan", "Waylon", "Jaxon", "Roman", "Eli", "Wesley", "Aaron", "Ian", "Christian", "Ryan", "Leonardo", "Brooks", "Axel", "Walker", "Jonathan", "Easton", "Everett", "Weston", "Bennett", "Robert", "Jameson", "Landon", "Silas", "Jose", "Beau", "Micah", "Colton", "Jordan", "Jeremiah", "Parker", "Greyson", "Rowan", "Adam", "Nicholas", "Theo", "Xavier", "Hunter", "Dominic", "Jace", "Gael", "River", "Austin", "Kayden", "Damian", "Tristan", "Carson", "Jasper", "Brayden", "Amir", "Cole", "Emmett", "Corbin", "Knox", "Declan", "Chase", "Vincent", "Finn", "Atlas", "Kaiden", "Emiliano", "Archer", "Arthur", "Felix", "George", "Ryder", "Zion", "Malachi", "Ashton", "Edward", "Patrick", "Karter", "Milo", "Antonio", "Barrett", "Enzo", "Abel", "Bryson", "Nathaniel", "Marcus", "Simon", "Judah", "Blake", "Harrison", "Peter", "Otto", "Calvin"];
@@ -4060,7 +4061,7 @@ function newGame(nOpp){
   /* hard-AI memory: fails[p][color] counts how often player p had to draw
      while that color was active — i.e. colors they seem unable to play */
   G.fails=G.players.map(()=>[0,0,0,0]);
-  G.deck=mkDeck();G.discard=[];G.dir=1;G.turn=0;G.over=null;G.drawnIdx=-1;G.fx=[];
+  G.deck=mkDeck();G.discard=[];G.dir=1;G.turn=0;G.over=null;G.drawnIdx=-1;G.fx=[];G.stack=null;
   for(let r=0;r<7;r++)for(const p of G.players)p.hand.push(G.deck.pop());
   let first=G.deck.pop();
   while(first.c===4){G.deck.unshift(first);first=G.deck.pop();} /* no wild opener */
@@ -4081,6 +4082,7 @@ function reshuffle(){
 }
 function drawN(p,n){for(let i=0;i<n;i++){reshuffle();if(G.deck.length)p.hand.push(G.deck.pop());}}
 function legal(cd){
+  if(G.stack)return cd.v===G.stack.v;   /* stacking: answer +2 with +2, +4 with +4 */
   const top=G.discard[G.discard.length-1];
   return cd.c===4||cd.c===G.color||cd.v===top.v;
 }
@@ -4119,8 +4121,9 @@ function playCard(p,idx,chosenColor){
   }
   if(p.hand.length===0){
     /* official rule: a final Draw 2 / Wild Draw 4 still makes the next player draw */
-    if(cd.v==="D2")drawN(nextPlayer(),2);
-    if(cd.v==="W4")drawN(nextPlayer(),4);
+    if(cd.v==="D2")drawN(nextPlayer(),G.rules.stack&&G.stack?G.stack.n+2:2);
+    if(cd.v==="W4")drawN(nextPlayer(),G.rules.stack&&G.stack?G.stack.n+4:4);
+    G.stack=null;
     endRound(p);return;
   }
   if(cd.v==="S"){AudioFX.skip();say(nextPlayer().name+" skipped");advance();advance();}
@@ -4129,9 +4132,37 @@ function playCard(p,idx,chosenColor){
     if(G.players.length===2){say("Reverse \u2014 skip!");advance();advance();}
     else{G.dir*=-1;say("Direction reversed");advance();}
   }
-  else if(cd.v==="D2"){const t=nextPlayer();drawN(t,2);AudioFX.draw();say(t.name+" draws 2");advance();advance();}
-  else if(cd.v==="W4"){const t=nextPlayer();drawN(t,4);AudioFX.wild();say(t.name+" draws 4 \u00B7 "+CNAMES[G.color]);advance();advance();}
+  else if(cd.v==="D2"){
+    if(G.rules.stack){G.stack={v:"D2",n:(G.stack?G.stack.n:0)+2};AudioFX.draw();
+      say("+"+G.stack.n+" stacked \u2014 "+nextPlayer().name+" must answer or draw");advance();}
+    else{const t=nextPlayer();drawN(t,2);AudioFX.draw();say(t.name+" draws 2");advance();advance();}
+  }
+  else if(cd.v==="W4"){
+    if(G.rules.stack){G.stack={v:"W4",n:(G.stack?G.stack.n:0)+4};AudioFX.wild();
+      say("+"+G.stack.n+" stacked \u00B7 "+CNAMES[G.color]);advance();}
+    else{const t=nextPlayer();drawN(t,4);AudioFX.wild();say(t.name+" draws 4 \u00B7 "+CNAMES[G.color]);advance();advance();}
+  }
   else if(cd.v==="W"){AudioFX.wild();say("Color: "+CNAMES[G.color]);advance();}
+  else if(G.rules.sevenO&&cd.v===7){
+    AudioFX.play();
+    if(p.ai){ /* AI grabs the smallest hand at the table */
+      let best=null;
+      for(const q of G.players)if(q!==p&&(!best||q.hand.length<best.hand.length))best=q;
+      const tmp=p.hand;p.hand=best.hand;best.hand=tmp;
+      say(p.name+" plays 7 \u2014 swaps hands with "+best.name+"!");
+      AudioFX.wild();advance();
+    }else{ /* human chooses a victim */
+      G.state=S.SWAP;say("You played a 7 \u2014 pick who to swap hands with");
+      G.aiT=1.5;return;
+    }
+  }
+  else if(G.rules.sevenO&&cd.v===0){
+    AudioFX.wild();
+    const L=G.players.length,hands=G.players.map(q=>q.hand);
+    G.players.forEach((q,i)=>{q.hand=hands[(i-G.dir+L)%L];});
+    say("Zero! All hands rotate!");
+    advance();
+  }
   else{AudioFX.play();advance();}
   G.aiT=1.5;
 }
@@ -4157,8 +4188,21 @@ function humanPlay(idx){
 }
 function humanDraw(){
   const p=G.players[0];
+  if(G.stack){ /* accept the stacked penalty */
+    const n=G.stack.n;G.stack=null;
+    drawN(p,n);AudioFX.draw();say("Drew "+n);
+    G.drawnIdx=-1;advance();G.aiT=1.5;return;
+  }
   if(G.drawnIdx>=0){ /* already drew: pass */
     G.drawnIdx=-1;say("Passed");advance();G.aiT=1.5;return;
+  }
+  if(G.rules.drawTo){ /* house rule: draw one per tap until something plays */
+    drawN(p,1);AudioFX.draw();
+    const idx=p.hand.length-1;
+    if(legal(p.hand[idx])){G.drawnIdx=idx;say("Playable! Play it or tap deck to pass");}
+    else if(G.deck.length||G.discard.length>1){say("No play \u2014 tap deck to draw again");}
+    else{if(G.color<4&&G.fails)G.fails[0][G.color]++;say("Deck exhausted \u2014 turn passes");advance();G.aiT=1.5;}
+    return;
   }
   drawN(p,1);AudioFX.draw();
   const idx=p.hand.length-1;
@@ -4168,8 +4212,24 @@ function humanDraw(){
 
 /* ---------- Computer opponents ---------- */
 function aiTurn(p){
+  if(G.stack){ /* answer the stack or eat it */
+    const sid=p.hand.findIndex(c=>c.v===G.stack.v);
+    if(sid>=0){aiPlay(p,sid);return;}
+    const n=G.stack.n;G.stack=null;
+    drawN(p,n);AudioFX.draw();say(p.name+" draws "+n);
+    advance();G.aiT=1.5;return;
+  }
   const ids=p.hand.map((c,i)=>i).filter(i=>legal(p.hand[i]));
   if(!ids.length){
+    if(G.rules.drawTo){
+      let n=1,guard=0;drawN(p,1);
+      while(!legal(p.hand[p.hand.length-1])&&(G.deck.length||G.discard.length>1)&&guard++<60){drawN(p,1);n++;}
+      AudioFX.draw();
+      const i=p.hand.length-1;
+      if(legal(p.hand[i])){say(p.name+" draws "+n);aiPlay(p,i);}
+      else{if(G.color<4&&G.fails)G.fails[G.turn][G.color]++;say(p.name+" draws "+n);advance();G.aiT=1.5;}
+      return;
+    }
     drawN(p,1);AudioFX.draw();
     const i=p.hand.length-1;
     if(legal(p.hand[i]))aiPlay(p,i);
@@ -4438,6 +4498,13 @@ function draw(dt){
   /* direction arrows */
   ctx.fillStyle=NG_P("#9a8fc7");ctx.font="32px ui-monospace,monospace";
   ctx.fillText(G.dir===1?"\u21BB":"\u21BA",W/2,pr.disc.y-18);
+  if(G.stack){
+    const pulse=0.6+0.4*Math.sin(performance.now()/220);
+    ctx.globalAlpha=pulse;
+    ctx.fillStyle=NG_P("#ffc857");ctx.font="700 17px ui-monospace,monospace";
+    ctx.fillText("+"+G.stack.n+" STACKED",W/2,pr.disc.y-52);
+    ctx.globalAlpha=1;
+  }
   /* your hand */
   const hl=handLayout(),me=G.players[0];
   const myTurn=G.turn===0&&G.state===S.PLAYING;
@@ -4478,29 +4545,41 @@ function draw(dt){
     ctx.fillRect(f.x-2,f.y-2,4,4);ctx.globalAlpha=1;
   }
   if(G.state===S.PICK)drawPicker();
+  if(G.state===S.SWAP)drawSwap();
   if(G.state===S.OVER){
     if(G.over.winner===G.players[0])stepWinFx(dt);
     drawOver();
   }
 }
+function menuY(){return H/2-214;}
 function drawMenu(){
-  ctx.fillStyle=NG_P("rgba(20,10,43,.92)");ctx.fillRect(0,H/2-170,W,360);
+  const y0=menuY();
+  ctx.fillStyle=NG_P("rgba(20,10,43,.92)");ctx.fillRect(0,y0-14,W,468);
   ctx.fillStyle=NG_P("#e8e4ff");ctx.font="700 34px ui-monospace,monospace";
   if(!NG_CLASSIC()){ctx.shadowBlur=24;ctx.shadowColor=NG_P("#ff2ea6");}
-  ctx.fillText("NEON UNO",W/2,H/2-124);ctx.shadowBlur=0;
+  ctx.fillText("NEON UNO",W/2,y0+30);ctx.shadowBlur=0;
   ctx.font="13px ui-monospace,monospace";ctx.fillStyle=NG_P("#9a8fc7");
-  ctx.fillText("Match color or symbol \u00B7 first to empty their hand wins",W/2,H/2-96);
-  ctx.fillText("Difficulty",W/2,H/2-68);
-  diffBtns().forEach(b=>{
-    const on=G.diff===b.d;
+  ctx.fillText("Match color or symbol \u00B7 first to empty their hand wins",W/2,y0+58);
+  ctx.fillText("House rules \u2014 tap to toggle (off = official rules)",W/2,y0+86);
+  ruleBtns().forEach(b=>{
+    const on=G.rules[b.k];
     rr(b.x,b.y,b.w,b.h,8);
     ctx.fillStyle=on?(NG_CLASSIC()?"rgba(255,255,255,.28)":"rgba(255,255,255,.12)"):"rgba(255,255,255,.04)";ctx.fill();
     ctx.lineWidth=2;ctx.strokeStyle=on?NG_P("#ffc857"):NG_P("#8b5cf6");ctx.stroke();
-    ctx.fillStyle=on?NG_P("#ffc857"):NG_P("#22e6ff");ctx.font="700 14px ui-monospace,monospace";
-    ctx.textBaseline="middle";ctx.fillText(b.label,b.x+b.w/2,b.y+b.h/2+1);ctx.textBaseline="alphabetic";
+    /* checkbox */
+    const cs=16,cx2=b.x+12,cy2=b.y+b.h/2-cs/2;
+    ctx.strokeStyle=on?NG_P("#ffc857"):NG_P("#8b5cf6");ctx.lineWidth=2;
+    ctx.strokeRect(cx2,cy2,cs,cs);
+    if(on){ctx.fillStyle=NG_P("#ffc857");ctx.fillRect(cx2+3,cy2+3,cs-6,cs-6);}
+    ctx.fillStyle=on?NG_P("#ffc857"):NG_P("#22e6ff");
+    let fs2=13;ctx.font="700 13px ui-monospace,monospace";
+    while(fs2>9&&ctx.measureText(b.label).width>b.w-cs-30){fs2--;ctx.font="700 "+fs2+"px ui-monospace,monospace";}
+    ctx.textAlign="left";ctx.textBaseline="middle";
+    ctx.fillText(b.label,cx2+cs+10,b.y+b.h/2+1);
+    ctx.textAlign="center";ctx.textBaseline="alphabetic";
   });
   ctx.fillStyle=NG_P("#9a8fc7");ctx.font="13px ui-monospace,monospace";
-  ctx.fillText("Computer opponents (official UNO seats 2-10 players)",W/2,H/2+16);
+  ctx.fillText("Computer opponents (official UNO seats 2-10 players)",W/2,menuY()+254);
   menuBtns().forEach(b=>{
     rr(b.x,b.y,b.w,b.h,8);
     ctx.fillStyle=NG_CLASSIC()?"rgba(255,255,255,.12)":"rgba(255,255,255,.05)";ctx.fill();
@@ -4509,20 +4588,47 @@ function drawMenu(){
     ctx.textBaseline="middle";ctx.fillText(String(b.n),b.x+b.w/2,b.y+b.h/2+1);ctx.textBaseline="alphabetic";
   });
 }
-function diffBtns(){
-  const labels=[["easy","EASY"],["medium","MEDIUM"],["hard","HARD"]];
-  const w=Math.min(96,(W-80)/3),h=36,gap=14,total=3*w+2*gap,x0=W/2-total/2,y=H/2-54;
-  return labels.map(([d,label],i)=>({d,label,x:x0+i*(w+gap),y,w,h}));
+function ruleBtns(){
+  const y0=menuY(),w=Math.min(340,W-40),h=36,x=W/2-w/2;
+  return [
+    {k:"stack", label:"STACKING +  (+2 on +2, +4 on +4)",     x,y:y0+100,w,h},
+    {k:"drawTo",label:"DRAW UNTIL YOU CAN PLAY",              x,y:y0+144,w,h},
+    {k:"sevenO",label:"SEVEN-0  (7 = swap hands, 0 = rotate)",x,y:y0+188,w,h}
+  ];
 }
 function menuBtns(){
+  const y0=menuY();
   const w=Math.min(58,(W-60)/5-10),h=48,gap=12;
   const rows=[[1,2,3,4,5],[6,7,8,9]];
   const out=[];
   rows.forEach((row,ri)=>{
-    const total=row.length*w+(row.length-1)*gap,x0=W/2-total/2,y=H/2+34+ri*(h+12);
+    const total=row.length*w+(row.length-1)*gap,x0=W/2-total/2,y=y0+272+ri*(h+12);
     row.forEach((n,i)=>out.push({n,x:x0+i*(w+gap),y,w,h}));
   });
   return out;
+}
+function swapBtns(){
+  const opps=G.players.map((q,i)=>({q,i})).filter(o=>o.i!==0);
+  const w=Math.min(200,(W-60)/2),h=48,gap=12;
+  const cols=opps.length>4?2:1,rows=Math.ceil(opps.length/cols);
+  const x0=W/2-(cols*w+(cols-1)*gap)/2,y0=H/2-((rows*(h+gap))-gap)/2+10;
+  return opps.map((o,k)=>({pi:o.i,name:o.q.name,n:o.q.hand.length,
+    x:x0+(k%cols)*(w+gap),y:y0+Math.floor(k/cols)*(h+gap),w,h}));
+}
+function drawSwap(){
+  ctx.fillStyle="rgba(0,0,0,0.65)";ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=NG_P("#ffc857");ctx.font="700 18px ui-monospace,monospace";
+  const bs=swapBtns();
+  ctx.fillText("SWAP HANDS WITH\u2026",W/2,(bs[0]?bs[0].y:H/2)-24);
+  bs.forEach(b=>{
+    rr(b.x,b.y,b.w,b.h,8);
+    ctx.fillStyle=NG_P("rgba(20,10,43,.92)");ctx.fill();
+    ctx.lineWidth=2;ctx.strokeStyle=NG_P("#8b5cf6");ctx.stroke();
+    ctx.fillStyle=NG_P("#22e6ff");ctx.font="700 14px ui-monospace,monospace";
+    ctx.textBaseline="middle";
+    ctx.fillText(b.name+" \u00B7 "+b.n+(b.n===1?" card":" cards"),b.x+b.w/2,b.y+b.h/2+1);
+    ctx.textBaseline="alphabetic";
+  });
 }
 function drawPicker(){
   ctx.fillStyle="rgba(0,0,0,0.6)";ctx.fillRect(0,0,W,H);
@@ -4630,12 +4736,21 @@ function onTap(e){
   Voice.prime();
   const p=pt(e);
   if(G.state===S.MENU){
-    for(const b of diffBtns())if(hit(p,b)){G.diff=b.d;AudioFX.play();return;}
+    for(const b of ruleBtns())if(hit(p,b)){G.rules[b.k]=!G.rules[b.k];AudioFX.play();return;}
     for(const b of menuBtns())if(hit(p,b)){newGame(b.n);return;}
     return;
   }
   if(G.state!==S.MENU&&hit(p,newGameBtn())){G.state=S.MENU;AudioFX.draw();return;}
   if(G.state===S.OVER){G.state=S.MENU;return;}
+  if(G.state===S.SWAP){ /* mandatory swap \u2014 pick someone */
+    for(const b of swapBtns())if(hit(p,b)){
+      const me=G.players[0],t=G.players[b.pi];
+      const tmp=me.hand;me.hand=t.hand;t.hand=tmp;
+      say("Swapped hands with "+t.name+"!");AudioFX.wild();
+      G.state=S.PLAYING;G.drawnIdx=-1;advance();G.aiT=1.5;return;
+    }
+    return;
+  }
   if(G.state===S.PICK){
     for(const b of pickBtns())if(hit(p,b)){
       const idx=pickIdx;pickIdx=-1;G.state=S.PLAYING;
