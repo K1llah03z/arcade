@@ -4057,6 +4057,9 @@ function newGame(nOpp){
   const cpus=randomNames(nOpp);
   G.players=[{name:"YOU",gender:null,hand:[],ai:false}];
   for(let i=0;i<nOpp;i++)G.players.push({name:cpus[i].name,gender:cpus[i].gender,hand:[],ai:true});
+  /* hard-AI memory: fails[p][color] counts how often player p had to draw
+     while that color was active — i.e. colors they seem unable to play */
+  G.fails=G.players.map(()=>[0,0,0,0]);
   G.deck=mkDeck();G.discard=[];G.dir=1;G.turn=0;G.over=null;G.drawnIdx=-1;G.fx=[];
   for(let r=0;r<7;r++)for(const p of G.players)p.hand.push(G.deck.pop());
   let first=G.deck.pop();
@@ -4160,7 +4163,7 @@ function humanDraw(){
   drawN(p,1);AudioFX.draw();
   const idx=p.hand.length-1;
   if(legal(p.hand[idx])){G.drawnIdx=idx;say("Drew a playable card \u2014 play it or tap deck to pass");}
-  else{say("Drew \u2014 no play");advance();G.aiT=1.5;}
+  else{if(G.color<4&&G.fails)G.fails[0][G.color]++;say("Drew \u2014 no play");advance();G.aiT=1.5;}
 }
 
 /* ---------- Computer opponents ---------- */
@@ -4169,7 +4172,8 @@ function aiTurn(p){
   if(!ids.length){
     drawN(p,1);AudioFX.draw();
     const i=p.hand.length-1;
-    if(legal(p.hand[i]))aiPlay(p,i);else{say(p.name+" draws");advance();G.aiT=1.5;}
+    if(legal(p.hand[i]))aiPlay(p,i);
+    else{if(G.color<4&&G.fails)G.fails[G.turn][G.color]++;say(p.name+" draws");advance();G.aiT=1.5;}
     return;
   }
   if(G.diff==="easy"){ /* EASY: plays a random legal card, random wild colors */
@@ -4179,16 +4183,26 @@ function aiTurn(p){
   const rank=i=>{const v=p.hand[i].v;
     return v==="D2"?0:v==="S"||v==="R"?1:typeof v==="number"?2+(9-v)*0.05:v==="W"?4:5;};
   if(G.diff==="hard"){
-    /* HARD: holds wilds until stuck, punishes low-card opponents with
-       attack cards, and sheds the color it holds most of */
+    /* HARD (super think): everything MEDIUM does, plus it
+       - remembers which colors each opponent couldn't play (they drew on
+         them) and steers the game into the NEXT player's weak colors
+       - goes for the kill: if the next player is at UNO, attack cards and
+         wilds jump the queue
+       - still holds wilds until stuck, punishes low hands, sheds its own
+         dominant color */
     const counts=[0,0,0,0];for(const c of p.hand)if(c.c<4)counts[c.c]++;
+    const nP=G.players.length,ni=(G.turn+G.dir+nP)%nP;
     const threat=Math.min(...G.players.filter(q=>q!==p).map(q=>q.hand.length));
+    const nextN=G.players[ni].hand.length;
+    const nfail=(G.fails&&G.fails[ni])||[0,0,0,0];
     const hasColorPlay=ids.some(i=>p.hand[i].c<4);
     const hrank=i=>{const cd=p.hand[i],v=cd.v;
       let r=typeof v==="number"?3+(9-v)*0.05:v==="W"?6:v==="W4"?7:2;
       if((v==="D2"||v==="S"||v==="R"||v==="W4")&&threat<=2)r-=3;   /* attack when someone is close */
+      if((v==="D2"||v==="S"||v==="R"||v==="W4")&&nextN===1)r-=6;   /* NEXT player at UNO: strike NOW */
       if(cd.c<4)r-=counts[cd.c]*0.15;                              /* shed dominant color */
-      if((v==="W"||v==="W4")&&hasColorPlay)r+=4;                   /* save wilds */
+      if(cd.c<4)r-=Math.min(3,nfail[cd.c])*0.6;                    /* steer into their weak color */
+      if((v==="W"||v==="W4")&&hasColorPlay&&nextN>1)r+=4;          /* save wilds (unless it's kill time) */
       return r;};
     ids.sort((a,b)=>hrank(a)-hrank(b));
     aiPlay(p,ids[0]);return;
@@ -4198,9 +4212,18 @@ function aiTurn(p){
 }
 function aiPlay(p,idx){
   let chosen=(Math.random()*4)|0;
-  if(p.hand[idx].c===4&&G.diff!=="easy"){ /* pick the color it holds most of */
+  if(p.hand[idx].c===4&&G.diff!=="easy"){
     const n=[0,0,0,0];for(const c of p.hand)if(c.c<4)n[c.c]++;
-    const m=Math.max(...n);if(m>0)chosen=n.indexOf(m);
+    if(G.diff==="hard"){
+      /* wild color: balance what I hold against what the next player
+         has proven they can't answer */
+      const nP=G.players.length,ni=(G.turn+G.dir+nP)%nP;
+      const nfail=(G.fails&&G.fails[ni])||[0,0,0,0];
+      const sc=n.map((cnt,i)=>cnt+Math.min(3,nfail[i])*1.5);
+      const m=Math.max(...sc);if(m>0)chosen=sc.indexOf(m);
+    } else {
+      const m=Math.max(...n);if(m>0)chosen=n.indexOf(m);
+    }
   }
   playCard(p,idx,chosen);
 }
