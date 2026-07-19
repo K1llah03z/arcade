@@ -1071,7 +1071,7 @@ const LEVELS=[
 "###.........####.........###",
 "###.#######.####.#######.###",
 "###.#######.####.#######.###",
-" P ....##...    ...##....   ",
+"   ....##...  P ...##....   ",
 "###.##.##.########.##.##.###",
 "###.##.##.########.##.##.###",
 "#o..##.......##.......##..o#",
@@ -2065,6 +2065,16 @@ function draw(){
   }
   cx.textAlign='left';
   cx.restore();
+  /* Shift+D: live speed readout (% of full speed) — proves who's faster */
+  if(window.dbgSpeed&&state==='play'){
+    cx.font='bold 12px "Courier New",monospace';
+    const names=['RED','PNK','CYN','ORG'];
+    const R=speedRow(level);
+    let ln='PAC '+Math.round((frightT>0?R.pacFr:R.pac)*100)+'%'+(player.freeze>0?'*':'');
+    enemies.forEach((e,i)=>{ln+='  '+names[i%4]+' '+Math.round(effSpeed(e)/FULL*100)+'%';});
+    cx.fillStyle='rgba(0,0,0,.7)';cx.fillRect(4,HUD_TOP+2,cx.measureText(ln).width+12,18);
+    cx.fillStyle='#3ef05c';cx.fillText(ln,10,HUD_TOP+15);
+  }
   // overlays
   cx.textAlign='center';
   if(state==='title'){
@@ -2104,6 +2114,7 @@ addEventListener('keydown',e=>{
   const map={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',s:'down',a:'left',d:'right',W:'up',S:'down',A:'left',D:'right'};
   if(e.key==='p'||e.key==='P'){if(state==='play'){state='pause';SFX.sirenOff();}else if(state==='pause'){state='play';SFX.sirenOn();}return}
   if(e.key==='G'){/* secret: Shift+G */ghostMode=!ghostMode;SFX.blip(ghostMode?880:220,ghostMode?1320:110,.15,'triangle',.05);return}
+  if(e.key==='D'){/* secret: Shift+D — live speed readout */window.dbgSpeed=!window.dbgSpeed;return}
   if(map[e.key]){e.preventDefault();press(map[e.key])}
   else if(state==='title'||state==='over')press(null);
 });
