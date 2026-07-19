@@ -901,6 +901,7 @@ requestAnimationFrame(frame);
   }
   #cabinet{
     position:relative;
+    width:min-content;
     padding:22px 22px 16px;
     background:linear-gradient(160deg,#26232e,#14121a 60%);
     border-radius:18px;
@@ -908,10 +909,11 @@ requestAnimationFrame(frame);
   }
   #screenwrap{
     position:relative;border-radius:10px;overflow:hidden;
+    width:fit-content;margin:0 auto;
     background:var(--crt-black);
     box-shadow:inset 0 0 40px rgba(0,0,0,.9);
   }
-  canvas{display:block;image-rendering:pixelated;width:min(480px,calc(100vw - 68px),calc((100vh - 190px)*0.7692));height:auto;touch-action:none;-webkit-tap-highlight-color:transparent}
+  canvas{display:block;image-rendering:pixelated;width:min(480px,calc(100vw - 68px),calc((100vh - 190px)*0.8108));height:auto;touch-action:none;-webkit-tap-highlight-color:transparent}
   /* CRT scanlines + vignette */
   #screenwrap::after{
     content:"";position:absolute;inset:0;pointer-events:none;
@@ -960,7 +962,7 @@ requestAnimationFrame(frame);
 
 
 <div id="cabinet">
-  <div id="screenwrap"><canvas id="c" width="480" height="576"></canvas></div>
+  <div id="screenwrap"><canvas id="c" width="480" height="592"></canvas></div>
   <div id="plate"><b>MAZE&nbsp;RUNNER</b> &nbsp;·&nbsp; ARROWS / WASD &nbsp;·&nbsp; P PAUSE</div>
   <div id="pad">
     <div class="row"><button data-d="up">▲</button></div>
@@ -998,12 +1000,83 @@ requestAnimationFrame(frame);
 })();
 GameBridge.ready();
 /* ============ MAZE RUNNER — standalone HTML remake ============ */
-const TILE=24, COLS=20, ROWS=22;
+/* v2: authentic ghost AI (Pac-Man Dossier: per-ghost targeting, scatter/chase
+   waves), ghost-eat score chain, bonus fruit, procedural arcade soundtrack
+   (waka loop, siren, fright warble, jingle, death sweep) — all original
+   WebAudio synthesis, plus click/tap-to-start. */
+const TILE=24, HUD_TOP=30, HUD_BOT=34;
+let COLS=20, ROWS=22;                       // set per level in parseMap
 const cv=document.getElementById('c'), cx=cv.getContext('2d');
-cv.width=COLS*TILE; cv.height=ROWS*TILE+TILE*2; // +2 rows HUD
+cv.width=COLS*TILE; cv.height=ROWS*TILE+HUD_TOP+HUD_BOT; // HUD bands above/below the maze
 
 /* Maze legend: #=wall .=pellet o=power  space=empty  P=player  E=enemy spawn  -=gate */
 const LEVELS=[
+[
+/* LEVEL 1 — classic 28x31 arcade board, transcribed from reference image */
+"############################",
+"#............##............#",
+"#.####.#####.##.#####.####.#",
+"#o####.#####.##.#####.####o#",
+"#.####.#####.##.#####.####.#",
+"#..........................#",
+"#.####.##.########.##.####.#",
+"#.####.##.########.##.####.#",
+"#......##....##....##......#",
+"######.##### ## #####.######",
+"######.##### ## #####.######",
+"######.##          ##.######",
+"######.## ###--### ##.######",
+"######.## #      # ##.######",
+"      .   # EEEE #   .      ",
+"######.## #      # ##.######",
+"######.## ######## ##.######",
+"######.##          ##.######",
+"######.## ######## ##.######",
+"######.## ######## ##.######",
+"#............##............#",
+"#.####.#####.##.#####.####.#",
+"#.####.#####.##.#####.####.#",
+"#o..##.......P .......##..o#",
+"###.##.##.########.##.##.###",
+"###.##.##.########.##.##.###",
+"#......##....##....##......#",
+"#.##########.##.##########.#",
+"#.##########.##.##########.#",
+"#..........................#",
+"############################"],
+[
+/* LEVEL 2 — 28x31 board transcribed from reference image */
+"############################",
+"#########..........#########",
+"#########.########.#########",
+"#########.########.#########",
+"#o...........##...........o#",
+"#.#######.##.##.##.#######.#",
+"#.#######.##.##.##.#######.#",
+"#.##......##.##.##......##.#",
+"#.##.#######....#######.##.#",
+"#.##.#### ######## ####.##.#",
+"#......##  ######  ##......#",
+"######.##          ##.######",
+"######.## ###--### ##.######",
+"#......## #      # ##......#",
+"#.####.## # EEEE # ##.####.#",
+"#.####.## #      # ##.####.#",
+"#...##.## ######## ##.##...#",
+"###.##.##          ##.##.###",
+"###.##.###   ##   ###.##.###",
+"###.##.###  ####  ###.##.###",
+"###.........####.........###",
+"###.#######.####.#######.###",
+"###.#######.####.#######.###",
+"   ....##....P.....##....   ",
+"###.##.##.########.##.##.###",
+"###.##.##.########.##.##.###",
+"#o..##.......##.......##..o#",
+"#.####.#####.##.#####.####.#",
+"#.####.#####.##.#####.####.#",
+"#..........................#",
+"############################"],
 [
 "####################",
 "#........##........#",
@@ -1011,11 +1084,11 @@ const LEVELS=[
 "#..................#",
 "#.##.#.######.#.##.#",
 "#....#...##...#....#",
-"####.###.##.###.####",
+"##.#.###.##.###.#.##",
 "   #.#........#.#   ",
 "####.#.##--##.#.####",
 "    ...#EEEE#...    ",
-"####.#.######.#.####",
+"##.#.#.######.#.#.##",
 "   #.#........#.#   ",
 "####.#.######.#.####",
 "#........##........#",
@@ -1024,74 +1097,485 @@ const LEVELS=[
 "##.#.#.######.#.#.##",
 "#....#...##...#....#",
 "#.######.##.######.#",
-"#..................#",
+"#.######.##.######.#",
 "#..................#",
 "####################"],
 [
 "####################",
 "#o.......##.......o#",
 "#.######.##.######.#",
-"#.#....#....#....#.#",
-"#.#.##.####.##.#.#.#",
+"#.#....#....##...#.#",
+"#.#.##.####.#..#.#.#",
 "#...##...##...##...#",
 "###.####.##.####.###",
-"#...#....##....#...#",
+"#...#..........#...#",
 "#.###.##----##.###.#",
-"#.....#EEEEEE#.....#",
+"#.....# EEEE #.....#",
 "#.###.########.###.#",
 "#...#..........#...#",
 "###.#.########.#.###",
-"#.....#..##..#.....#",
-"#.####.#.##.#.####.#",
+"#.....########.....#",
+"#.################.#",
 "#.#......P.......#.#",
 "#.#.############.#.#",
 "#...#..........#...#",
 "#.#.#.########.#.#.#",
-"#o#............#.#o#",
+"#o#.#.########.#.#o#",
 "#..................#",
+"####################"],
+[
+"####################",
+"#o.......##.......o#",
+"#.##.###.##.###.##.#",
+"#.#....#.##.#....#.#",
+"#.#.##.#.##.#.##.#.#",
+"#...##...##...##...#",
+"###.##.######.##.###",
+"#...#..........#...#",
+"#.#.#.##----##.#.#.#",
+"#.#...#EE##EE#...#.#",
+"#.#.#.########.#.#.#",
+"#...#..........#...#",
+"###.#.########.#.###",
+"#.....#......#.....#",
+"#.###.#.####.#.###.#",
+"#.#.....P........#.#",
+"#.#.############.#.#",
+"#...#..........#...#",
+"#.#.#.########.#.#.#",
+"#o#.#.########.#.#o#",
+"#..................#",
+"####################"],
+[
+"####################",
+"#........##........#",
+"#o##.###.##.###.##o#",
+"#........##........#",
+"##.###.######.###.##",
+"#..#............#..#",
+"#.##.##########.##.#",
+"#..................#",
+"##.#.##--##--##.#.##",
+"#..#.#EEE##EEE#.#..#",
+"#.##.##########.##.#",
+"#..#............#..#",
+"##.#.##########.#.##",
+"#....#........#....#",
+"#.##.#.######.#.##.#",
+"#..#...P........#..#",
+"##.#.##########.#.##",
+"#..#............#..#",
+"#.##.###.##.###.##.#",
+"#o##.###.##.###.##o#",
+"#........##........#",
 "####################"]
 ];
 
-/* ---- audio: POKEY-ish square blips ---- */
-let AC=null;
-function beep(f,d=.06,t='square',g=.05){
-  if(!AC) return;
-  const o=AC.createOscillator(),v=AC.createGain();
-  o.type=t;o.frequency.value=f;v.gain.value=g;
-  v.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+d);
-  o.connect(v).connect(AC.destination);o.start();o.stop(AC.currentTime+d);
-}
-function initAudio(){ if(!AC){ try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){} } }
+/* ================= PROCEDURAL AUDIO ENGINE =================
+   All sounds synthesized live — square/triangle blips, a two-tone
+   "waka" chomp, a rising siren that tracks remaining pellets, a
+   fright-mode warble, an intro jingle and a falling death sweep. */
+const SFX=(function(){
+  let ac=null, master=null;
+  function ctx(){
+    if(!ac){
+      try{
+        ac=new (window.AudioContext||window.webkitAudioContext)();
+        master=ac.createGain(); master.gain.value=.9; master.connect(ac.destination);
+      }catch(e){}
+    }
+    if(ac&&ac.state==='suspended')ac.resume();
+    return ac;
+  }
+  function blip(f0,f1,dur,type='square',vol=.05,when=0){
+    const a=ctx(); if(!a)return;
+    const t=a.currentTime+when,o=a.createOscillator(),g=a.createGain();
+    o.type=type;
+    o.frequency.setValueAtTime(f0,t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20,f1),t+dur);
+    g.gain.setValueAtTime(vol,t);
+    g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    o.connect(g).connect(master);o.start(t);o.stop(t+dur+.02);
+  }
+  /* alternating chomp — the classic two-note munch */
+  let wakaHi=false,wakaT=0;
+  function waka(){
+    const now=performance.now();
+    if(now-wakaT<70)return; wakaT=now;
+    wakaHi=!wakaHi;
+    if(wakaHi)blip(520,180,.07,'square',.045);
+    else      blip(180,520,.07,'square',.045);
+  }
+  /* continuous siren: one oscillator, pitch swept every frame */
+  let sirO=null,sirG=null;
+  function sirenOn(){
+    const a=ctx(); if(!a||sirO)return;
+    sirO=a.createOscillator();sirG=a.createGain();
+    sirO.type='triangle';sirG.gain.value=.028;
+    sirO.connect(sirG).connect(master);sirO.start();
+  }
+  function sirenOff(){ if(sirO){try{sirO.stop()}catch(e){} sirO=null;sirG=null;} }
+  function sirenTick(frame,urgency,fright){
+    if(!sirO)return;
+    if(fright){ /* wobbling low warble */
+      sirO.frequency.value=170+40*Math.sin(frame*.5);
+      sirG.gain.value=.03;
+    }else{
+      const base=300+urgency*260;          /* rises as pellets vanish */
+      sirO.frequency.value=base+70*Math.sin(frame*.12);
+      sirG.gain.value=.022;
+    }
+  }
+  function jingle(){ /* original 8-note start-up run */
+    const seq=[262,330,392,523,392,523,659,784];
+    seq.forEach((f,i)=>blip(f,f,.1,'square',.05,i*.11));
+    blip(784,1046,.25,'triangle',.05,seq.length*.11);
+  }
+  function death(){ /* descending sweep + splat */
+    blip(700,60,.9,'sawtooth',.06);
+    blip(500,40,.9,'square',.04,.05);
+    blip(120,40,.25,'square',.06,.95);
+    blip(120,40,.25,'square',.06,1.15);
+  }
+  function power(){ blip(140,420,.3,'square',.05); }
+  function eatGhost(chain){ blip(200*(chain+1),900,.22,'sawtooth',.06); blip(400,1400,.18,'square',.04,.05); }
+  function fruit(){ blip(880,220,.12,'triangle',.06); blip(1320,330,.12,'triangle',.05,.1); }
+  function extra(){ for(let i=0;i<3;i++)blip(1046,1568,.09,'square',.05,i*.1); }
+  function clearJ(){ blip(523,523,.12,'square',.05); blip(659,659,.12,'square',.05,.13); blip(784,1046,.3,'square',.05,.26); }
+  return {ctx,waka,sirenOn,sirenOff,sirenTick,jingle,death,power,eatGhost,fruit,extra,clearJ,blip};
+})();
 
 /* ---- state ---- */
-let grid,pellets,level=0,score=0,hi=0,lives=3,state='title',frame=0,frightT=0;
+let grid,pellets,pelletsTotal=0,pelletsEaten=0,level=0,score=0,hi=0,lives=3,state='title',frame=0,frightT=0;
+let eatChain=0,nextLifeAt=10000,popups=[],fruitObj=null,fruitSpawned=0,introT=0,ghostMode=false;
 const player={x:0,y:0,px:0,py:0,dir:null,want:null,speed:.11};
 let enemies=[];
 const ECOLORS=['--enemy-red','--enemy-pink','--enemy-cyan','--runner-amber'];
+/* scatter corners per ghost (Dossier: each ghost owns a corner) */
+const CORNERS=i=>[{x:COLS-2,y:1},{x:1,y:1},{x:COLS-2,y:ROWS-2},{x:1,y:ROWS-2}][i]; // fn: dims vary per level
+/* scatter/chase wave schedule in frames (7s scatter / 20s chase, x4, then chase forever) */
+const WAVES=[420,1200,420,1200,300,1200,300,Infinity];
+let waveIdx=0,waveT=0;
 
 function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+function chaseMode(){ return waveIdx%2===1 || waveIdx>=WAVES.length-1; }
 
-function loadLevel(n){
-  const map=LEVELS[n%LEVELS.length];
+/* ============ PROCEDURAL MAZE GENERATOR ============
+   Inspired by shaunlebron/pacman-mazegen research: generate the LEFT half
+   of the board (randomized spanning-tree carve on a coarse lattice), mirror
+   it for the arcade's trademark symmetry, stamp the ghost house / spawn /
+   side tunnels, then let braid() erase every dead end so all routes loop.
+   Deterministic per level: level N always builds the same maze. */
+function mulberry32(seed){
+  let a=seed>>>0;
+  return function(){
+    a|=0;a=a+0x6D2B79F5|0;
+    let t=Math.imul(a^a>>>15,1|a);
+    t=t+Math.imul(t^t>>>7,61|t)^t;
+    return((t^t>>>14)>>>0)/4294967296;
+  };
+}
+function genMaze(lvl){
+  COLS=20;ROWS=22;               /* generated boards are always 20x22 */
+  for(let attempt=0;attempt<40;attempt++){
+    const rnd=mulberry32(0x9E3779B9^(lvl*2654435761)^(attempt*40503));
+    const g=Array.from({length:ROWS},()=>Array(COLS).fill('#'));
+    /* --- carve left half on a coarse lattice (cells at odd x,y) --- */
+    const cellX=[1,3,5,7,9],cellY=[];
+    for(let y=1;y<ROWS-1;y+=2)cellY.push(y);
+    const key=(x,y)=>x+','+y;
+    const inHalf=(x,y)=>cellX.includes(x)&&cellY.includes(y);
+    const seen=new Set();
+    const stack=[[cellX[Math.floor(rnd()*cellX.length)],cellY[Math.floor(rnd()*cellY.length)]]];
+    seen.add(key(stack[0][0],stack[0][1]));
+    while(stack.length){
+      const [x,y]=stack[stack.length-1];
+      g[y][x]='.';
+      const nbs=[[x+2,y],[x-2,y],[x,y+2],[x,y-2]].filter(([nx,ny])=>inHalf(nx,ny)&&!seen.has(key(nx,ny)));
+      if(!nbs.length){stack.pop();continue;}
+      const [nx,ny]=nbs[Math.floor(rnd()*nbs.length)];
+      g[(y+ny)/2][(x+nx)/2]='.';g[ny][nx]='.';
+      seen.add(key(nx,ny));stack.push([nx,ny]);
+    }
+    /* extra random wall knockouts -> loops even before braid (mazegen trick:
+       pure trees look like labyrinths, Pac-Man boards are loop-dense) */
+    for(let i=0;i<26;i++){
+      const x=1+Math.floor(rnd()*9),y=1+Math.floor(rnd()*(ROWS-2));
+      if(g[y][x]==='#'){
+        const open=(a,b)=>a>=0&&a<COLS&&b>=0&&b<ROWS&&g[b][a]!=='#';
+        if((open(x-1,y)&&open(x+1,y))||(open(x,y-1)&&open(x,y+1)))g[y][x]='.';
+      }
+    }
+    /* --- mirror left half onto the right --- */
+    for(let y=0;y<ROWS;y++)for(let x=0;x<10;x++)g[y][19-x]=g[y][x];
+    /* mirroring doubles the center column (x9=x10) into a 2-wide channel;
+       real boards keep the spine walled except at a few crossings */
+    const crossings=new Set([7,13,15]);
+    while(crossings.size<5)crossings.add(1+2*Math.floor(rnd()*10));
+    for(let y=1;y<ROWS-1;y++){
+      if(crossings.has(y)){for(const x of [8,9,10,11])g[y][x]='.';}
+      else {g[y][9]='#';g[y][10]='#';}
+    }
+    /* --- stamp fixed features (over anything carved) --- */
+    /* ghost house, same footprint as the handcrafted boards */
+    const HOUSE=[['##--##',8],['#EEEE#',9],['######',10]];
+    for(const [row,y] of HOUSE)for(let i=0;i<6;i++)g[y][7+i]=row[i];
+    for(const x of [8,9,10,11])g[7][x]='.';           /* corridor above gate */
+    for(const x of [7,12])if(g[7][x]==='#'&&rnd()<.5)g[7][x]='.';
+    /* player spawn corridor */
+    for(const x of [8,9,10,11])g[15][x]=x===9?'P':'.';
+    /* one or two side tunnels (wrap-around rows) */
+    const tRows=[],cand=[3,5,13,17,19];
+    tRows.push(cand[Math.floor(rnd()*cand.length)]);
+    if(rnd()<.5)tRows.push(cand[Math.floor(rnd()*cand.length)]);
+    for(const ty of new Set(tRows)){for(const x of [0,1,2])g[ty][x]='.';for(const x of [17,18,19])g[ty][x]='.';}
+    /* re-seal border except tunnel mouths */
+    for(let x=0;x<COLS;x++){g[0][x]='#';g[ROWS-1][x]='#';}
+    for(let y=1;y<ROWS-1;y++){if(!tRows.includes(y)){g[y][0]='#';g[y][19]='#';}}
+    /* --- pellets everywhere walkable, power pellets near the 4 corners --- */
+    for(let y=1;y<ROWS-1;y++)for(let x=0;x<COLS;x++)
+      if(g[y][x]==='.'&&!(y>=8&&y<=10&&x>=7&&x<=12))g[y][x]='.';
+    for(const [cx0,cy0,dx,dy] of [[1,1,1,1],[18,1,-1,1],[1,ROWS-2,1,-1],[18,ROWS-2,-1,-1]]){
+      outer:for(let r=0;r<5;r++)for(let s=0;s<=r;s++){
+        const x=cx0+dx*s,y=cy0+dy*(r-s);
+        if(g[y]&&g[y][x]==='.'){g[y][x]='o';break outer;}
+      }
+    }
+    /* --- validate: BFS from P must reach every pellet; enough pellets --- */
+    const rows=g.map(r=>r.join(''));
+    let px=-1,py=-1,total=0;
+    for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+      if(rows[y][x]==='P'){px=x;py=y;}
+      if(rows[y][x]==='.'||rows[y][x]==='o')total++;
+    }
+    if(px<0||total<80)continue;
+    const pass=ch=>ch!=='#';
+    const vis=new Set([px+','+py]),q=[[px,py]];
+    while(q.length){
+      const [x,y]=q.pop();
+      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const nx=(x+dx+COLS)%COLS,ny=y+dy;
+        if(ny<0||ny>=ROWS)continue;
+        if(!pass(rows[ny][nx]))continue;
+        const k=nx+','+ny;
+        if(!vis.has(k)){vis.add(k);q.push([nx,ny]);}
+      }
+    }
+    let ok=true;
+    for(let y=0;y<ROWS&&ok;y++)for(let x=0;x<COLS;x++)
+      if((rows[y][x]==='.'||rows[y][x]==='o')&&!vis.has(x+','+y)){ok=false;break;}
+    if(ok)return rows;
+  }
+  return LEVELS[lvl%LEVELS.length];  /* pathological seed: fall back to handcrafted */
+}
+
+/* arcade invariants, checked after shaping: no dead ends, no 2-wide areas
+   (the ghost-house box is exempt — it's supposed to be a pen) */
+function mazeQuality(){
+  let dead=0,wide=0;
+  const inHouse=(x,y)=>y>=7&&y<=11&&x>=5&&x<=14;
+  for(let y=1;y<ROWS-1;y++)for(let x=0;x<COLS;x++){
+    const t=grid[y][x];
+    if(t==='#'||t==='-'||inHouse(x,y))continue;
+    let e=0;
+    for(const d in DIRS){
+      const [dx,dy]=DIRS[d];
+      const nx=(x+dx+COLS)%COLS,ny=y+dy;
+      if(ny<0||ny>=ROWS)continue;
+      const c=grid[ny][nx];
+      if(c!=='#'&&c!=='-')e++;
+    }
+    if(e<=1)dead++;
+  }
+  for(let y=0;y<ROWS-1;y++)for(let x=0;x<COLS-1;x++){
+    if(inHouse(x,y))continue;
+    if(grid[y][x]!=='#'&&grid[y][x+1]!=='#'&&grid[y+1][x]!=='#'&&grid[y+1][x+1]!=='#')wide++;
+  }
+  return dead===0&&wide===0;
+}
+
+function parseMap(map){
+  ROWS=map.length;COLS=map[0].length;
+  const w=COLS*TILE,h=ROWS*TILE+HUD_TOP+HUD_BOT;
+  if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}
   grid=[];pellets=0;enemies=[];
   for(let y=0;y<ROWS;y++){
     grid[y]=[];
     for(let x=0;x<COLS;x++){
       let ch=map[y][x];
-      if(ch==='P'){player.x=x;player.y=y;player.px=x;player.py=y;player.dir=null;player.want=null;ch='.';}
+      if(ch==='P'){player.x=x;player.y=y;player.px=x;player.py=y;player.dir=null;player.want=null;player.sx=x;player.sy=y;ch='.';}
       if(ch==='E'){enemies.push(mkEnemy(x,y,enemies.length));ch=' ';}
       if(ch==='.'||ch==='o')pellets++;
       grid[y][x]=ch;
     }
   }
-  frightT=0;
+}
+
+function loadLevel(n){
+  /* first tour = the 4 handcrafted boards; after that, generated mazes.
+     Generated boards re-roll their seed until they pass the arcade
+     invariants (deterministic: level N always converges the same way). */
+  if(n<LEVELS.length){
+    parseMap(LEVELS[n]);
+    shapeMaze();
+  }else{
+    for(let attempt=0;attempt<80;attempt++){
+      parseMap(genMaze(n*100+attempt));
+      shapeMaze();
+      if(mazeQuality())break;
+    }
+  }
+  pelletsTotal=pellets;pelletsEaten=0;
+  frightT=0;eatChain=0;fruitObj=null;fruitSpawned=0;
+  waveIdx=0;waveT=0;popups=[];
+}
+
+/* Original-Pac-Man rule: NO dead ends. Any corridor cell with a single exit
+   gets a wall knocked through (becomes a pellet), so every route loops.
+   The outer border, ghost house and its door are left untouched. */
+function braid(){
+  const open=ch=>ch!=='#';
+  const protectedCell=(x,y)=>{
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      const yy=y+dy,xx=x+dx;
+      if(yy<0||yy>=ROWS||xx<0||xx>=COLS)continue;
+      if(grid[yy][xx]==='-')return true;
+      for(const e of enemies)if(e.home.x===xx&&e.home.y===yy)return true;
+    }
+    return false;
+  };
+  const exits=(x,y)=>{
+    let n=0;
+    for(const d in DIRS){
+      const [dx,dy]=DIRS[d];
+      const nx=(x+dx+COLS)%COLS,ny=y+dy;   /* horizontal wrap = tunnel */
+      if(ny<0||ny>=ROWS)continue;
+      if(open(grid[ny][nx]))n++;
+    }
+    return n;
+  };
+  for(let pass=0;pass<6;pass++){
+    let fixed=0;
+    for(let y=1;y<ROWS-1;y++)for(let x=0;x<COLS;x++){
+      if(!open(grid[y][x])||grid[y][x]==='-')continue;
+      if(exits(x,y)>1||protectedCell(x,y))continue;
+      /* dead end: open the best neighboring wall (interior only) */
+      let best=null,bestN=-1;
+      for(const d in DIRS){
+        const [dx,dy]=DIRS[d];
+        const nx=x+dx,ny=y+dy;
+        if(nx<=0||nx>=COLS-1||ny<=0||ny>=ROWS-1)continue; /* keep border */
+        if(grid[ny][nx]!=='#'||protectedCell(nx,ny))continue;
+        /* prefer walls that connect this cul-de-sac to more corridor */
+        let others=0;
+        for(const d2 in DIRS){
+          const [ex,ey]=DIRS[d2];
+          const ox=nx+ex,oy=ny+ey;
+          if(oy<0||oy>=ROWS||ox<0||ox>=COLS)continue;
+          if((ox!==x||oy!==y)&&open(grid[oy][ox]))others++;
+        }
+        if(others>bestN){bestN=others;best=[nx,ny];}
+      }
+      if(best&&bestN>0){grid[best[1]][best[0]]='.';pellets++;fixed++;}
+    }
+    if(!fixed)break;
+  }
 }
 function mkEnemy(x,y,i){
-  return {x,y,px:x,py:y,dir:'left',home:{x,y},col:ECOLORS[i%4],speed:.085+i*.006,dead:false,exitT:i*120};
+  return {x,y,px:x,py:y,dir:'left',home:{x,y},col:ECOLORS[i%4],idx:i,
+          speed:.085+i*.004,dead:false,exitT:i*140,
+          quirk:0,quirkAt:0,quirkMode:'scatter'};   /* Ms. Pac-Man localized chase break */
 }
+/* Original-Pac-Man rule #2: every corridor is exactly ONE tile wide.
+   thin() finds 2x2 open blocks and re-walls one cell, but only when the
+   fill (a) creates no new dead end, (b) keeps every pellet reachable,
+   and (c) stays clear of the house, gates, spawn, tunnels and power
+   pellets. Mirrored fills are attempted too, to preserve symmetry. */
+function thin(){
+  const exits=(x,y)=>{
+    let n=0;
+    for(const d in DIRS){
+      const [dx,dy]=DIRS[d];
+      const nx=(x+dx+COLS)%COLS,ny=y+dy;
+      if(ny<0||ny>=ROWS)continue;
+      const c=grid[ny][nx];
+      if(c!=='#'&&c!=='-')n++;   /* gate is a wall for the player */
+    }
+    return n;
+  };
+  const protectedFill=(x,y)=>{
+    if(x===0||x===COLS-1)return true;               /* keep tunnel mouths */
+    const t=grid[y][x];
+    if(t!=='.'&&t!==' ')return true;                /* never fill o, gates, spawns */
+    if(x===player.x&&y===player.y)return true;
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      const yy=y+dy,xx=x+dx;
+      if(yy<0||yy>=ROWS||xx<0||xx>=COLS)continue;
+      if(grid[yy][xx]==='-')return true;
+      for(const e of enemies)if(e.home.x===xx&&e.home.y===yy)return true;
+    }
+    return false;
+  };
+  const fullyConnected=()=>{
+    let total=0;
+    for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(grid[y][x]!=='#')total++;
+    const seen=new Set([player.x+','+player.y]);
+    const q=[[player.x,player.y]];
+    while(q.length){
+      const [x,y]=q.pop();
+      for(const d in DIRS){
+        const n=walk(x,y,d,true);
+        if(!n)continue;
+        const k=n[0]+','+n[1];
+        if(!seen.has(k)){seen.add(k);q.push(n);}
+      }
+    }
+    return seen.size===total;
+  };
+  const tryFillCells=(cells)=>{
+    for(const [x,y] of cells)if(protectedFill(x,y))return false;
+    const saved=cells.map(([x,y])=>grid[y][x]);
+    for(const [x,y] of cells)grid[y][x]='#';
+    let ok=true;
+    outer:for(const [x,y] of cells){
+      for(const d in DIRS){
+        const [dx,dy]=DIRS[d];
+        const nx=(x+dx+COLS)%COLS,ny=y+dy;
+        if(ny<0||ny>=ROWS)continue;
+        const c=grid[ny][nx];
+        if(c!=='#'&&c!=='-'&&exits(nx,ny)<2){ok=false;break outer;}
+      }
+    }
+    if(ok)ok=fullyConnected();
+    if(ok){ for(const t of saved)if(t==='.')pellets--; return true; }
+    cells.forEach(([x,y],i)=>grid[y][x]=saved[i]);
+    return false;
+  };
+  const tryFill=(x,y)=>tryFillCells([[x,y]]);
+  for(let pass=0;pass<12;pass++){
+    let changed=0;
+    for(let y=0;y<ROWS-1;y++)for(let x=0;x<COLS-1;x++){
+      if(grid[y][x]==='#'||grid[y][x+1]==='#'||grid[y+1][x]==='#'||grid[y+1][x+1]==='#')continue;
+      const singles=[[[x,y]],[[x+1,y]],[[x,y+1]],[[x+1,y+1]]];
+      const dominoes=[[[x,y],[x,y+1]],[[x+1,y],[x+1,y+1]],[[x,y],[x+1,y]],[[x,y+1],[x+1,y+1]]];
+      for(const cells of [...singles,...dominoes]){
+        if(tryFillCells(cells)){
+          changed++;
+          tryFillCells(cells.map(([cx0,cy0])=>[COLS-1-cx0,cy0]));  /* mirror keeps symmetry */
+          break;
+        }
+      }
+    }
+    if(!changed)break;
+  }
+}
+/* run order: braid opens dead ends, thin narrows plazas; alternating both
+   converges on the arcade invariant (all loops, all one tile wide) */
+function shapeMaze(){ braid(); thin(); braid(); thin(); }
 
 /* ---- movement helpers ---- */
 const DIRS={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
+const REV={up:'down',down:'up',left:'right',right:'left'};
 function walk(x,y,d,ghost){
   const [dx,dy]=DIRS[d];
   let nx=(x+dx+COLS)%COLS, ny=y+dy;
@@ -1102,7 +1586,21 @@ function walk(x,y,d,ghost){
   return [nx,ny];
 }
 
+function effSpeed(a){
+  if(a===player)return a.speed+level*.004;
+  if(a.dead)return a.speed*1.9;                   /* eyes sprint home */
+  if(frightT>0)return a.speed*.55;                /* frightened crawl */
+  let s=a.speed+level*.005;
+  /* Cruise Elroy: the red chaser accelerates as the board empties */
+  if(a.idx%4===0&&pelletsTotal>0){
+    const eaten=pelletsEaten/pelletsTotal;
+    if(eaten>.85)s*=1.14; else if(eaten>.7)s*=1.07;
+  }
+  return s;
+}
+
 function stepActor(a,ghost){
+  const spd=effSpeed(a);
   // at tile center: pick direction
   const atCenter=Math.abs(a.px-a.x)<.01&&Math.abs(a.py-a.y)<.01;
   if(atCenter){
@@ -1118,13 +1616,39 @@ function stepActor(a,ghost){
   }
   if(a.dir){
     const [dx,dy]=DIRS[a.dir];
-    a.px+=dx*a.speed; a.py+=dy*a.speed;
+    a.px+=dx*spd; a.py+=dy*spd;
     // tunnel wrap
     if(a.px<-.5)a.px+=COLS; if(a.px>COLS-.5)a.px-=COLS;
-    if(Math.abs(a.px-a.tx)<a.speed&&Math.abs(a.py-a.ty)<a.speed||
+    if(Math.abs(a.px-a.tx)<spd&&Math.abs(a.py-a.ty)<spd||
        (dx&&Math.sign(a.tx-a.px)!==dx&&Math.abs(a.ty-a.py)<.01)||
        (dy&&Math.sign(a.ty-a.py)!==dy&&Math.abs(a.tx-a.px)<.01)){
       a.x=a.tx;a.y=a.ty;a.px=a.tx;a.py=a.ty;
+    }
+  }
+}
+
+/* ---- authentic per-ghost targeting (The Pac-Man Dossier) ----
+   0 red    "chaser"   — targets the player's tile directly
+   1 pink   "ambusher" — targets 4 tiles AHEAD of the player
+   2 cyan   "flanker"  — pivot 2 ahead of player, doubled from red's position
+   3 orange "shy"      — chases when far (>8 tiles), retreats to corner when close */
+function ghostTarget(e){
+  if(e.dead)return e.home;
+  if(frightT>0)return null;                       /* frightened = random turns */
+  if(!chaseMode())return CORNERS(e.idx%4);        /* scatter to own corner */
+  if(e.quirk>0)return e.quirkMode==='random'?null:CORNERS(e.idx%4); /* local chase break */
+  const pd=DIRS[player.dir]||[0,0];
+  switch(e.idx%4){
+    case 0: return {x:player.x,y:player.y};
+    case 1: return {x:player.x+pd[0]*4,y:player.y+pd[1]*4};
+    case 2: {
+      const red=enemies[0]||e;
+      const px=player.x+pd[0]*2, py=player.y+pd[1]*2;
+      return {x:px*2-red.x, y:py*2-red.y};
+    }
+    case 3: {
+      const d2=(e.x-player.x)**2+(e.y-player.y)**2;
+      return d2>64?{x:player.x,y:player.y}:CORNERS(3);
     }
   }
 }
@@ -1133,61 +1657,168 @@ function enemyAI(e){
   const atCenter=Math.abs(e.px-e.x)<.01&&Math.abs(e.py-e.y)<.01;
   if(!atCenter)return;
   if(e.exitT>0){e.exitT--;return;}
+  /* dead eyes: greedy turning can trap them in concave pockets of generated
+     mazes, so route home with a real BFS (reverse allowed, gate passable) */
+  if(e.dead){
+    const d=bfsDir(e.x,e.y,e.home.x,e.home.y);
+    if(d){e.dir=d;return;}
+  }
   const opts=[];
-  const rev={up:'down',down:'up',left:'right',right:'left'}[e.dir];
+  const rev=REV[e.dir];
   for(const d in DIRS){
     if(d===rev)continue;
     if(walk(e.x,e.y,d,true))opts.push(d);
   }
   if(!opts.length){e.dir=rev;return;}
-  let target=e.dead?e.home:{x:player.x,y:player.y};
-  let best=opts[0],bd=frightT>0&&!e.dead?-1:1e9;
+  const target=ghostTarget(e);
+  if(!target){ /* frightened: pseudo-random turns, like the original's RNG */
+    e.dir=opts[Math.floor(Math.random()*opts.length)];
+    return;
+  }
+  let best=opts[0],bd=1e9;
   for(const d of opts){
     const [dx,dy]=DIRS[d];
-    const nx=e.x+dx,ny=e.y+dy;
-    const dist=(nx-target.x)**2+(ny-target.y)**2;
-    if(frightT>0&&!e.dead){ if(dist>bd){bd=dist;best=d} }
-    else { if(dist<bd){bd=dist;best=d} }
+    const dist=(e.x+dx-target.x)**2+(e.y+dy-target.y)**2;
+    if(dist<bd){bd=dist;best=d}
   }
-  // touch of chaos, like the original hardware's pseudo-random
-  if(Math.random()<.12&&frightT<=0&&!e.dead)best=opts[Math.floor(Math.random()*opts.length)];
   e.dir=best;
 }
+function reverseAll(){ enemies.forEach(e=>{ if(!e.dead&&e.exitT<=0) e.dir=REV[e.dir]||e.dir; }); }
+
+/* shortest-path first step from (x,y) to (tx,ty); ghosts may pass the gate.
+   Grid is tiny (20x22) so a per-intersection BFS is effectively free. */
+function bfsDir(x,y,tx,ty){
+  if(x===tx&&y===ty)return null;
+  const prev=new Map(),start=x+','+y;
+  prev.set(start,null);
+  const q=[[x,y]];
+  while(q.length){
+    const [cx0,cy0]=q.shift();
+    for(const d in DIRS){
+      const n=walk(cx0,cy0,d,true);
+      if(!n)continue;
+      const k=n[0]+','+n[1];
+      if(prev.has(k))continue;
+      prev.set(k,[cx0+','+cy0,d]);
+      if(n[0]===tx&&n[1]===ty){
+        /* backtrack to the first move out of start */
+        let cur=k,dir=d;
+        while(prev.get(cur)[0]!==start){dir=prev.get(cur)[1];cur=prev.get(cur)[0];}
+        return prev.get(cur)[1];
+      }
+      q.push(n);
+    }
+  }
+  return null; /* unreachable (shouldn't happen) — fall through to greedy */
+}
+
+/* ---- bonus fruit ---- */
+const FRUITS=[
+  {name:'CHERRY', pts:100, col:'#ff3355'},
+  {name:'BERRY',  pts:300, col:'#ff7bd5'},
+  {name:'PEACH',  pts:500, col:'#ffb347'},
+  {name:'APPLE',  pts:700, col:'#ff4444'},
+  {name:'MELON',  pts:1000,col:'#57e86b'},
+  {name:'STAR',   pts:2000,col:'#ffe14d'},
+  {name:'KEY',    pts:5000,col:'#7bb8ff'}
+];
+function maybeSpawnFruit(){
+  const th=[Math.floor(pelletsTotal*.3),Math.floor(pelletsTotal*.7)];
+  if(fruitSpawned<2 && pelletsEaten===th[fruitSpawned]){
+    const f=FRUITS[Math.min(level,FRUITS.length-1)];
+    fruitObj={x:player.sx,y:player.sy,life:600,...f};
+    fruitSpawned++;
+  }
+}
+
+function addPopup(x,y,txt,col){ popups.push({x,y,txt,col,t:70}); }
 
 /* ---- update ---- */
 function update(){
   frame++;
-  if(state!=='play')return;
+  if(state==='intro'){
+    if(--introT<=0){state='play';SFX.sirenOn();}
+    return;
+  }
+  if(state!=='play'){ SFX.sirenOff(); return; }
+
+  /* scatter/chase wave clock (paused during fright, per the original) */
+  if(frightT<=0){
+    waveT++;
+    if(waveT>=WAVES[waveIdx]){
+      waveT=0;waveIdx=Math.min(waveIdx+1,WAVES.length-1);reverseAll();
+      /* Ms. Pac-Man rule: entering a Chase phase arms a randomized local
+         timer per ghost — mid-chase it will briefly defect to scatter or
+         pure random pathing, shattering repeatable player patterns */
+      if(chaseMode())enemies.forEach(e=>{e.quirk=0;e.quirkAt=240+Math.floor(Math.random()*480);});
+    }
+  }
+
   stepActor(player);
   const t=grid[player.y][player.x];
   if(t==='.'||t==='o'){
-    grid[player.y][player.x]=' ';pellets--;score+=t==='.'?10:50;GameBridge.reportScore(score);
-    beep(t==='.'?740:220,.05);
-    if(t==='o'){frightT=420;enemies.forEach(e=>{if(!e.dead)e.dir={up:'down',down:'up',left:'right',right:'left'}[e.dir]||e.dir})}
-    if(pellets===0){state='clear';setTimeout(()=>{level++;loadLevel(level);state='play';GameBridge.levelUp(level+1);},1600);beep(990,.4,'square',.06)}
+    grid[player.y][player.x]=' ';pellets--;pelletsEaten++;
+    score+=t==='.'?10:50;GameBridge.reportScore(score);
+    if(t==='.')SFX.waka(); else {SFX.power();frightT=420;eatChain=0;reverseAll();}
+    maybeSpawnFruit();
+    if(score>=nextLifeAt){lives++;nextLifeAt+=10000;SFX.extra();addPopup(player.px,player.py,'1UP','#3ef05c');}
+    if(pellets===0){
+      state='clear';SFX.sirenOff();SFX.clearJ();
+      setTimeout(()=>{level++;loadLevel(level);startRound();GameBridge.levelUp(level+1);},1600);
+    }
   }
-  if(frightT>0)frightT--;
+  /* fruit pickup / expiry */
+  if(fruitObj){
+    if(--fruitObj.life<=0)fruitObj=null;
+    else if(Math.abs(player.px-fruitObj.x)<.6&&Math.abs(player.py-fruitObj.y)<.6){
+      score+=fruitObj.pts;GameBridge.reportScore(score);SFX.fruit();
+      addPopup(fruitObj.x,fruitObj.y,fruitObj.pts,fruitObj.col);
+      fruitObj=null;
+    }
+  }
+  if(frightT>0){frightT--; if(frightT===0)eatChain=0;}
+  SFX.sirenTick(frame,pelletsTotal?pelletsEaten/pelletsTotal:0,frightT>0);
+
   for(const e of enemies){
+    /* localized chase-break clock (only while genuinely chasing) */
+    if(chaseMode()&&!e.dead&&frightT<=0&&e.exitT<=0){
+      if(e.quirk>0)e.quirk--;
+      else if(e.quirkAt>0&&--e.quirkAt===0){
+        e.quirk=120+Math.floor(Math.random()*180);          /* 2-5s defection */
+        e.quirkMode=Math.random()<.5?'scatter':'random';
+        e.quirkAt=600+Math.floor(Math.random()*600);        /* schedule the next one */
+      }
+    }
     enemyAI(e);stepActor(e,true);
     if(e.dead&&e.x===e.home.x&&e.y===e.home.y){e.dead=false;e.exitT=180;}
     if(Math.abs(e.px-player.px)<.55&&Math.abs(e.py-player.py)<.55){
       if(e.dead)continue;
-      if(frightT>0){e.dead=true;score+=200;GameBridge.reportScore(score);beep(180,.15,'sawtooth');beep(360,.15)}
+      if(ghostMode&&frightT<=0)continue;   /* GHOST mode: phase through hunters */
+      if(frightT>0){
+        e.dead=true;
+        const pts=200<<eatChain; eatChain=Math.min(eatChain+1,3);
+        score+=pts;GameBridge.reportScore(score);
+        SFX.eatGhost(eatChain);
+        addPopup(e.px,e.py,pts,'#39d4d4');
+      }
       else{ // caught
-        lives--;beep(110,.5,'sawtooth',.08);
+        lives--;SFX.sirenOff();SFX.death();
         if(lives<=0){state='over';hi=Math.max(hi,score);GameBridge.gameOver(score);}
-        else{state='caught';setTimeout(()=>{respawn();state='play'},1200)}
+        else{state='caught';setTimeout(()=>{respawn();state='play';SFX.sirenOn();},1400)}
         break;
       }
     }
   }
+  for(let i=popups.length-1;i>=0;i--){popups[i].t--;popups[i].y-=.02;if(popups[i].t<=0)popups.splice(i,1);}
+}
+function startRound(){
+  state='intro';introT=140;SFX.jingle();
 }
 function respawn(){
-  const map=LEVELS[level%LEVELS.length];
-  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(map[y][x]==='P'){player.x=x;player.y=y;player.px=x;player.py=y}
+  player.x=player.sx;player.y=player.sy;player.px=player.sx;player.py=player.sy;
   player.dir=null;player.want=null;
-  enemies.forEach((e,i)=>{e.x=e.home.x;e.y=e.home.y;e.px=e.x;e.py=e.y;e.dead=false;e.exitT=i*120;e.dir='left'});
-  frightT=0;
+  enemies.forEach((e,i)=>{e.x=e.home.x;e.y=e.home.y;e.px=e.x;e.py=e.y;e.dead=false;e.exitT=i*140;e.dir='left'});
+  frightT=0;eatChain=0;
 }
 
 /* ---- render ---- */
@@ -1196,14 +1827,24 @@ function draw(){
   // HUD
   cx.fillStyle=css('--phosphor');cx.font='bold 16px "Courier New",monospace';
   cx.textBaseline='middle';
-  cx.fillText('SCORE '+String(score).padStart(6,'0'),10,20);
-  cx.fillText('HI '+String(Math.max(hi,score)).padStart(6,'0'),200,20);
-  cx.fillText('LVL '+(level+1),370,20);
+  cx.fillText('SCORE '+String(score).padStart(6,'0'),10,15);
+  cx.fillText('HI '+String(Math.max(hi,score)).padStart(6,'0'),200,15);
+  cx.fillText('LVL '+(level+1),370,15);
+  /* --- bottom HUD band (below the maze): lives · ghost mode · fruit --- */
+  const hudY=cv.height-HUD_BOT/2;
   for(let i=0;i<lives;i++){
     cx.fillStyle=css('--runner-amber');
-    cx.beginPath();cx.arc(20+i*24,cv.height-16,8,0.6,Math.PI*2-0.6);cx.lineTo(20+i*24,cv.height-16);cx.fill();
+    cx.beginPath();cx.arc(20+i*24,hudY,8,0.6,Math.PI*2-0.6);cx.lineTo(20+i*24,hudY);cx.fill();
   }
-  cx.save();cx.translate(0,TILE*1.4);
+  /* fruit trophy: which bonus this level offers */
+  if(state!=='title'){
+    const f=FRUITS[Math.min(level,FRUITS.length-1)];
+    cx.fillStyle=f.col;
+    cx.beginPath();cx.arc(cv.width-24,hudY,7,0,7);cx.fill();
+    cx.strokeStyle='#3ef05c';cx.lineWidth=2;
+    cx.beginPath();cx.moveTo(cv.width-24,hudY-6);cx.quadraticCurveTo(cv.width-19,hudY-12,cv.width-17,hudY-9);cx.stroke();
+  }
+  cx.save();cx.translate(0,HUD_TOP);
   // maze
   for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
     const t=grid[y][x],px=x*TILE,py=y*TILE;
@@ -1223,12 +1864,15 @@ function draw(){
   // enemies
   for(const e of enemies){
     const px=e.px*TILE+TILE/2,py=e.py*TILE+TILE/2;
-    let col=e.dead?'#556':(frightT>0?(frightT<120&&(frame>>3)&1?'#eee':'#3946e8'):css(e.col));
-    cx.fillStyle=col;
-    cx.beginPath();cx.arc(px,py-2,9,Math.PI,0);
-    cx.lineTo(px+9,py+9);
-    for(let i=0;i<3;i++)cx.lineTo(px+9-(i*2+1)*3,py+((frame>>3)&1?6:9));
-    cx.lineTo(px-9,py+9);cx.closePath();cx.fill();
+    let col=e.dead?'rgba(0,0,0,0)':(frightT>0?(frightT<120&&(frame>>3)&1?'#eee':'#3946e8'):css(e.col));
+    if(!e.dead){
+      cx.fillStyle=col;
+      cx.beginPath();cx.arc(px,py-2,9,Math.PI,0);
+      cx.lineTo(px+9,py+9);
+      for(let i=0;i<3;i++)cx.lineTo(px+9-(i*2+1)*3,py+((frame>>3)&1?6:9));
+      cx.lineTo(px-9,py+9);cx.closePath();cx.fill();
+    }
+    /* eyes always drawn — a dead ghost is just eyes racing home */
     cx.fillStyle='#fff';cx.fillRect(px-6,py-5,4,5);cx.fillRect(px+2,py-5,4,5);
     cx.fillStyle='#111';
     const [ex,ey]=DIRS[e.dir]||[0,0];
@@ -1240,18 +1884,37 @@ function draw(){
     const mouth=.25+.2*Math.sin(frame*.3);
     const ang={right:0,down:Math.PI/2,left:Math.PI,up:-Math.PI/2}[player.dir]??0;
     cx.fillStyle=css('--runner-amber');
+    if(ghostMode)cx.globalAlpha=.55+.25*Math.sin(frame*.25);
     cx.beginPath();cx.arc(px,py,10,ang+mouth,ang-mouth+Math.PI*2);cx.lineTo(px,py);cx.fill();
+    cx.globalAlpha=1;
   }
+  // bonus fruit (drawn last so it's never hidden under maze or sprites)
+  if(fruitObj&&((fruitObj.life>120)||((frame>>3)&1))){
+    const px=fruitObj.x*TILE+TILE/2,py=fruitObj.y*TILE+TILE/2;
+    cx.fillStyle=fruitObj.col;
+    cx.beginPath();cx.arc(px,py+1,8,0,7);cx.fill();
+    cx.strokeStyle='#3ef05c';cx.lineWidth=2;
+    cx.beginPath();cx.moveTo(px,py-6);cx.quadraticCurveTo(px+5,py-12,px+7,py-9);cx.stroke();
+  }
+  // score popups
+  cx.font='bold 13px "Courier New",monospace';cx.textAlign='center';
+  for(const p of popups){
+    cx.fillStyle=p.col;
+    cx.fillText(p.txt,p.x*TILE+TILE/2,p.y*TILE+TILE/2);
+  }
+  cx.textAlign='left';
   cx.restore();
   // overlays
   cx.textAlign='center';
   if(state==='title'){
     banner('MAZE RUNNER',css('--runner-amber'),cv.height/2-30);
-    if((frame>>4)&1)banner('PRESS ANY KEY',css('--phosphor'),cv.height/2+20,16);
+    if((frame>>4)&1)banner('PRESS ANY KEY OR CLICK',css('--phosphor'),cv.height/2+20,16);
     banner('EAT EVERY PELLET · DODGE THE HUNTERS',css('--pellet'),cv.height/2+56,12);
+  }else if(state==='intro'){
+    banner('READY!',css('--runner-amber'),cv.height/2+8,22);
   }else if(state==='over'){
     banner('GAME OVER',css('--enemy-red'),cv.height/2-10);
-    if((frame>>4)&1)banner('PRESS ANY KEY',css('--phosphor'),cv.height/2+30,16);
+    if((frame>>4)&1)banner('PRESS ANY KEY OR CLICK',css('--phosphor'),cv.height/2+30,16);
   }else if(state==='clear'){
     banner('MAZE CLEAR!',css('--phosphor'),cv.height/2);
   }else if(state==='pause'){
@@ -1269,23 +1932,38 @@ function banner(txt,col,y,size=28){
 
 /* ---- input ---- */
 function press(d){
-  initAudio();
+  SFX.ctx();
   if(state==='title'||state==='over'){
-    score=0;lives=3;level=0;loadLevel(0);state='play';beep(660,.1);beep(880,.1);
+    score=0;lives=3;level=0;nextLifeAt=10000;loadLevel(0);startRound();
     return;
   }
-  if(d&&state==='play'){player.want=d; if(!player.dir&&walk(player.x,player.y,d))player.dir=d;}
+  if(d&&(state==='play'||state==='intro')){player.want=d; if(state==='play'&&!player.dir&&walk(player.x,player.y,d))player.dir=d;}
 }
 addEventListener('keydown',e=>{
   const map={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',s:'down',a:'left',d:'right',W:'up',S:'down',A:'left',D:'right'};
-  if(e.key==='p'||e.key==='P'){if(state==='play')state='pause';else if(state==='pause')state='play';return}
+  if(e.key==='p'||e.key==='P'){if(state==='play'){state='pause';SFX.sirenOff();}else if(state==='pause'){state='play';SFX.sirenOn();}return}
+  if(e.key==='G'){/* secret: Shift+G */ghostMode=!ghostMode;SFX.blip(ghostMode?880:220,ghostMode?1320:110,.15,'triangle',.05);return}
   if(map[e.key]){e.preventDefault();press(map[e.key])}
   else if(state==='title'||state==='over')press(null);
+});
+/* click / tap anywhere on the screen also starts — fixes launches where
+   the iframe doesn't yet own keyboard focus */
+cv.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  if(state==='title'||state==='over'){press(null);return;}
+  /* swipe-free steering fallback: tap relative to the runner */
+  const r=cv.getBoundingClientRect();
+  const mx=(e.clientX-r.left)/r.width*cv.width, my=(e.clientY-r.top)/r.height*cv.height-HUD_TOP;
+  const dx=mx-(player.px*TILE+TILE/2), dy=my-(player.py*TILE+TILE/2);
+  press(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'));
 });
 document.querySelectorAll('#pad button').forEach(b=>{
   const h=ev=>{ev.preventDefault();press(b.dataset.d)};
   b.addEventListener('touchstart',h);b.addEventListener('mousedown',h);
 });
+/* grab keyboard focus the moment we load, and again if the hub hands it back */
+addEventListener('load',()=>{ try{window.focus();}catch(e){} });
+try{window.focus();}catch(e){}
 
 /* ---- boot ---- */
 loadLevel(0);
@@ -10353,6 +11031,9 @@ const THEME_SNIPPET = `
     if(!d||d.source!=="GameBridgeHub")return;
     if(d.type==="SET_THEME"){document.documentElement.setAttribute("data-theme",d.theme);if(d.accent)document.documentElement.setAttribute("data-accent",d.accent);else document.documentElement.removeAttribute("data-accent");}
     if(d.type==="SET_SOUND"){SOUND=!!d.on;CTXS.forEach(c=>{try{SOUND?c.resume():c.suspend();}catch(err){}});}
+    /* Keystrokes the hub caught while the iframe lacked focus get replayed
+       here, so "press any key" works no matter where focus landed. */
+    if(d.type==="KEY"&&d.key){try{dispatchEvent(new KeyboardEvent("keydown",{key:d.key}));}catch(err){}}
   });
   /* Esc closes the cabinet even while the game iframe has focus */
   addEventListener("keydown",e=>{
@@ -10689,9 +11370,15 @@ function launch(entry){
       frame.contentWindow.postMessage({ source: "GameBridgeHub", v: 1, type: "SET_THEME", theme: t, accent: document.documentElement.getAttribute("data-accent") || "" }, "*");
       frame.contentWindow.postMessage({ source: "GameBridgeHub", v: 1, type: "SET_SOUND", on: Sound.on() }, "*");
     }
+    refocusGame();
   };
   playStamp=Date.now();
   frame.focus();
+  /* srcdoc loads async — focusing only at launch() leaves the keyboard
+     pointed at the hub, so "press any key" never reaches the game.
+     Refocus once the game document is actually up. */
+  setTimeout(refocusGame,50);
+  setTimeout(refocusGame,300);
 }
 function closeStage(){
   if(playStamp){
@@ -10718,6 +11405,17 @@ $("#stageBar").addEventListener("click", e=>{
   setTimeout(refocusGame, 0);
 });
 addEventListener("keydown",e=>{ if(e.key==="Escape"&&stage.classList.contains("open")) closeStage(); });
+/* If a keystroke lands on the hub while a game is open, the iframe doesn't
+   have focus — forward the key into the game and hand focus back. Arrow keys
+   are also stopped from scrolling the hub page. */
+addEventListener("keydown",e=>{
+  if(!stage.classList.contains("open")||e.key==="Escape")return;
+  const ae=document.activeElement;
+  if(ae&&(ae.tagName==="INPUT"||ae.tagName==="TEXTAREA"||ae.tagName==="IFRAME"))return;
+  if(/^Arrow/.test(e.key)||e.key===" ")e.preventDefault();
+  if(frame.contentWindow)frame.contentWindow.postMessage({source:"GameBridgeHub",v:1,type:"KEY",key:e.key},"*");
+  refocusGame();
+});
 
 /* ---------- GameBridge host (postMessage protocol v1) ---------- */
 addEventListener("message",(e)=>{
