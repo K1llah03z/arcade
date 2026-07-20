@@ -936,8 +936,8 @@ requestAnimationFrame(frame);
   #plate b{color:var(--runner-amber);letter-spacing:.3em}
   /* touch controls */
   #pad{display:none;margin-top:14px;user-select:none;-webkit-user-select:none;touch-action:none}
-  #pad .row{display:flex;justify-content:center;gap:10px;margin:12px 0}
-  #pad .row.mid{gap:150px}   /* extra-wide gap between ◀ and ▶ */
+  #pad .row{display:flex;justify-content:center;gap:10px;margin:4px 0}
+  #pad .row.mid{gap:150px;margin:-24px 0}  /* ◀ ▶ interlock beside ▲▼ — keeps pad height ~same as before */
   #pad button{
     width:58px;height:58px;border-radius:12px;border:1px solid #3a3646;
     background:#211e2b;color:var(--runner-amber,#ffff00);font-size:22px;font-family:inherit;
