@@ -8887,41 +8887,32 @@ function bjPlay(k,vol){
   }catch(e){BJBAD[k]=1;return false;}
 }
 
-/* Looping alarm for the Lightning endgame. COUNTDOWN_WARNING is a 1.07s swell
-   that fades out, so repeating it gives roughly one pulse per second; speeding
-   it up at 5s tightens that to about two thirds of a second and the ticks drop
-   out so the two never fight each other. */
+/* Lightning endgame alarm. COUNTDOWN_WARNING is a 1.07s swell that fades out,
+   so repeating it reads as a countdown by itself. Note we retrigger the clip on
+   a timer rather than speeding up a looping source: playbackRate shifts speed
+   and pitch together, which made the alarm climb in pitch as it got faster.
+   Firing the same clip more often keeps the pitch identical - the pulses just
+   crowd together, and the tail of one overlaps the swell of the next, which is
+   what makes it tighten rather than merely repeat.                            */
 let _alarm=null;
-function bjLoopStart(k,vol,rate){
-  if(_alarm||!BJ[k]||BJBAD[k])return;
-  try{
-    const a=bjac();
-    const go=b=>{
-      if(_alarm)return;
-      const src=a.createBufferSource();
-      src.buffer=b; src.loop=true;
-      try{src.playbackRate.value=rate||1;}catch(e){}
-      const g=a.createGain(); g.gain.value=vol==null?0.7:vol;
-      src.connect(g).connect(a.destination);
-      src.start();
-      _alarm={src:src,g:g};
-    };
-    if(BJBUF[k]){go(BJBUF[k]);return;}
-    const bin=atob(BJ[k]),arr=new Uint8Array(bin.length);
-    for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
-    a.decodeAudioData(arr.buffer,b=>{BJBUF[k]=b;go(b);},()=>{BJBAD[k]=1;});
-  }catch(e){}
+function _alarmHit(){ if(_alarm)bjPlay("warn",_alarm.vol); }
+function bjLoopStart(k,vol,period){
+  if(_alarm)return;
+  _alarm={vol:vol==null?0.7:vol,timer:null};
+  _alarmHit();
+  _alarm.timer=setInterval(_alarmHit,(period||1.07)*1000);
 }
-function bjLoopRate(r){
+/* period in seconds between pulses - smaller is more urgent, same pitch */
+function bjLoopRate(period){
   if(!_alarm)return;
-  try{ _alarm.src.playbackRate.setTargetAtTime(r,bjac().currentTime,0.08); }
-  catch(e){ try{_alarm.src.playbackRate.value=r;}catch(e2){} }
+  clearInterval(_alarm.timer);
+  _alarm.timer=setInterval(_alarmHit,period*1000);
+  _alarmHit();   /* land a pulse on the transition so it doesn't feel like a gap */
 }
 function bjLoopStop(){
   if(!_alarm)return;
-  const a=_alarm; _alarm=null;
-  try{ a.g.gain.setTargetAtTime(0.0001,bjac().currentTime,0.05); }catch(e){}
-  try{ a.src.stop(bjac().currentTime+0.2); }catch(e){ try{a.src.stop();}catch(e2){} }
+  clearInterval(_alarm.timer);
+  _alarm=null;
 }
 const AudioFX=(function(){
   let ac=null;
@@ -10887,8 +10878,8 @@ function frame(now){
          never meant to loop), then a tick on each of the last five seconds. */
       if(c!==lastTick&&c>0){
         if(c===30)bjPlay("v30",0.85);
-        else if(c===10)bjLoopStart("warn",0.7,1.0);   /* alarm begins looping  */
-        else if(c===5)bjLoopRate(1.6);                /* and tightens at five  */
+        else if(c===10)bjLoopStart("warn",0.7,1.05);  /* one pulse a second    */
+        else if(c===5)bjLoopRate(0.62);               /* tighter, same pitch   */
         lastTick=c;
       }
       if(timeLeft>10.5)bjLoopStop();   /* a time extension calls off the alarm */

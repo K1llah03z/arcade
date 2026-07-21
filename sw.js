@@ -6,13 +6,13 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.10.0";
+const APP_VERSION = "1.10.1";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
    about to install). Update these alongside APP_VERSION. */
 const RELEASE_NOTES = [
-  "Lightning: alarm loops from 10s and tightens at 5s",
+  "Lightning: alarm tightens at 5s without changing pitch",
   "Fix: music starts on the very first tap, menu included",
   "Gem Drop loads its own music, the way UNO loads its voices",
 ];
