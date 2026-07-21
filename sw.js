@@ -6,21 +6,23 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.5.10";
+const APP_VERSION = "1.6.0";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
    about to install). Update these alongside APP_VERSION. */
 const RELEASE_NOTES = [
-  "UNO: everyone yells UNO! in real voices",
-  "UNO: computer laughs upgraded to the new voice pack",
-  "UNO mobile: 2-row hand + evenly spaced opponents",
+  "Gem Drop: real Bejeweled 3 sound effects and voice",
+  "Gem Drop: music for every mode, streamed and cached",
+  "Gem Drop: authentic Flame Gem fire and Star Gem flare",
+  "Gem Drop: Bejeweled 3 scoring (50/100/500 per match)",
 ];
 const CACHE = "neon-grid-" + APP_VERSION;
 const ASSETS = [
   "./",
   "./index.html",
   "./uno-audio.js",
+  "./music.js",
   "./3DPinballSpaceCadet.htm",
   "./3DPinballSpaceCadet.js",
   "./3DPinballSpaceCadet.wasm",
@@ -32,10 +34,34 @@ const ASSETS = [
   "./icons/icon-1024.png",
   "./icons/apple-touch-icon.png",
   "./icons/favicon-32.png",
-  "./icons/favicon-64.png"
+  "./icons/favicon-64.png",
+  "./music/blitz.mp3",
+  "./music/butterfly.mp3",
+  "./music/classic.mp3",
+  "./music/icestorm.mp3",
+  "./music/lose_blitz.mp3",
+  "./music/lose_butterfly.mp3",
+  "./music/lose_classic.mp3",
+  "./music/lose_icestorm.mp3",
+  "./music/lose_mine.mp3",
+  "./music/lose_poker.mp3",
+  "./music/menu.mp3",
+  "./music/mine.mp3",
+  "./music/poker.mp3",
+  "./music/zen.mp3"
 ];
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+  /* addAll() rejects the whole install if a single file 404s, which would
+     leave the app without an offline copy. Cache each asset on its own so a
+     missing track can never sink the rest of the install. */
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c => Promise.all(ASSETS.map(u =>
+        c.add(new Request(u, { cache: "reload" }))
+         .catch(err => console.warn("[sw] could not cache", u, err))
+      )))
+      .then(() => self.skipWaiting())
+  );
 });
 self.addEventListener("activate", e => {
   e.waitUntil(
@@ -51,7 +77,10 @@ self.addEventListener("fetch", e => {
     caches.match(e.request, { ignoreSearch: true }).then(hit => {
       if (hit) return hit;
       return fetch(e.request).then(res => {
-        if (res && res.ok && new URL(e.request.url).origin === location.origin) {
+        /* status 206 = partial content (audio seeking). Caching a partial
+           response would poison the cache with a fragment of the track. */
+        if (res && res.ok && res.status === 200 &&
+            new URL(e.request.url).origin === location.origin) {
           const copy = res.clone();
           caches.open(CACHE).then(c => c.put(e.request, copy));
         }

@@ -408,6 +408,7 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 #hiScoresModal button{margin-top:14px;width:100%;padding:9px;border-radius:9px;border:1px solid #7b4dff;background:transparent;color:#0ff;font-family:inherit;font-size:13px;cursor:pointer}
 #hiScoresModal button:active{background:rgba(123,77,255,.25)}
 </style>
+  <script src="music.js"></script>
 </head>
 <body>
 
@@ -9163,7 +9164,19 @@ const Music=(function(){
     else{clearTimeout(timer);if(master){master.gain.setTargetAtTime(0.0001,AudioFX.ctx().currentTime,0.1);}started=false;}
     return on;
   }
-  return {start,toggle,isOn:()=>on};
+  /* If music.js is present it owns playback (real Bejeweled tracks, streamed).
+     Without it we fall back to the built-in synth, so the single-file build
+     still has music. Same three-method surface either way. */
+  const GM=()=>window.GameMusic;
+  return {
+    start(){ if(GM()){GM().unlock();return;} start(); },
+    toggle(){ if(GM())return GM().toggle(); return toggle(); },
+    isOn(){ return GM()?GM().isOn():on; },
+    /* mode themes + game-over stingers */
+    track(m){ if(GM())GM().play(m); },
+    menu(){ if(GM())GM().play("menu"); },
+    sting(m){ if(GM())GM().sting("lose_"+m); }
+  };
 })();
 
 /* ================= STATE ================= */
@@ -9240,11 +9253,123 @@ function b3Ember(cx,cy,r){ /* idle fire hugging the flame-gem outline, per B3 */
   if(fx.length>240)return;
   /* pick a point on the lower ~270° of the gem edge (fire wraps sides+bottom, crest peeks over top corners) */
   const a=Math.PI*0.5+(Math.random()*2-1)*Math.PI*0.75;
-  const er=r*(0.85+Math.random()*0.25);
+  const er=r*(0.82+Math.random()*0.16);
   fx.push({type:"b3p",kind:"flame",x:cx+Math.cos(a)*er,y:cy+Math.sin(a)*er,
-    vx:Math.cos(a)*10+(Math.random()-0.5)*10,vy:-26-Math.random()*30,
+    vx:Math.cos(a)*6+(Math.random()-0.5)*6,vy:-16-Math.random()*18,
     rot:a-Math.PI/2+(Math.random()-0.5)*0.4,vr:(Math.random()-0.5)*1.5,
-    fi:(Math.random()*4)|0,t:0,life:0.3+Math.random()*0.25,amb:true});
+    fi:(Math.random()*4)|0,t:0,life:0.22+Math.random()*0.16,amb:true});
+}
+/* ---------- B3 power-gem overlays ----------
+   Flame Gem: the real game leaves the gem art alone and plays an 11-cell
+   hand-drawn fire animation (FLAMEGEMCREATION.PAM: flame1..flame11) around it,
+   with a FIRE TRAIL particle system on top. We rebuild that: tongues of fire
+   hugging the sides and bottom, cycling through 11 shapes, embers rising off.
+   Star Gem: STARGEM.PPF is just three sprites - "star glow", "coronaglow" and
+   "small blur star" - layered over the untouched gem. So: a soft corona, a
+   four-point star flare, and little twinkles orbiting it.                     */
+const FLAME_CELLS=11;
+function flameTongue(ctx,cx,cy,ang,len,wid,cols){
+  /* one lick of fire: a leaf shape bent along its own axis */
+  const tipx=cx+Math.cos(ang)*len, tipy=cy+Math.sin(ang)*len;
+  const nx=-Math.sin(ang), ny=Math.cos(ang);
+  const bend=Math.sin(ang*3.1)*wid*0.5;
+  const g=ctx.createLinearGradient(cx,cy,tipx,tipy);
+  g.addColorStop(0,cols[0]); g.addColorStop(0.55,cols[1]); g.addColorStop(1,cols[2]);
+  ctx.fillStyle=g;
+  ctx.beginPath();
+  ctx.moveTo(cx+nx*wid,cy+ny*wid);
+  ctx.quadraticCurveTo(cx+Math.cos(ang)*len*0.55+nx*wid*1.15+bend,
+                       cy+Math.sin(ang)*len*0.55+ny*wid*1.15+bend, tipx,tipy);
+  ctx.quadraticCurveTo(cx+Math.cos(ang)*len*0.55-nx*wid*1.15+bend,
+                       cy+Math.sin(ang)*len*0.55-ny*wid*1.15+bend, cx-nx*wid,cy-ny*wid);
+  ctx.closePath(); ctx.fill();
+}
+function drawFlameGem(cx,cy,r,seed){
+  const cell=Math.floor(shineT*14)%FLAME_CELLS;   /* the 11-frame cell cycle */
+  ctx.save();
+  ctx.globalCompositeOperation="lighter";
+  /* heat haze sitting under the gem */
+  const heat=ctx.createRadialGradient(cx,cy+r*0.2,r*0.12,cx,cy+r*0.08,r*1.18);
+  heat.addColorStop(0,"rgba(255,150,40,0.30)");
+  heat.addColorStop(0.5,"rgba(255,80,10,0.13)");
+  heat.addColorStop(1,"rgba(255,60,0,0)");
+  ctx.fillStyle=heat;
+  ctx.beginPath();ctx.arc(cx,cy+r*0.08,r*1.18,0,Math.PI*2);ctx.fill();
+  /* fire wraps the sides and bottom, cresting past the top corners */
+  const TONGUES=9;
+  for(let i=0;i<TONGUES;i++){
+    const t=i/(TONGUES-1);
+    const ang=Math.PI*0.18+t*Math.PI*1.64;          /* 270-ish degrees of cover */
+    const ph=(cell+i*3)%FLAME_CELLS/FLAME_CELLS*Math.PI*2;
+    const puls=0.72+0.28*Math.sin(ph+seed);
+    const len=r*(0.22+0.26*puls);   /* worst case 0.84r+0.48r = 1.32r < half-cell 1.35r */
+    const wid=r*(0.15+0.07*puls);
+    const bx=cx+Math.cos(ang)*r*0.84, by=cy+Math.sin(ang)*r*0.84;
+    const up=Math.atan2(Math.sin(ang)*0.35-0.9,Math.cos(ang)*0.9); /* licks bend upward */
+    flameTongue(ctx,bx,by,up,len,wid,
+      ["rgba(255,60,0,0.55)","rgba(255,140,20,0.45)","rgba(255,190,60,0)"]);
+    flameTongue(ctx,bx,by,up,len*0.66,wid*0.62,
+      ["rgba(255,190,60,0.85)","rgba(255,235,150,0.55)","rgba(255,255,220,0)"]);
+    flameTongue(ctx,bx,by,up,len*0.34,wid*0.34,
+      ["rgba(255,255,235,0.95)","rgba(255,250,200,0.6)","rgba(255,255,255,0)"]);
+  }
+  ctx.restore();
+}
+function drawStarGem(cx,cy,r,seed){
+  const tw=0.68+0.32*Math.sin(shineT*5.5+seed);     /* the glow breathes */
+  const spin=shineT*0.7+seed;
+  ctx.save();
+  ctx.globalCompositeOperation="lighter";
+  /* coronaglow */
+  const cor=ctx.createRadialGradient(cx,cy,r*0.1,cx,cy,r*1.85);
+  cor.addColorStop(0,"rgba(255,255,235,"+(0.34*tw)+")");
+  cor.addColorStop(0.45,"rgba(255,236,150,"+(0.18*tw)+")");
+  cor.addColorStop(1,"rgba(255,220,120,0)");
+  ctx.fillStyle=cor;
+  ctx.beginPath();ctx.arc(cx,cy,r*1.85,0,Math.PI*2);ctx.fill();
+  /* star glow: a long four-point flare plus a shorter one at 45 degrees */
+  const ray=(len,wide,alpha,rot)=>{
+    ctx.save();ctx.translate(cx,cy);ctx.rotate(rot);
+    for(let q=0;q<4;q++){
+      ctx.rotate(Math.PI/2);
+      const g=ctx.createLinearGradient(0,0,len,0);
+      g.addColorStop(0,"rgba(255,255,255,"+alpha+")");
+      g.addColorStop(0.35,"rgba(255,240,170,"+(alpha*0.5)+")");
+      g.addColorStop(1,"rgba(255,225,130,0)");
+      ctx.fillStyle=g;
+      ctx.beginPath();ctx.moveTo(0,-wide);ctx.lineTo(len,0);ctx.lineTo(0,wide);ctx.closePath();ctx.fill();
+    }
+    ctx.restore();
+  };
+  ray(r*2.05*tw, r*0.17, 0.95, spin*0.15);
+  ray(r*1.05*tw, r*0.10, 0.55, spin*0.15+Math.PI/4);
+  /* white-hot heart of the star */
+  const core=ctx.createRadialGradient(cx,cy,0,cx,cy,r*0.5);
+  core.addColorStop(0,"rgba(255,255,255,"+(0.9*tw)+")");
+  core.addColorStop(0.55,"rgba(255,246,205,"+(0.35*tw)+")");
+  core.addColorStop(1,"rgba(255,240,190,0)");
+  ctx.fillStyle=core;
+  ctx.beginPath();ctx.arc(cx,cy,r*0.5,0,Math.PI*2);ctx.fill();
+  /* small blur stars drifting around the gem */
+  for(let k=0;k<3;k++){
+    const a=spin*1.6+k*2.094, rr=r*(1.05+0.16*Math.sin(shineT*3+k*2));
+    const sx=cx+Math.cos(a)*rr, sy=cy+Math.sin(a)*rr;
+    const tk=0.35+0.65*Math.abs(Math.sin(shineT*6+k*1.7));
+    const sg=ctx.createRadialGradient(sx,sy,0,sx,sy,r*0.3*tk);
+    sg.addColorStop(0,"rgba(255,255,255,"+(0.85*tk)+")");
+    sg.addColorStop(1,"rgba(255,240,180,0)");
+    ctx.fillStyle=sg;
+    ctx.beginPath();ctx.arc(sx,sy,r*0.3*tk,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle="rgba(255,255,255,"+(0.9*tk)+")";
+    const w=r*0.05,l=r*0.26*tk;
+    ctx.beginPath();
+    ctx.moveTo(sx,sy-l);ctx.lineTo(sx+w,sy);ctx.lineTo(sx,sy+l);ctx.lineTo(sx-w,sy);
+    ctx.closePath();ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(sx-l,sy);ctx.lineTo(sx,sy-w);ctx.lineTo(sx+l,sy);ctx.lineTo(sx,sy+w);
+    ctx.closePath();ctx.fill();
+  }
+  ctx.restore();
 }
 function b3Sprites(x,y,kind,n){ /* flying sprite particles: bolt stars or flame licks */
   for(let k=0;k<n;k++){const a=Math.random()*Math.PI*2,v=(kind==="bolt"?140:60)+Math.random()*120;
@@ -10072,6 +10197,7 @@ function beginClear(cells,specials,runs){
 }
 function endRun(){
   state="over";overT=0;AudioFX.over();GameBridge.gameOver(score);
+  Music.sting(mode);   /* the mode's own game-over sting, over the music */
   newBest=score>0&&score>(bests[mode]||0);
   if(newBest){bests[mode]=score;saveBest();}
 }
@@ -10202,7 +10328,7 @@ function down(px,py){
   }
   Music.start();
   if(hitBtn(px,py,muteBtn)){Music.toggle();return;}
-  if(hitBtn(px,py,menuBtn)){state="menu";return;}
+  if(hitBtn(px,py,menuBtn)){state="menu";Music.menu();return;}
   if(hitBtn(px,py,hintBtn)){
     if(state==="idle"){const mv=findMove();if(mv){hintCell=mv.a;hintAt=0;AudioFX.tick();}}
     return;
@@ -10225,7 +10351,7 @@ function down(px,py){
       if(px>=b.x&&px<=b.x+b.w&&py>=b.y&&py<=b.y+b.h){
         overBtns=null;
         if(b.act==="again")startRun(mode);
-        else state="menu";
+        else {state="menu";Music.menu();}
         return;
       }
     }
@@ -10259,6 +10385,7 @@ cvs.addEventListener("pointermove",e=>{if(e.buttons)move(e.clientX,e.clientY);})
 cvs.addEventListener("pointerup",()=>{dragFrom=null;});
 
 function startRun(m){
+  Music.track(m);   /* swap to this mode's theme */
   mode=m;
   score=0;level=1;progress=0;goal=2500;chain=0;sel=null;particles=[];fx=[];swapA=swapB=null;
   mult=1;matchTally=0;caught=0;pendingFlyStep=false;spiderX=-1;spiderDrop=0;
@@ -10331,14 +10458,14 @@ function drawGem(x,y,s,t,sp,glow,rot,isFly,isTg){
     ctx.restore();return;
   }
   const g=GEMS[t];
-  if(sp===1&&!isFly&&Math.random()<0.40)b3Ember(cx,cy,r);
-  if(sp===1||sp===2){
-    const p=(Math.sin(shineT*5)+1)/2;
-    const aura=ctx.createRadialGradient(cx,cy,r*0.2,cx,cy,r*1.5);
-    aura.addColorStop(0,"rgba(255,255,255,"+(0.25+p*0.25)+")");
-    aura.addColorStop(1,"rgba(255,255,255,0)");
-    ctx.fillStyle=aura;
-    ctx.beginPath();ctx.arc(cx,cy,r*1.5,0,Math.PI*2);ctx.fill();
+  const _seed=(x*0.37+y*0.11);
+  /* fire and star glow live BEHIND the gem, exactly like B3 - the gem art itself
+     is never recolored, the effect is layered around it */
+  if(sp===1&&!isFly){
+    if(Math.random()<0.30)b3Ember(cx,cy,r);
+    drawFlameGem(cx,cy,r,_seed);
+  } else if(sp===2&&!isFly){
+    drawStarGem(cx,cy,r,_seed);
   }
   if(glow||sp){ctx.shadowColor=sp?"#ffffff":g.c;ctx.shadowBlur=NG_CLASSIC()?6:14;}
   const gr=isFly?r*0.82:r; /* butterflies ride smaller gems */
@@ -10379,35 +10506,35 @@ function drawGem(x,y,s,t,sp,glow,rot,isFly,isTg){
     ctx.restore();
   }
   } /* end vector fallback */
-  if(sp===1){
-    const core=ctx.createRadialGradient(cx,cy,0,cx,cy,r*0.42);
-    const p=(Math.sin(shineT*6)+1)/2;
-    core.addColorStop(0,"rgba(255,255,255,1)");
-    core.addColorStop(0.6,"rgba(255,255,240,"+(0.5+p*0.4)+")");
-    core.addColorStop(1,"rgba(255,255,255,0)");
-    ctx.fillStyle=core;
-    ctx.beginPath();ctx.arc(cx,cy,r*0.42,0,Math.PI*2);ctx.fill();
-    for(let k=0;k<3;k++){
-      const a=shineT*4+k*2.09, sx=cx+Math.cos(a)*r*0.95, sy=cy+Math.sin(a)*r*0.95;
-      ctx.fillStyle="#ffffff";
-      ctx.beginPath();
-      ctx.moveTo(sx,sy-2.6);ctx.lineTo(sx+2.6,sy);ctx.lineTo(sx,sy+2.6);ctx.lineTo(sx-2.6,sy);
-      ctx.closePath();ctx.fill();
+  if(sp===1&&!isFly){
+    /* a last few licks drawn over the gem so the fire reads as wrapping it */
+    ctx.save();
+    ctx.globalCompositeOperation="lighter";
+    const cell=Math.floor(shineT*14)%FLAME_CELLS;
+    for(let i=0;i<3;i++){
+      const ang=Math.PI*0.75+i*Math.PI*0.25;
+      const ph=(cell+i*4)%FLAME_CELLS/FLAME_CELLS*Math.PI*2;
+      const puls=0.7+0.3*Math.sin(ph+_seed);
+      const bx=cx+Math.cos(ang)*r*0.8, by=cy+Math.sin(ang)*r*0.8;
+      flameTongue(ctx,bx,by,-Math.PI/2+(Math.random()-0.5)*0.2,r*0.36*puls,r*0.10,
+        ["rgba(255,210,90,0.55)","rgba(255,240,170,0.35)","rgba(255,255,230,0)"]);
     }
-  } else if(sp===2){
-    const off=(shineT*2.2)%2-1;
-    for(const horiz of [true,false]){
-      const bl=ctx.createLinearGradient(
-        horiz?cx-r*0.9:cx, horiz?cy:cy-r*0.9,
-        horiz?cx+r*0.9:cx, horiz?cy:cy+r*0.9);
-      const mid=Math.min(1,Math.max(0,(off+1)/2));
-      bl.addColorStop(0,"rgba(255,255,255,0.45)");
-      bl.addColorStop(mid,"rgba(255,255,255,1)");
-      bl.addColorStop(1,"rgba(255,255,255,0.45)");
-      ctx.fillStyle=bl;
-      if(horiz)ctx.fillRect(cx-r*0.9,cy-r*0.13,r*1.8,r*0.26);
-      else ctx.fillRect(cx-r*0.13,cy-r*0.9,r*0.26,r*1.8);
+    ctx.restore();
+  } else if(sp===2&&!isFly){
+    /* the star's brightest rays sit in front of the gem */
+    ctx.save();
+    ctx.globalCompositeOperation="lighter";
+    const tw=0.7+0.3*Math.sin(shineT*5.5+_seed);
+    ctx.translate(cx,cy);
+    for(let q=0;q<4;q++){
+      ctx.rotate(Math.PI/2);
+      const g=ctx.createLinearGradient(0,0,r*1.25*tw,0);
+      g.addColorStop(0,"rgba(255,255,255,0.9)");
+      g.addColorStop(1,"rgba(255,235,160,0)");
+      ctx.fillStyle=g;
+      ctx.beginPath();ctx.moveTo(0,-r*0.09);ctx.lineTo(r*1.25*tw,0);ctx.lineTo(0,r*0.09);ctx.closePath();ctx.fill();
     }
+    ctx.restore();
   }
   /* butterfly wings */
   if(isFly){
