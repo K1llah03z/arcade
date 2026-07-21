@@ -31,7 +31,7 @@ window.GameMusic = (function () {
   var live = 0;           /* which deck is currently the audible one */
   var unlocked = false;   /* browsers block playback until a user gesture */
   var pending = null;     /* track requested before that gesture arrived */
-  var stinger = null;
+  var stinger = null;   /* built in decks() so it gets unlocked too */
   var fades = [];
 
   try { var saved = localStorage.getItem("gemdrop-music"); if (saved !== null) on = saved === "1"; }
@@ -66,7 +66,11 @@ window.GameMusic = (function () {
     return a;
   }
   function decks() {
-    if (!deck.length) deck = [el("a"), el("b")];
+    if (!deck.length) {
+      deck = [el("a"), el("b")];
+      stinger = el("sting");
+      stinger.loop = false;
+    }
     return deck;
   }
   function clearFades() {
@@ -128,11 +132,21 @@ window.GameMusic = (function () {
   /* short one-shot laid over the music - the mode's game-over sting */
   function sting(name) {
     if (!on) return;
-    if (!stinger) { stinger = new Audio(); stinger.loop = false; }
+    decks();
+    /* A game-over sting replaces the theme rather than sitting on top of it,
+       the way B3 does it. The menu track comes back when the player exits. */
+    for (var i = 0; i < deck.length; i++) {
+      if (deck[i].src && !deck[i].paused) (function (a) {
+        fade(a, 0, 400, function () { a.pause(); });
+      })(deck[i]);
+    }
     stinger.src = BASE + name + ".mp3";
-    stinger.volume = Math.min(1, VOLUME * 1.6);
+    stinger.volume = Math.min(1, VOLUME * 1.8);
+    log("sting", name);
     var p = stinger.play();
-    if (p && p.catch) p.catch(function () {});
+    if (p && p.catch) p.catch(function (e) {
+      lastError = { src: stinger.src, code: 0, text: "sting rejected: " + (e && e.name) };
+    });
   }
 
   function setMuted(m) {
@@ -153,7 +167,7 @@ window.GameMusic = (function () {
     /* iOS unlocks each media element separately: an element that never had
        play() called during a gesture stays silent forever, and we crossfade
        between two of them. */
-    var d = decks();
+    var d = decks().concat(stinger ? [stinger] : []);
     for (var i = 0; i < d.length; i++) {
       (function (a) {
         if (a._unlocked) return;
@@ -185,6 +199,30 @@ window.GameMusic = (function () {
   ["pointerdown", "touchend", "keydown", "click"].forEach(function (ev) {
     window.addEventListener(ev, onGesture, { passive: true });
   });
+
+  /* Backgrounding the app should silence it. Without this the track keeps
+     playing from the app switcher, and on iOS it can even hold the audio
+     session open after the app is gone from view. */
+  var resumeOnReturn = false;
+  function goAway() {
+    var d = decks();
+    resumeOnReturn = false;
+    for (var i = 0; i < d.length; i++) {
+      if (d[i].src && !d[i].paused) { resumeOnReturn = true; d[i].pause(); }
+    }
+    if (stinger && !stinger.paused) stinger.pause();
+  }
+  function comeBack() {
+    if (!on || !resumeOnReturn) return;
+    resumeOnReturn = false;
+    var a = decks()[live];
+    if (a && a.src) { var p = a.play(); if (p && p.catch) p.catch(function () {}); }
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) goAway(); else comeBack();
+  });
+  window.addEventListener("pagehide", goAway);
+  window.addEventListener("blur", function () { if (document.hidden) goAway(); });
 
   return {
     play: play,
