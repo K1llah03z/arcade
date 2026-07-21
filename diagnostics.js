@@ -321,6 +321,13 @@ window.Diag = (function () {
     root = null;
   }
 
+  /* Games run in a sandboxed frame, so typing Diag.open() in the console while
+     that frame is selected fails - Diag lives in the hub document. Listen for a
+     request forwarded from a frame so it can be opened from either side. */
+  window.addEventListener("message", function (e) {
+    var d = e.data;
+    if (d && d.source === "GameBridge" && d.type === "diag") open();
+  });
   if (location.hash.indexOf("diag") !== -1) {
     if (document.body) open();
     else window.addEventListener("DOMContentLoaded", open);

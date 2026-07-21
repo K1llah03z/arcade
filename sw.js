@@ -6,15 +6,15 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.7.0";
+const APP_VERSION = "1.8.0";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
    about to install). Update these alongside APP_VERSION. */
 const RELEASE_NOTES = [
-  "Fix: cached music now plays (byte-range support)",
-  "New: diagnostics panel — add #diag to the URL",
-  "Gem Drop: Flame and Star Gem blasts now hit properly",
+  "Fix: music now plays — hub owns audio for sandboxed games",
+  "Lightning: full countdown — 30s call, 10s alarm, ticks, time up",
+  "New: diagnostics panel — add #diag to the hub URL",
 ];
 const CACHE = "neon-grid-" + APP_VERSION;
 const ASSETS = [
