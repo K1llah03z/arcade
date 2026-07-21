@@ -9223,7 +9223,19 @@ const Music=(function(){
     if(loadFailed&&hubOn)ask(type,track);   /* only bother the hub if we can't */
   }
   return {
-    start(){ ensureLocal(); if(GM()){GM().unlock();return;} if(!inFrame)start(); },
+    start(){
+      ensureLocal();
+      if(GM()){
+        GM().unlock();
+        /* First launch sits on the mode-select screen, which is a "menu" track
+           like any other - but nothing had requested it, so the screen was
+           silent until you played a round and came back. Any tap now starts
+           whatever the current screen wants. */
+        if(!GM().current())GM().play(wanted||"menu");
+        return;
+      }
+      if(!inFrame)start();
+    },
     toggle(){
       if(GM())return GM().toggle();
       hubOn=!hubOn;
@@ -11361,6 +11373,10 @@ function frame(now){
 
 resize();
 GameBridge.ready();
+/* the mode-select screen is the first thing shown, so it asks for its own
+   music at boot; playback still waits for the first tap, but the request is
+   already queued rather than being made only on the way back from a round */
+Music.menu();
 requestAnimationFrame(frame);
 })();
 </script>

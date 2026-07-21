@@ -104,6 +104,13 @@ window.GameMusic = (function () {
     if (p && p.catch) p.catch(function (err) {
       lastError = { src: nxt.src, code: 0, text: "play() rejected: " + (err && err.name) };
       log("rejected", name);
+      /* The browser refused, almost always because this document hasn't had a
+         user gesture yet. Un-arm so the next tap retries instead of the track
+         being lost - otherwise unlock() sees unlocked===true, returns early,
+         and nothing ever plays that track again. */
+      unlocked = false;
+      pending = name;
+      rearm();
     });
     fade(nxt, VOLUME, FADE_MS);
     if (cur.src && !cur.paused) fade(cur, 0, FADE_MS, function () { cur.pause(); });
@@ -165,9 +172,22 @@ window.GameMusic = (function () {
     if (want) { current = null; play(want); }
     pending = null;
   }
-  ["pointerdown", "touchend", "keydown"].forEach(function (ev) {
-    window.addEventListener(ev, unlock, { passive: true });
-  });
+  var armed = false;
+  function rearm() {
+    if (armed) return;
+    armed = true;
+    ["pointerdown", "touchend", "keydown"].forEach(function (ev) {
+      window.addEventListener(ev, onGesture, { passive: true });
+    });
+  }
+  function onGesture() {
+    armed = false;
+    ["pointerdown", "touchend", "keydown"].forEach(function (ev) {
+      window.removeEventListener(ev, onGesture);
+    });
+    unlock();
+  }
+  rearm();
 
   return {
     play: play,
