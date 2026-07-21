@@ -6,15 +6,15 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.6.2";
+const APP_VERSION = "1.7.0";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
    about to install). Update these alongside APP_VERSION. */
 const RELEASE_NOTES = [
+  "Fix: cached music now plays (byte-range support)",
+  "New: diagnostics panel — add #diag to the URL",
   "Gem Drop: Flame and Star Gem blasts now hit properly",
-  "Gem Drop: music for every mode, streamed and cached",
-  "Gem Drop: authentic Flame Gem fire and Star Gem flare",
 ];
 const CACHE = "neon-grid-" + APP_VERSION;
 const ASSETS = [
@@ -22,6 +22,7 @@ const ASSETS = [
   "./index.html",
   "./uno-audio.js",
   "./music.js",
+  "./diagnostics.js",
   "./3DPinballSpaceCadet.htm",
   "./3DPinballSpaceCadet.js",
   "./3DPinballSpaceCadet.wasm",
@@ -70,8 +71,41 @@ self.addEventListener("activate", e => {
   );
 });
 /* Cache-first, falling back to network, then to cached index for navigations. */
+/* Media served out of Cache Storage: an <audio> element asks for byte ranges,
+   and Safari in particular refuses to play if it gets a plain 200 back for a
+   Range request. So range requests are answered from the cached copy as a real
+   206 Partial Content with the slice the browser asked for. This is the usual
+   reason cached music is silent on iOS while everything else works. */
+async function rangeFromCache(request) {
+  const cached = await caches.match(request, { ignoreSearch: true });
+  if (!cached) return null;
+  const buf = await cached.arrayBuffer();
+  const total = buf.byteLength;
+  const m = /bytes=(\d*)-(\d*)/.exec(request.headers.get("range") || "");
+  if (!m) return null;
+  let start = m[1] === "" ? null : parseInt(m[1], 10);
+  let end   = m[2] === "" ? null : parseInt(m[2], 10);
+  if (start === null) { start = total - (end || 0); end = total - 1; }
+  if (end === null || end >= total) end = total - 1;
+  if (isNaN(start) || start > end) start = 0;
+  const slice = buf.slice(start, end + 1);
+  return new Response(slice, {
+    status: 206,
+    statusText: "Partial Content",
+    headers: {
+      "Content-Type": cached.headers.get("Content-Type") || "application/octet-stream",
+      "Content-Length": String(slice.byteLength),
+      "Content-Range": "bytes " + start + "-" + end + "/" + total,
+      "Accept-Ranges": "bytes"
+    }
+  });
+}
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
+  if (e.request.headers.get("range")) {
+    e.respondWith(rangeFromCache(e.request).then(r => r || fetch(e.request)));
+    return;
+  }
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then(hit => {
       if (hit) return hit;

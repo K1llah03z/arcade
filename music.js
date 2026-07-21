@@ -37,15 +37,36 @@ window.GameMusic = (function () {
   try { var saved = localStorage.getItem("gemdrop-music"); if (saved !== null) on = saved === "1"; }
   catch (e) { /* private mode / sandboxed iframe: just default to on */ }
 
-  function el() {
+  var lastError = null, events = [];
+  function log(kind, detail) {
+    events.push({ t: Date.now(), kind: kind, detail: detail || "" });
+    if (events.length > 60) events.shift();
+  }
+  function el(tag) {
     var a = new Audio();
     a.loop = true;
     a.preload = "none";   /* don't pull 10MB off disk until a track is asked for */
     a.volume = 0;
+    a.setAttribute("playsinline", "");   /* iOS: don't hijack into a player UI */
+    a.dataset.deck = tag;
+    ["error", "stalled", "abort", "canplay", "playing", "ended"].forEach(function (ev) {
+      a.addEventListener(ev, function () {
+        if (ev === "error") {
+          var c = a.error ? a.error.code : 0;
+          lastError = { src: a.src, code: c,
+            text: ["", "aborted", "network", "decode", "src not supported"][c] || "?" };
+        }
+        log(ev, (a.src || "").split("/").pop());
+      });
+    });
+    /* some iOS versions refuse to play elements that aren't in the document */
+    a.style.display = "none";
+    if (document.body) document.body.appendChild(a);
+    else window.addEventListener("DOMContentLoaded", function () { document.body.appendChild(a); });
     return a;
   }
   function decks() {
-    if (!deck.length) deck = [el(), el()];
+    if (!deck.length) deck = [el("a"), el("b")];
     return deck;
   }
   function clearFades() {
@@ -78,8 +99,12 @@ window.GameMusic = (function () {
     nxt.preload = "auto";
     nxt.currentTime = 0;
     nxt.volume = 0;
+    log("play", name);
     var p = nxt.play();
-    if (p && p.catch) p.catch(function () { /* autoplay refused; retry on next gesture */ });
+    if (p && p.catch) p.catch(function (err) {
+      lastError = { src: nxt.src, code: 0, text: "play() rejected: " + (err && err.name) };
+      log("rejected", name);
+    });
     fade(nxt, VOLUME, FADE_MS);
     if (cur.src && !cur.paused) fade(cur, 0, FADE_MS, function () { cur.pause(); });
     live = 1 - live;
@@ -120,6 +145,22 @@ window.GameMusic = (function () {
   function unlock() {
     if (unlocked) return;
     unlocked = true;
+    /* iOS unlocks each media element separately: an element that never had
+       play() called during a user gesture stays silent forever. We crossfade
+       between two decks, so BOTH have to be unlocked on this first gesture or
+       every other track switch would play nothing. */
+    var d = decks();
+    for (var i = 0; i < d.length; i++) {
+      (function (a) {
+        try {
+          a.muted = true;
+          var p = a.play();
+          if (p && p.then) p.then(function () { a.pause(); a.muted = false; })
+                            .catch(function () { a.muted = false; });
+          else { a.pause(); a.muted = false; }
+        } catch (e) { a.muted = false; }
+      })(d[i]);
+    }
     var want = pending || current;
     if (want) { current = null; play(want); }
     pending = null;
@@ -140,6 +181,28 @@ window.GameMusic = (function () {
       if (deck[live] && !deck[live].paused) deck[live].volume = VOLUME;
     },
     unlock: unlock,
-    current: function () { return current; }
+    current: function () { return current; },
+    base: function () { return BASE; },
+    lastError: function () { return lastError; },
+    events: function () { return events.slice(); },
+    state: function () {
+      var d = decks();
+      return {
+        on: on, unlocked: unlocked, current: current, pending: pending,
+        volume: VOLUME,
+        decks: d.map(function (a, i) {
+          return {
+            deck: i, live: i === live,
+            src: (a.src || "").split("/").pop(),
+            paused: a.paused, volume: Math.round(a.volume * 100) / 100,
+            time: Math.round(a.currentTime * 10) / 10,
+            duration: isFinite(a.duration) ? Math.round(a.duration) : 0,
+            readyState: a.readyState, networkState: a.networkState,
+            error: a.error ? a.error.code : 0
+          };
+        }),
+        lastError: lastError
+      };
+    }
   };
 })();
