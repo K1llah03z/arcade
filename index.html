@@ -9177,8 +9177,13 @@ const Music=(function(){
   const inFrame=(()=>{try{return window.parent!==window;}catch(e){return true;}})();
   function ask(type,track){
     if(!inFrame)return false;
-    try{ parent.postMessage({source:"GameBridge",v:1,gameId:GAME_ID,type,payload:{track}},"*"); return true; }
-    catch(e){ return false; }
+    /* GAME_ID lives inside the bridge stub's own IIFE and is NOT in scope here;
+       the stub exposes it as GameBridge.id, which is. Referencing GAME_ID threw
+       a ReferenceError that the catch swallowed, so every music request was
+       silently dropped. */
+    const gid=(window.GameBridge&&window.GameBridge.id)||"gem-drop";
+    try{ parent.postMessage({source:"GameBridge",v:1,gameId:gid,type,payload:{track}},"*"); return true; }
+    catch(e){ console.warn("[gemdrop] music request failed",e); return false; }
   }
   let hubOn=true;
   return {

@@ -6,15 +6,15 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.8.0";
+const APP_VERSION = "1.8.2";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
    about to install). Update these alongside APP_VERSION. */
 const RELEASE_NOTES = [
-  "Fix: music now plays — hub owns audio for sandboxed games",
+  "Fix: Gem Drop music actually reaches the hub now",
+  "Fix: update banner stays put until you press Install",
   "Lightning: full countdown — 30s call, 10s alarm, ticks, time up",
-  "New: diagnostics panel — add #diag to the hub URL",
 ];
 const CACHE = "neon-grid-" + APP_VERSION;
 const ASSETS = [
@@ -60,8 +60,13 @@ self.addEventListener("install", e => {
         c.add(new Request(u, { cache: "reload" }))
          .catch(err => console.warn("[sw] could not cache", u, err))
       )))
-      .then(() => self.skipWaiting())
   );
+  /* NO skipWaiting() here. Installing quietly is the whole point: the new
+     worker must sit in "waiting" so the page can show the update banner and
+     let the user press Install. Calling skipWaiting() on install activates
+     immediately, which fires controllerchange, which reloads the page - the
+     banner vanishes before it can be read. The button posts SKIP_WAITING
+     when the user actually asks for it. */
 });
 self.addEventListener("activate", e => {
   e.waitUntil(
