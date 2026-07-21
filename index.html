@@ -8887,6 +8887,42 @@ function bjPlay(k,vol){
   }catch(e){BJBAD[k]=1;return false;}
 }
 
+/* Looping alarm for the Lightning endgame. COUNTDOWN_WARNING is a 1.07s swell
+   that fades out, so repeating it gives roughly one pulse per second; speeding
+   it up at 5s tightens that to about two thirds of a second and the ticks drop
+   out so the two never fight each other. */
+let _alarm=null;
+function bjLoopStart(k,vol,rate){
+  if(_alarm||!BJ[k]||BJBAD[k])return;
+  try{
+    const a=bjac();
+    const go=b=>{
+      if(_alarm)return;
+      const src=a.createBufferSource();
+      src.buffer=b; src.loop=true;
+      try{src.playbackRate.value=rate||1;}catch(e){}
+      const g=a.createGain(); g.gain.value=vol==null?0.7:vol;
+      src.connect(g).connect(a.destination);
+      src.start();
+      _alarm={src:src,g:g};
+    };
+    if(BJBUF[k]){go(BJBUF[k]);return;}
+    const bin=atob(BJ[k]),arr=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+    a.decodeAudioData(arr.buffer,b=>{BJBUF[k]=b;go(b);},()=>{BJBAD[k]=1;});
+  }catch(e){}
+}
+function bjLoopRate(r){
+  if(!_alarm)return;
+  try{ _alarm.src.playbackRate.setTargetAtTime(r,bjac().currentTime,0.08); }
+  catch(e){ try{_alarm.src.playbackRate.value=r;}catch(e2){} }
+}
+function bjLoopStop(){
+  if(!_alarm)return;
+  const a=_alarm; _alarm=null;
+  try{ a.g.gain.setTargetAtTime(0.0001,bjac().currentTime,0.05); }catch(e){}
+  try{ a.src.stop(bjac().currentTime+0.2); }catch(e){ try{a.src.stop();}catch(e2){} }
+}
 const AudioFX=(function(){
   let ac=null;
   function actx(){ if(!ac) ac=new (window.AudioContext||window.webkitAudioContext)(); if(ac.state==="suspended") ac.resume(); return ac; }
@@ -10283,7 +10319,7 @@ function beginClear(cells,specials,runs){
     if(mode!=="mine"){AudioFX.level();GameBridge.levelUp(level);}}
 }
 function endRun(){
-  state="over";overT=0;AudioFX.over();GameBridge.gameOver(score);
+  state="over";overT=0;bjLoopStop();AudioFX.over();GameBridge.gameOver(score);
   Music.sting(mode);   /* the mode's own game-over sting, over the music */
   newBest=score>0&&score>(bests[mode]||0);
   if(newBest){bests[mode]=score;saveBest();}
@@ -10472,6 +10508,7 @@ cvs.addEventListener("pointermove",e=>{if(e.buttons)move(e.clientX,e.clientY);})
 cvs.addEventListener("pointerup",()=>{dragFrom=null;});
 
 function startRun(m){
+  bjLoopStop();
   Music.track(m);   /* swap to this mode's theme */
   mode=m;
   score=0;level=1;progress=0;goal=2500;chain=0;sel=null;particles=[];fx=[];swapA=swapB=null;
@@ -10850,10 +10887,11 @@ function frame(now){
          never meant to loop), then a tick on each of the last five seconds. */
       if(c!==lastTick&&c>0){
         if(c===30)bjPlay("v30",0.85);
-        else if(c===10)bjPlay("warn",0.8);
-        if(c<=5)AudioFX.tick();
+        else if(c===10)bjLoopStart("warn",0.7,1.0);   /* alarm begins looping  */
+        else if(c===5)bjLoopRate(1.6);                /* and tightens at five  */
         lastTick=c;
       }
+      if(timeLeft>10.5)bjLoopStop();   /* a time extension calls off the alarm */
       if(timeLeft<=0){
         timeLeft=0;
         if(mode==="blitz"&&!finale){
