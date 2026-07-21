@@ -6,15 +6,15 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.10.2";
+const APP_VERSION = "1.12.0";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
    about to install). Update these alongside APP_VERSION. */
 const RELEASE_NOTES = [
-  "Fix: Hypercube blast was playing the level-transition sound",
-  "Lightning: alarm tightens at 5s without changing pitch",
-  "Fix: music starts on the very first tap, menu included",
+  "Gem Drop: real Bejeweled 3 sound effects and music",
+  "Gem Drop: authentic Flame and Star Gem effects",
+  "Gem Drop: Bejeweled 3 scoring and Lightning countdown",
 ];
 const CACHE = "neon-grid-" + APP_VERSION;
 const ASSETS = [
@@ -22,7 +22,6 @@ const ASSETS = [
   "./index.html",
   "./uno-audio.js",
   "./music.js",
-  "./diagnostics.js",
   "./3DPinballSpaceCadet.htm",
   "./3DPinballSpaceCadet.js",
   "./3DPinballSpaceCadet.wasm",
