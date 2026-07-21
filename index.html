@@ -408,8 +408,8 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 #hiScoresModal button{margin-top:14px;width:100%;padding:9px;border-radius:9px;border:1px solid #7b4dff;background:transparent;color:#0ff;font-family:inherit;font-size:13px;cursor:pointer}
 #hiScoresModal button:active{background:rgba(123,77,255,.25)}
 </style>
-  <meta name="build" content="1.13.1">
-  <script>console.log("%c ARCADE BUILD 1.13.1 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.13.1";</script>
+  <meta name="build" content="1.14.1">
+  <script>console.log("%c ARCADE BUILD 1.14.1 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.14.1";</script>
   <script src="music.js"></script>
 </head>
 <body>
@@ -8879,11 +8879,28 @@ let _bjac=null;
 function bjac(){if(!_bjac)_bjac=new (window.AudioContext||window.webkitAudioContext)();if(_bjac.state==="suspended")_bjac.resume();return _bjac;}
 /* returns true if the real Bejeweled clip fired; false tells the caller to fall
    back to the synthesized voice (first call decodes, so it plays a beat later) */
+let _sfxBus=null,_voxBus=null;
+/* the announcer's clips, which ride their own fader */
+const VOICE_KEYS={vBlaze:1,vExcellent:1,vGameOver:1,v30:1,vTimeUp:1,vReady:1,vGo:1};
+function sfxBus(){
+  const a=bjac();
+  if(!_sfxBus){_sfxBus=a.createGain();_sfxBus.connect(a.destination);}
+  _sfxBus.gain.value=sfxVol;
+  return _sfxBus;
+}
+function voxBus(){
+  const a=bjac();
+  if(!_voxBus){_voxBus=a.createGain();_voxBus.connect(a.destination);}
+  _voxBus.gain.value=voxVol;
+  return _voxBus;
+}
+function busFor(k){ return VOICE_KEYS[k]?voxBus():sfxBus(); }
 function bjPlay(k,vol){
   if(!BJ[k]||BJBAD[k])return false;
+  if(VOICE_KEYS[k]?voxVol<=0:sfxVol<=0)return false;
   try{
     const a=bjac();
-    const go=b=>{const src=a.createBufferSource();src.buffer=b;const g=a.createGain();g.gain.value=vol==null?0.7:vol;src.connect(g).connect(a.destination);src.start();};
+    const go=b=>{const src=a.createBufferSource();src.buffer=b;const g=a.createGain();g.gain.value=vol==null?0.7:vol;src.connect(g).connect(busFor(k));src.start();};
     if(BJBUF[k]){go(BJBUF[k]);return true;}
     const bin=atob(BJ[k]),arr=new Uint8Array(bin.length);
     for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
@@ -9225,6 +9242,7 @@ const Music=(function(){
       sc.onload=()=>{
         if(!GM()){loadFailed=true;return;}
         GM().setMuted(!hubOn);
+        GM().setVolume(musVol);
         /* Just ask for the track. If the browser refuses because there has been
            no tap yet, music.js keeps it pending and its gesture handler starts
            it on the next one. Calling unlock() here used to *claim* audio was
@@ -9277,6 +9295,7 @@ const Music=(function(){
     },
     isOn(){ return GM()?GM().isOn():(inFrame?hubOn:on); },
     /* mode themes + game-over stingers */
+    vol(v){ if(GM())GM().setVolume(v); },
     track(m){ wanted=m; route(g=>g.play(m),"music",m); },
     menu(){ wanted="menu"; route(g=>g.play("menu"),"music","menu"); },
     /* the soundtrack ships stingers for classic, blitz, mine, butterfly,
@@ -9526,6 +9545,16 @@ let bests={};
 try{bests=JSON.parse(localStorage.getItem("gemdrop-bests")||"{}");}catch(e){bests={};}
 for(const [o,n] of [["dig","mine"],["moths","butterfly"],["frost","icestorm"]]){if(bests[o]!=null){if(bests[n]==null||bests[o]>bests[n])bests[n]=bests[o];delete bests[o];}}
 function saveBest(){try{localStorage.setItem("gemdrop-bests",JSON.stringify(bests));}catch(e){}}
+/* volume: music rides the streaming player, sound effects ride a master gain
+   in front of the sample bank. Stored like bests - srcdoc frames may have no
+   localStorage, in which case the setting just lasts the session. */
+let musVol=0.45, sfxVol=1.0, voxVol=1.0;
+try{
+  const v=JSON.parse(localStorage.getItem("gemdrop-vol")||"null");
+  if(v){ if(typeof v.m==="number")musVol=v.m; if(typeof v.s==="number")sfxVol=v.s;
+         if(typeof v.v==="number")voxVol=v.v; }
+}catch(e){}
+function saveVol(){try{localStorage.setItem("gemdrop-vol",JSON.stringify({m:musVol,s:sfxVol,v:voxVol}));}catch(e){}}
 let newBest=false;
 let pendingMode=null,boost=null,runTime=0;
 let finale=false; /* blitz: end-of-time special-gem sendoff */
@@ -9584,7 +9613,7 @@ function boostDefs(m){
     {id:null,name:"NO BOOST",desc:"Just the gems"}
   ];
 }
-let menuBtns=[],boostBtns=[],hintBtn={x:0,y:0,r:16},muteBtn={x:0,y:0,r:16},menuBtn={x:0,y:0,r:16};
+let menuBtns=[],boostBtns=[],volBars=[],dragVol=null,hintBtn={x:0,y:0,r:16},muteBtn={x:0,y:0,r:16},menuBtn={x:0,y:0,r:16};
 
 let BX=0,BY=0,CS=0;
 function layout(){
@@ -9612,6 +9641,21 @@ function layout(){
     x:(i===MODES.length-1&&MODES.length%2===1)?(W-bw)/2:gx+(i%2)*(bw+12),
     y:gy0+Math.floor(i/2)*(bh+12),w:bw,h:bh}));
   boostBtns=[]; /* rebuilt when picker opens */
+  /* Volume sliders under the mode buttons. Icons sit to the LEFT of each
+     track rather than labels above it, which is how B3 does it and is what
+     lets three rows fit on a short screen. */
+  const lastB=menuBtns[menuBtns.length-1];
+  const icoW=30, gapT=10;
+  const sw=Math.min(272,W-56-icoW-gapT), sx=(W-(sw+icoW+gapT))/2+icoW+gapT;
+  const rowH=30;
+  let sy=(lastB?lastB.y+lastB.h:gy0)+30;
+  const need=sy+rowH*2+12;
+  if(need>H-20)sy-=need-(H-20);
+  volBars=[
+    {id:"music",icon:"note",  x:sx,y:sy,          w:sw,h:8},
+    {id:"vox",  icon:"voice", x:sx,y:sy+rowH,     w:sw,h:8},
+    {id:"sfx",  icon:"speaker",x:sx,y:sy+rowH*2,  w:sw,h:8}
+  ];
 }
 function layoutBoosts(){
   const bw=Math.min(280,W-48), bh=58;
@@ -10446,6 +10490,9 @@ let dragFrom=null;
 function down(px,py){
   AudioFX.unlock();
   if(state==="menu"){
+    for(const v of volBars){
+      if(hitVol(px,py,v)){ dragVol=v; setVol(v,px); return; }
+    }
     for(const b of menuBtns){
       if(px>=b.x&&px<=b.x+b.w&&py>=b.y&&py<=b.y+b.h){
         if(b.id==="zen"){boost=null;startRun("zen");}
@@ -10510,6 +10557,7 @@ function down(px,py){
   } else sel=c;
 }
 function move(px,py){
+  if(dragVol){ setVol(dragVol,px); return; }
   if(roundFreeze>0||!dragFrom)return;
   if(state!=="idle"&&!(mode==="blitz"&&state==="fall"))return;
   const c=cellAt(px,py);if(!c)return;
@@ -10520,7 +10568,15 @@ function move(px,py){
 }
 cvs.addEventListener("pointerdown",e=>{down(e.clientX,e.clientY);});
 cvs.addEventListener("pointermove",e=>{if(e.buttons)move(e.clientX,e.clientY);});
-cvs.addEventListener("pointerup",()=>{dragFrom=null;});
+cvs.addEventListener("pointerup",()=>{
+  dragFrom=null;
+  if(dragVol){
+    /* a tik on release so you can hear where you just set the effects level */
+    if(dragVol.id==="sfx")bjPlay("tik",0.9);
+    else if(dragVol.id==="vox")bjPlay("vGo",1.0);   /* hear the announcer level */
+    dragVol=null;saveVol();
+  }
+});
 
 function startRun(m){
   bjLoopStop();
@@ -10755,6 +10811,69 @@ function fitText(txt,maxW,base,weight){
   }
   return fs;
 }
+function volValue(v){ return v.id==="music"?musVol:v.id==="vox"?voxVol:sfxVol; }
+/* icons drawn as paths so there is no font or emoji dependency */
+function volIcon(kind,cx,cy,r,col){
+  ctx.fillStyle=col; ctx.strokeStyle=col; ctx.lineWidth=Math.max(1.4,r*0.16);
+  ctx.lineCap="round"; ctx.lineJoin="round";
+  if(kind==="note"){
+    ctx.beginPath();ctx.ellipse(cx-r*0.42,cy+r*0.52,r*0.34,r*0.26,-0.35,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(cx+r*0.36,cy+r*0.22,r*0.34,r*0.26,-0.35,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx-r*0.10,cy+r*0.55);ctx.lineTo(cx-r*0.10,cy-r*0.72);
+    ctx.lineTo(cx+r*0.68,cy-r*1.00);ctx.lineTo(cx+r*0.68,cy+r*0.25);
+    ctx.stroke();
+  } else if(kind==="voice"){
+    /* head in profile with sound coming off it */
+    ctx.beginPath();ctx.arc(cx-r*0.28,cy-r*0.18,r*0.42,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx-r*0.95,cy+r*0.95);
+    ctx.quadraticCurveTo(cx-r*0.28,cy+r*0.15,cx+r*0.18,cy+r*0.95);
+    ctx.closePath();ctx.fill();
+    for(let i=1;i<=2;i++){
+      ctx.beginPath();
+      ctx.arc(cx+r*0.30,cy+r*0.05,r*(0.30+i*0.32),-0.85,0.85);
+      ctx.stroke();
+    }
+  } else {
+    /* speaker cone plus two waves */
+    ctx.beginPath();
+    ctx.moveTo(cx-r*0.85,cy-r*0.28);ctx.lineTo(cx-r*0.42,cy-r*0.28);
+    ctx.lineTo(cx+r*0.05,cy-r*0.85);ctx.lineTo(cx+r*0.05,cy+r*0.85);
+    ctx.lineTo(cx-r*0.42,cy+r*0.28);ctx.lineTo(cx-r*0.85,cy+r*0.28);
+    ctx.closePath();ctx.fill();
+    for(let i=1;i<=2;i++){
+      ctx.beginPath();
+      ctx.arc(cx+r*0.10,cy,r*(0.28+i*0.34),-0.85,0.85);
+      ctx.stroke();
+    }
+  }
+}
+function drawVol(v,ink,dim){
+  const val=volValue(v), cy=v.y+v.h/2;
+  const pill=(x,y,w,h)=>{ctx.beginPath();ctx.roundRect?ctx.roundRect(x,y,w,h,h/2):ctx.rect(x,y,w,h);ctx.fill();};
+  volIcon(v.icon, v.x-22, cy, 9, val>0?ink:dim);
+  ctx.fillStyle="rgba(255,255,255,0.13)";
+  pill(v.x,v.y,v.w,v.h);
+  const fw=Math.max(v.h,v.w*val);
+  const g=ctx.createLinearGradient(v.x,0,v.x+v.w,0);
+  g.addColorStop(0,"#22e6ff"); g.addColorStop(1,"#7c6cff");
+  ctx.fillStyle=g; pill(v.x,v.y,fw,v.h);
+  const kx=v.x+v.w*val;
+  ctx.fillStyle=ink;
+  ctx.beginPath(); ctx.arc(kx,cy,v.h*1.5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle="rgba(0,0,0,0.35)";
+  ctx.beginPath(); ctx.arc(kx,cy,v.h*0.6,0,Math.PI*2); ctx.fill();
+}
+function hitVol(px,py,v){
+  return px>=v.x-14&&px<=v.x+v.w+14&&py>=v.y-18&&py<=v.y+v.h+18;
+}
+function setVol(v,px){
+  const t=Math.max(0,Math.min(1,(px-v.x)/v.w));
+  if(v.id==="music"){ musVol=t; Music.vol(musVol); }
+  else if(v.id==="vox") voxVol=t;   /* voxBus() picks it up on the next line */
+  else sfxVol=t;                    /* sfxBus() reads this on the next effect */
+}
 function panelBtn(b,ink,dim){
   ctx.fillStyle="rgba(255,255,255,0.07)";
   ctx.strokeStyle=NG_CLASSIC()?"rgba(255,255,255,0.35)":"#8b5cf6";ctx.lineWidth=2;
@@ -10794,6 +10913,7 @@ function frame(now){
     const ds=Math.min(44,W*0.08);
     for(let i=0;i<TYPES;i++)drawGem(W/2-(TYPES*ds)/2+i*ds,H*0.19,ds,i,0,false);
     for(const b of menuBtns)panelBtn(b,ink,dim);
+    for(const v of volBars)drawVol(v,ink,dim);
     roundBtn(muteBtn,Music.isOn()?"\u266B":"\u266A",Music.isOn());
     requestAnimationFrame(frame);return;
   }
