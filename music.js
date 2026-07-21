@@ -90,7 +90,6 @@ window.GameMusic = (function () {
     if (!name) return;
     current = name;
     if (!on) return;                      /* remember it, start when unmuted */
-    if (!unlocked) { pending = name; return; }
     var d = decks();
     var cur = d[live], nxt = d[1 - live];
     if (cur.src && cur.src.indexOf(BASE + name + ".mp3") !== -1 && !cur.paused) return;
@@ -108,9 +107,10 @@ window.GameMusic = (function () {
          user gesture yet. Un-arm so the next tap retries instead of the track
          being lost - otherwise unlock() sees unlocked===true, returns early,
          and nothing ever plays that track again. */
-      unlocked = false;
+      /* Refused - almost always "no user gesture in this document yet".
+         Remember the track; the gesture handler below retries it on the next
+         tap. No flags to get stuck in the wrong state. */
       pending = name;
-      rearm();
     });
     fade(nxt, VOLUME, FADE_MS);
     if (cur.src && !cur.paused) fade(cur, 0, FADE_MS, function () { cur.pause(); });
@@ -127,7 +127,7 @@ window.GameMusic = (function () {
 
   /* short one-shot laid over the music - the mode's game-over sting */
   function sting(name) {
-    if (!on || !unlocked) return;
+    if (!on) return;
     if (!stinger) { stinger = new Audio(); stinger.loop = false; }
     stinger.src = BASE + name + ".mp3";
     stinger.volume = Math.min(1, VOLUME * 1.6);
@@ -149,16 +149,15 @@ window.GameMusic = (function () {
   }
 
   /* the first tap anywhere satisfies the browser's autoplay gesture rule */
-  function unlock() {
-    if (unlocked) return;
-    unlocked = true;
+  function unlockDecks() {
     /* iOS unlocks each media element separately: an element that never had
-       play() called during a user gesture stays silent forever. We crossfade
-       between two decks, so BOTH have to be unlocked on this first gesture or
-       every other track switch would play nothing. */
+       play() called during a gesture stays silent forever, and we crossfade
+       between two of them. */
     var d = decks();
     for (var i = 0; i < d.length; i++) {
       (function (a) {
+        if (a._unlocked) return;
+        a._unlocked = true;
         try {
           a.muted = true;
           var p = a.play();
@@ -168,26 +167,24 @@ window.GameMusic = (function () {
         } catch (e) { a.muted = false; }
       })(d[i]);
     }
-    var want = pending || current;
-    if (want) { current = null; play(want); }
-    pending = null;
   }
-  var armed = false;
-  function rearm() {
-    if (armed) return;
-    armed = true;
-    ["pointerdown", "touchend", "keydown"].forEach(function (ev) {
-      window.addEventListener(ev, onGesture, { passive: true });
-    });
-  }
+  /* Runs on every tap. If something should be playing but isn't, start it.
+     Deliberately stateless: no "already unlocked" short-circuit, because that
+     is exactly what stranded a refused track until some later interaction. */
   function onGesture() {
-    armed = false;
-    ["pointerdown", "touchend", "keydown"].forEach(function (ev) {
-      window.removeEventListener(ev, onGesture);
-    });
-    unlock();
+    unlocked = true;
+    unlockDecks();
+    var d = decks();
+    var silent = true;
+    for (var i = 0; i < d.length; i++) if (!d[i].paused && d[i].volume > 0) silent = false;
+    if (!silent) return;
+    var want = pending || current;
+    if (want) { pending = null; current = null; play(want); }
   }
-  rearm();
+  function unlock() { onGesture(); }
+  ["pointerdown", "touchend", "keydown", "click"].forEach(function (ev) {
+    window.addEventListener(ev, onGesture, { passive: true });
+  });
 
   return {
     play: play,
