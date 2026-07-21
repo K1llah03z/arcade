@@ -9170,34 +9170,72 @@ const Music=(function(){
      Without it we fall back to the built-in synth, so the single-file build
      still has music. Same three-method surface either way. */
   const GM=()=>window.GameMusic;
-  /* Embedded in the arcade the game lives in a sandboxed srcdoc frame: opaque
-     origin, no music.js, and relative URLs resolve against about:srcdoc. So we
-     ask the hub to play instead. Standalone (music.js present) we play direct;
-     with neither, the built-in synth still covers it. */
   const inFrame=(()=>{try{return window.parent!==window;}catch(e){return true;}})();
+
+  /* Load our own player, the way the UNO voice pack does. A srcdoc document
+     inherits the hub's base URL, so "music.js" and "music/*.mp3" resolve fine
+     even though the frame's origin is opaque. Doing it here rather than
+     leaning on window.GameMusic from the hub means the music lives in the same
+     document as the taps that unlock audio - no cross-document gesture
+     problem, no bridge to break. The hub route stays as a fallback for when
+     the file can't be fetched at all. */
+  let loadTried=false, loadFailed=false, hubOn=true;
+  function ensureLocal(){
+    if(loadTried||GM())return;
+    loadTried=true;
+    try{
+      const sc=document.createElement("script");
+      sc.src="music.js";
+      sc.onload=()=>{
+        if(!GM()){loadFailed=true;return;}
+        GM().setMuted(!hubOn);
+        GM().unlock();
+        if(wanted)GM().play(wanted);
+      };
+      sc.onerror=()=>{ loadFailed=true; if(wanted&&hubOn)ask("music",wanted); };
+      document.head.appendChild(sc);
+      /* if it never lands, hand off to the hub rather than sitting silent */
+      setTimeout(()=>{ if(!GM()){loadFailed=true; if(wanted&&hubOn)ask("music",wanted);} },4000);
+    }catch(e){ loadFailed=true; }
+  }
+  ensureLocal();
+
   function ask(type,track){
     if(!inFrame)return false;
-    /* GAME_ID lives inside the bridge stub's own IIFE and is NOT in scope here;
-       the stub exposes it as GameBridge.id, which is. Referencing GAME_ID threw
-       a ReferenceError that the catch swallowed, so every music request was
-       silently dropped. */
+    /* GAME_ID lives inside the bridge stub's own IIFE and is not in scope here;
+       the stub exposes it as GameBridge.id, which is. */
     const gid=(window.GameBridge&&window.GameBridge.id)||"gem-drop";
     try{ parent.postMessage({source:"GameBridge",v:1,gameId:gid,type,payload:{track}},"*"); return true; }
     catch(e){ console.warn("[gemdrop] music request failed",e); return false; }
   }
-  let hubOn=true;
+  /* the hub's master sound switch also silences the music in here */
+  addEventListener("message",e=>{
+    const d=e.data;
+    if(!d||d.source!=="GameBridgeHub"||d.type!=="SET_SOUND")return;
+    hubOn=!!d.on;
+    if(GM())GM().setMuted(!hubOn);
+    else if(!hubOn)ask("musicStop","");
+  });
+
+  function route(fn,type,track){
+    ensureLocal();
+    if(GM()){fn(GM());return;}
+    if(loadFailed&&hubOn)ask(type,track);   /* only bother the hub if we can't */
+  }
   return {
-    start(){ if(GM()){GM().unlock();return;} if(!inFrame)start(); },
+    start(){ ensureLocal(); if(GM()){GM().unlock();return;} if(!inFrame)start(); },
     toggle(){
       if(GM())return GM().toggle();
-      if(inFrame){ hubOn=!hubOn; ask(hubOn?"music":"musicStop",wanted); return hubOn; }
-      return toggle();
+      hubOn=!hubOn;
+      if(inFrame&&loadFailed)ask(hubOn?"music":"musicStop",wanted);
+      else if(!inFrame)return toggle();
+      return hubOn;
     },
     isOn(){ return GM()?GM().isOn():(inFrame?hubOn:on); },
     /* mode themes + game-over stingers */
-    track(m){ wanted=m; if(GM())GM().play(m); else if(hubOn)ask("music",m); },
-    menu(){ wanted="menu"; if(GM())GM().play("menu"); else if(hubOn)ask("music","menu"); },
-    sting(m){ if(GM())GM().sting("lose_"+m); else if(hubOn)ask("musicSting","lose_"+m); }
+    track(m){ wanted=m; route(g=>g.play(m),"music",m); },
+    menu(){ wanted="menu"; route(g=>g.play("menu"),"music","menu"); },
+    sting(m){ route(g=>g.sting("lose_"+m),"musicSting","lose_"+m); }
   };
 })();
 
