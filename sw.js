@@ -6,16 +6,15 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.6.0";
+const APP_VERSION = "1.6.1";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
    about to install). Update these alongside APP_VERSION. */
 const RELEASE_NOTES = [
-  "Gem Drop: real Bejeweled 3 sound effects and voice",
+  "Gem Drop: Flame Gem explosion now hits properly",
   "Gem Drop: music for every mode, streamed and cached",
   "Gem Drop: authentic Flame Gem fire and Star Gem flare",
-  "Gem Drop: Bejeweled 3 scoring (50/100/500 per match)",
 ];
 const CACHE = "neon-grid-" + APP_VERSION;
 const ASSETS = [
