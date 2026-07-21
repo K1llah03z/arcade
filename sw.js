@@ -6,15 +6,15 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.12.0";
+const APP_VERSION = "1.12.2";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
    about to install). Update these alongside APP_VERSION. */
 const RELEASE_NOTES = [
+  "Lightning endgame: TIME'S UP, then Last Hurrah, then game over",
   "Gem Drop: real Bejeweled 3 sound effects and music",
   "Gem Drop: authentic Flame and Star Gem effects",
-  "Gem Drop: Bejeweled 3 scoring and Lightning countdown",
 ];
 const CACHE = "neon-grid-" + APP_VERSION;
 const ASSETS = [

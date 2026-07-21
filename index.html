@@ -408,8 +408,8 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 #hiScoresModal button{margin-top:14px;width:100%;padding:9px;border-radius:9px;border:1px solid #7b4dff;background:transparent;color:#0ff;font-family:inherit;font-size:13px;cursor:pointer}
 #hiScoresModal button:active{background:rgba(123,77,255,.25)}
 </style>
-  <meta name="build" content="1.12.0">
-  <script>console.log("%c ARCADE BUILD 1.12.0 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.12.0";</script>
+  <meta name="build" content="1.12.2">
+  <script>console.log("%c ARCADE BUILD 1.12.2 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.12.2";</script>
   <script src="music.js"></script>
 </head>
 <body>
@@ -9524,7 +9524,7 @@ function saveBest(){try{localStorage.setItem("gemdrop-bests",JSON.stringify(best
 let newBest=false;
 let pendingMode=null,boost=null,runTime=0;
 let finale=false; /* blitz: end-of-time special-gem sendoff */
-let mult=1,matchTally=0,saidTimeUp=false; /* blitz */
+let mult=1,matchTally=0,saidTimeUp=false,finaleHold=0,overHold=0; /* blitz */
 let caught=0,pendingFlyStep=false;       /* butterflies */
 let spiderX=-1,spiderDrop=0;             /* butterflies: the watcher above */
 let freezeLeft=0,freezeUses=3,gustUses=3;    /* butterfly power-ups */
@@ -10338,10 +10338,11 @@ function resolveMatches(){
   if(!cells.size){
     chain=0;swapA=swapB=null;
     if(finale){
-      const leftover=new Set();
-      for(let i=0;i<N*N;i++)if(spec[i])leftover.add(i);
-      if(leftover.size){beginClear(leftover,[],[]);return;} /* chain the sendoff */
-      overMsg="TIME'S UP";endRun();return;
+      /* Hand the endgame to the watchdog so it plays as three separate beats:
+         the announcer alone, then the Last Hurrah, then game over. Ending the
+         run straight from here is what made them all land at once. */
+      state="idle";
+      return;
     }
     /* diamond mine: fully excavated -> descend */
     if(mode==="mine"){
@@ -10521,7 +10522,7 @@ function startRun(m){
   Music.track(m);   /* swap to this mode's theme */
   mode=m;
   score=0;level=1;progress=0;goal=2500;chain=0;sel=null;particles=[];fx=[];swapA=swapB=null;
-  mult=1;matchTally=0;saidTimeUp=false;caught=0;pendingFlyStep=false;spiderX=-1;spiderDrop=0;
+  mult=1;matchTally=0;saidTimeUp=false;finaleHold=0;overHold=0;caught=0;pendingFlyStep=false;spiderX=-1;spiderDrop=0;
   freezeLeft=0;freezeUses=3;gustUses=3;timeUses=3;drillUses=3;overBtns=null;
   iceShufUses=3;iceFrzUses=3;iceFrzLeft=0;pokShufUses=3;wildUses=3;
   blzTimeUses=3;blzShufUses=3;clsShufUses=3;gemUses=5;
@@ -10904,7 +10905,14 @@ function frame(now){
       if(timeLeft<=0){
         timeLeft=0;
         if(mode==="blitz"&&!finale){
-          if(extTank<=0&&!saidTimeUp){saidTimeUp=true;bjPlay("vTimeUp",0.9);}
+          if(extTank<=0&&!saidTimeUp){
+            /* Kill the alarm first. It was only stopped at endRun(), so it kept
+               pulsing every 0.62s right through the Last Hurrah - on top of the
+               announcer, who is 6dB quieter than it, plus RANKUP and the music.
+               That is why "time's up" was inaudible rather than missing. */
+            bjLoopStop();
+            saidTimeUp=true;bjPlay("vTimeUp",1.0);
+          }
           if(extTank>0){
             /* tank seconds dump into the main clock; multiplier climbs +1 per
                round, capped at 10x */
@@ -10933,18 +10941,31 @@ function frame(now){
             finale=true;
             for(let i=0;i<N*N;i++)if(tg[i]){const v2=tg[i];tg[i]=0;if(!spec[i])spec[i]=v2===2?2:1;
               burst(BX+(i%N)*CS+CS/2,BY+((i/N)|0)*CS+CS/2,v2===2?"#ffd700":"#ff9d42",8);}
-            popText(W/2,BY+CS,"LAST HURRAH!","#ffd700");
-            AudioFX.level();
+            /* "Time's up" runs alone: the Last Hurrah title and the first
+               detonation wait for finaleHold to expire (see the watchdog). */
+            finaleHold=1.7;
           }
-        } else if(mode==="mine"){overMsg="TIME'S UP";endRun();}
+        } else if(mode==="mine"){bjLoopStop();bjPlay("vTimeUp",1.0);overMsg="TIME'S UP";endRun();}
       }
       /* finale watchdog: whatever state time-up caught us in (mid-swap, swapback,
          falling), once the board is idle the Last Hurrah always proceeds */
       if(mode==="blitz"&&finale&&state==="idle"){
-        const cells=new Set();
-        for(let i=0;i<N*N;i++)if(spec[i])cells.add(i);
-        if(cells.size)beginClear(cells,[],[]);
-        else{overMsg="TIME'S UP";endRun();}
+        if(finaleHold>0){
+          finaleHold-=dt;
+          if(finaleHold<=0){                       /* announcer has finished */
+            popText(W/2,BY+CS,"LAST HURRAH!","#ffd700");
+            AudioFX.level();
+            finaleHold=0;
+          }
+        } else if(overHold>0){
+          overHold-=dt;                            /* let the last blast ring out */
+          if(overHold<=0){overMsg="TIME'S UP";endRun();}
+        } else {
+          const cells=new Set();
+          for(let i=0;i<N*N;i++)if(spec[i])cells.add(i);
+          if(cells.size)beginClear(cells,[],[]);
+          else overHold=1.2;
+        }
       }
     }
     if(mode==="icestorm"&&state!=="menu"){
