@@ -6,15 +6,15 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.18.0";
+const APP_VERSION = "1.18.1";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
    about to install). Update these alongside APP_VERSION. */
 const RELEASE_NOTES = [
+  "Lightning: time gems get rarer as the multiplier climbs",
   "Diamond Mine: rock, stone, boulder and dark rock layers",
   "Diamond Mine: all 46 artifacts with depth tiers",
-  "Diamond Mine alarm: pulses from 15s, tightens at 7s",
 ];
 const CACHE = "k1llah03z-" + APP_VERSION;
 const ASSETS = [

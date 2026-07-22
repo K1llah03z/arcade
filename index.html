@@ -408,8 +408,8 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 #hiScoresModal button{margin-top:14px;width:100%;padding:9px;border-radius:9px;border:1px solid #7b4dff;background:transparent;color:#0ff;font-family:inherit;font-size:13px;cursor:pointer}
 #hiScoresModal button:active{background:rgba(123,77,255,.25)}
 </style>
-  <meta name="build" content="1.18.0">
-  <script>console.log("%c ARCADE BUILD 1.18.0 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.18.0";</script>
+  <meta name="build" content="1.18.1">
+  <script>console.log("%c ARCADE BUILD 1.18.1 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.18.1";</script>
   <script src="music.js"></script>
 </head>
 <body>
@@ -9578,6 +9578,30 @@ let clsShufUses=3,gemUses=5;                 /* classic power-ups */
 let extTank=0,speedBonus=0,lastSpeedAt=0,ignition=0,blazing=0,roundFreeze=0; /* blitz: lightning mechanics */
 let mineMoved=false,mineRose=false;          /* diamond mine: gem-type progression */
 /* gem indices: 0 red, 1 orange, 2 yellow, 3 green, 4 blue, 5 purple, 6 white */
+/* Time gem drop rates, per spawned gem, thinning out as the round multiplier
+   climbs - later rounds are meant to be hard to extend. [+5 chance, +10 chance]
+   Index is the multiplier; 10 covers x10 and beyond. */
+const TIMEGEM_ODDS=[
+  null,
+  [0.0500, 0.0100],   /* x1  */
+  [0.0375, 0.0075],   /* x2  */
+  [0.0275, 0.0050],   /* x3  */
+  [0.0200, 0.0025],   /* x4  */
+  [0.0135, 0.0017],   /* x5  */
+  [0.0100, 0.0010],   /* x6  - keeps dropping */
+  [0.0070, 0.0006],   /* x7  */
+  [0.0050, 0.0004],   /* x8  */
+  [0.0030, 0.0002],   /* x9  - extremely low */
+  [0.0020, 0.0001]    /* x10+ near zero */
+];
+function timeGemRoll(){
+  if(mode!=="blitz"||finale)return 0;      /* none during the Last Hurrah */
+  const o=TIMEGEM_ODDS[Math.max(1,Math.min(10,mult))];
+  const r=Math.random();
+  if(r<o[1])return 2;                      /* +10s */
+  if(r<o[1]+o[0])return 1;                 /* +5s  */
+  return 0;
+}
 function spawnType(){
   if(mode!=="mine")return rnd(TYPES);
   /* Bejeweled: starts with red/yellow/green/white; purple after the first legal
@@ -10616,7 +10640,7 @@ function collapse(){
         /* flat ~10% time-gem chance on refill drops; 1 in 4 is a +10 gem.
            Spawned gems must settle before they can match (matches only
            resolve once falling completes), per the spawn-logic rule. */
-        tg[i]=(mode==="blitz"&&!finale&&Math.random()<0.10)?(Math.random()<0.25?2:1):0;
+        tg[i]=timeGemRoll();
         offY[i]=-(y+1)*CS-CS*0.5;vel[i]=0;
       }
     }
