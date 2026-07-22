@@ -408,8 +408,8 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 #hiScoresModal button{margin-top:14px;width:100%;padding:9px;border-radius:9px;border:1px solid #7b4dff;background:transparent;color:#0ff;font-family:inherit;font-size:13px;cursor:pointer}
 #hiScoresModal button:active{background:rgba(123,77,255,.25)}
 </style>
-  <meta name="build" content="1.17.4">
-  <script>console.log("%c ARCADE BUILD 1.17.4 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.17.4";</script>
+  <meta name="build" content="1.18.0">
+  <script>console.log("%c ARCADE BUILD 1.18.0 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.18.0";</script>
   <script src="music.js"></script>
 </head>
 <body>
@@ -9701,11 +9701,59 @@ function newBoard(){
   }
   if((mode==="classic"||mode==="poker")&&!findMove())newBoard();
 }
+/* All 46 Diamond Mine artifacts: name, points, and the depth band they turn up
+   in. If nothing matches the current depth the game falls back to the shallow
+   tiers, which is what B3 does once the deep ones are exhausted. */
 const ARTIFACTS=[
-  ["OLD BOOT",7500],["CLAY POT",9000],["BRONZE COIN",10500],["RUSTY LANTERN",12000],
-  ["SILVER CHALICE",15000],["JADE FIGURINE",18000],["ANCIENT MASK",25500],["ROYAL CROWN",30000],
-  ["GOLDEN IDOL",37500],["JEWELED SCEPTER",52500],["DRAGON RELIC",75000],["LEGENDARY GEM",150000]
+  ["MYSTIC'S BOWL",7500,0,120],    ["BRUNCHY SPOON",7500,0,120],
+  ["HANDY FORK",7500,0,120],       ["MASSIVE TONGS",7500,0,120],
+  ["FAIREST FLUTE",7500,0,120],    ["FLANKING STIRRUP",9000,0,120],
+  ["MASTER TROWEL",9000,0,120],    ["FEASTING POT",9000,0,120],
+  ["THOROUGH BOOTS",9000,0,120],   ["ORNATE DISH",9000,0,120],
+  ["SHARP TRIDENT",10500,0,120],   ["RUGGED HORSESHOE",10500,0,120],
+  ["VILLAGE CREST",10500,0,120],   ["ROYAL ANVIL",10500,0,120],
+  ["INTRICATE GEAR",12000,0,120],  ["SOVEREIGN SCROLL",12000,0,120],
+  ["ABANDONED BOOK",12000,0,120],
+  ["SHAMAN'S LAMP",13500,60,160],  ["GIFTED KEY",13500,60,160],
+  ["LORDLY BOW",15000,60,160],     ["SMITH'S HAMMER",15000,60,160],
+  ["STUDDED MACE",15000,60,160],   ["CRYPTIC HELM",16500,60,160],
+  ["EMBELLISHED VASE",18000,60,160],["FAITHFUL GLASS",19500,60,160],
+  ["CAPACIOUS MASK",25500,140,220],["ARCANE STAFF",25500,140,220],
+  ["FLAWLESS BELL",27000,140,220], ["VIRTUOUS GAUNTLET",28500,140,220],
+  ["ICONIC HORSE",30000,140,220],  ["ANCIENT COMB",31500,140,220],
+  ["HIDDEN URN",31500,140,220],
+  ["SIMPLE HORN",33000,200,99999], ["LUCID HARP",37500,200,99999],
+  ["FATED AXE",37500,200,99999],   ["SUBLIME DAGGER",37500,200,99999],
+  ["NOBLE SCYTHE",37500,200,99999],["ENCHANTED BRUSH",45000,200,99999],
+  ["TIMELY CLOCK",45000,200,99999],["TENFOLD ABACUS",45000,200,99999],
+  ["DUBIOUS LENS",52500,200,99999],["EMINENT ASTROLABE",52500,200,99999],
+  ["BRASS SEXTANT",60000,200,99999],
+  ["REGAL UNICORN",75000,360,99999],["MYSTERIOUS FROG",90000,360,99999],
+  ["LEGENDARY GEM",150000,520,99999]
 ];
+function pickArtifact(depth){
+  let pool=ARTIFACTS.filter(a=>depth>=a[2]&&depth<=a[3]);
+  if(!pool.length)pool=ARTIFACTS.filter(a=>a[2]===0);
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+/* dirt[i] holds how many layers are left:
+   1 dirt · 2 rock · 3 stone · 4 boulder · 5 dark rock (specials only).
+   A neighbouring match takes one layer; any special-gem effect takes two. */
+const DARK=5;
+function groundAt(depth){
+  const r=Math.random();
+  if(depth>=200){
+    if(r<0.08)return DARK;
+    if(r<0.26)return 4;
+    if(r<0.48)return 3;
+    if(r<0.72)return 2;
+    return 1;
+  }
+  if(depth>=160){ if(r<0.10)return 4; if(r<0.30)return 3; if(r<0.60)return 2; return 1; }
+  if(depth>=100){ if(r<0.10)return 3; if(r<0.40)return 2; return 1; }
+  if(depth>=40){ if(r<0.20)return 2; return 1; }
+  return 1;
+}
 function seedDirt(rows){seedDirtRows(N-rows,N-1);}
 function seedDirtRows(y0,y1){
   const depth=level*20; /* meters */
@@ -9718,14 +9766,14 @@ function seedDirtRows(y0,y1){
     : -1;
   for(let y=y0;y<=y1;y++)for(let x=0;x<N;x++){
     const i=idx(x,y);
-    dirt[i]=1;grid[i]=null;spec[i]=0;fly[i]=0;tg[i]=0;buried[i]=0;
+    dirt[i]=groundAt(depth);grid[i]=null;spec[i]=0;fly[i]=0;tg[i]=0;buried[i]=0;
     const r=Math.random();
     /* 1=gold 2=diamond (140m+) 3=artifact */
     if(r<0.04)treas[i]=3;
     else if(depth>=140&&r<0.13)treas[i]=2;
     else if(r<0.30)treas[i]=1;
     else treas[i]=0;
-    if(i===cubeAt){ buried[i]=1; treas[i]=0; }   /* the cube, not treasure */
+    if(i===cubeAt){ buried[i]=1; treas[i]=0; dirt[i]=1; }  /* the cube, in soft dirt */
   }
 }
 function reshuffle(){
@@ -10020,7 +10068,7 @@ function collectTreasureAt(j,px,py){
   let val,label=null,col="#ffd700";
   if(treas[j]===1){val=(2+Math.floor(Math.random()*5))*1000;}
   else if(treas[j]===2){val=10000+Math.floor(Math.random()*7)*2500;col="#9de8ff";}
-  else{const a=ARTIFACTS[Math.floor(Math.random()*ARTIFACTS.length)];label=a[0];val=a[1];col="#ff9dff";}
+  else{const a=pickArtifact(level*20);label=a[0];val=a[1];col="#ff9dff";}
   val*=boostMult();
   score+=val;AudioFX.coin();
   if(label)popText(px,Math.max(BY+10,py-CS*0.6),label,col);
@@ -10123,6 +10171,16 @@ function mineDescend(allClear){
     level++;panOff=CS*2;
     popText(W/2,BY+CS*N*0.55,"DIG DEEPER! +25s","#ffd700");
   }
+  /* Diamond Mine never dead-ends: if the board comes up with no legal move,
+     basic gems turn into Hypercubes until one exists. */
+  for(let guard=0; guard<6 && !findMove(); guard++){
+    const spots=[];
+    for(let i=0;i<N*N;i++)if(!dirt[i]&&grid[i]!=null&&grid[i]!==PRISM&&!spec[i])spots.push(i);
+    if(!spots.length)break;
+    const j=spots[(Math.random()*spots.length)|0];
+    grid[j]=PRISM;spec[j]=3;
+    burst(BX+(j%N)*CS+CS/2,BY+((j/N)|0)*CS+CS/2,"#ffffff",14);
+  }
   AudioFX.level();GameBridge.levelUp(level);
   if(!mineRose){mineRose=true;popText(W/2,BY+CS*2.0,"BLUE GEMS JOIN THE DIG!","#3aa0ff");}
   state="fall";collapse();
@@ -10155,16 +10213,31 @@ function dirtGravity(){
   }
   return moved;
 }
-function clearDirtAround(cells){
+function clearDirtAround(cells,blast){
   let dug=false;
+  const hit=new Set();          /* one square can only be worked once per clear */
   for(const i of cells){
     const x=i%N,y=(i/N)|0;
+    const power=(blast&&blast.has(i))?2:1;   /* special-gem effects take two layers */
     for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
       const nx=x+dx,ny=y+dy;
       if(nx<0||nx>=N||ny<0||ny>=N)continue;
       const j=idx(nx,ny);
       if(!dirt[j])continue;
-      dirt[j]=0;dug=true;
+      const key=j*4+power;
+      if(hit.has(key))continue; hit.add(key);
+      if(dirt[j]===DARK&&power<2){
+        /* dark rock shrugs off ordinary matches */
+        burst(BX+nx*CS+CS/2,BY+ny*CS+CS/2,"#6b5b8a",4);
+        continue;
+      }
+      dirt[j]=Math.max(0,dirt[j]-power);
+      if(dirt[j]>0){                       /* cracked, not cleared */
+        burst(BX+nx*CS+CS/2,BY+ny*CS+CS/2,"#9b8f7a",6);
+        dug=true;
+        continue;
+      }
+      dug=true;
       const px=BX+nx*CS+CS/2,py=BY+ny*CS+CS/2;
       burst(px,py,"#8a5a2b",8);
       if(buried[j]){
@@ -10265,7 +10338,12 @@ function beginClear(cells,specials,runs){
       }
     }
   }
+  const preBlast=new Set(cells);
   const fired=detonate(cells);
+  /* anything detonate() added is blast damage - it breaks two layers of rock */
+  const blastCells=new Set();
+  for(const i of cells)if(!preBlast.has(i))blastCells.add(i);
+  if(fired.size)for(const i of preBlast)blastCells.add(i);
   /* ice storm: vertical matches SHATTER whole columns; horizontal matches push them down */
   if(mode==="icestorm"&&runs){
     let smashed=false;
@@ -10405,7 +10483,7 @@ function beginClear(cells,specials,runs){
     }
   }
   progress+=gained;
-  if(mode==="mine")clearDirtAround(cells);
+  if(mode==="mine")clearDirtAround(cells,blastCells);
   if(mode==="poker"&&runs&&runs.length&&chain===1&&swapA){
     /* only the swap the player made deals; cascades never count */
     const sa=idx(swapA.x,swapA.y),sb=idx(swapB.x,swapB.y);
@@ -11007,7 +11085,7 @@ function frame(now){
     ctx.fillStyle=timeLeft<=10?"#ff3b3b":ink;
     ctx.fillText(Math.ceil(timeLeft)+"s",W-12,10);
     ctx.fillStyle=ink;ctx.textAlign="center";
-    ctx.fillText(mode==="blitz"?"x"+mult:"DEPTH "+(level*20)+"m",W/2,10);
+    ctx.fillText(mode==="blitz"?"x"+mult:"DEPTH "+(level*20>990?"MAX":(level*20)+"m"),W/2,10);
   } else if(mode==="butterfly"){
     ctx.fillText("CAUGHT "+caught,W-12,10);
   } else if(mode==="icestorm"){
@@ -11320,12 +11398,27 @@ function frame(now){
       const i=idx(x,y);
       if(!dirt[i])continue;
       const px=BX+x*CS,py=BY+y*CS+mpan;
-      ctx.fillStyle="#6b4423";
+      /* 1 dirt · 2 rock · 3 stone · 4 boulder · 5 dark rock */
+      const hard=dirt[i];
+      const face=["#6b4423","#6b4423","#7d7468","#6a6560","#585356","#2b2338"][hard]||"#6b4423";
+      const grit=["#54351b","#54351b","#5f584f","#4e4a46","#403c3f","#181226"][hard]||"#54351b";
+      ctx.fillStyle=face;
       ctx.fillRect(px+1,py+1,CS-2,CS-2);
-      ctx.fillStyle="#54351b";
+      ctx.fillStyle=grit;
       for(let k=0;k<4;k++){
         const sx=px+((x*7+k*13+y*5)%(CS-8))+3, sy=py+((y*11+k*17+x*3)%(CS-8))+3;
         ctx.fillRect(sx,sy,3,3);
+      }
+      if(hard===DARK){
+        /* dark rock: a cold sheen, and only special gems touch it */
+        ctx.strokeStyle="rgba(150,120,220,0.55)";ctx.lineWidth=1.5;
+        ctx.strokeRect(px+2.5,py+2.5,CS-5,CS-5);
+      } else if(hard>1){
+        /* remaining layers as notches along the top edge */
+        ctx.fillStyle="rgba(255,255,255,0.55)";
+        for(let k=0;k<hard;k++)ctx.fillRect(px+4+k*6,py+4,4,3);
+        ctx.strokeStyle="rgba(0,0,0,0.35)";ctx.lineWidth=1;
+        ctx.strokeRect(px+1.5,py+1.5,CS-3,CS-3);
       }
       if(treas[i]===1){/* gold nugget */
         ctx.fillStyle="#ffd700";ctx.beginPath();ctx.arc(px+CS/2,py+CS/2,CS*0.15,0,Math.PI*2);ctx.fill();
