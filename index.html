@@ -408,8 +408,8 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 #hiScoresModal button{margin-top:14px;width:100%;padding:9px;border-radius:9px;border:1px solid #7b4dff;background:transparent;color:#0ff;font-family:inherit;font-size:13px;cursor:pointer}
 #hiScoresModal button:active{background:rgba(123,77,255,.25)}
 </style>
-  <meta name="build" content="1.18.1">
-  <script>console.log("%c ARCADE BUILD 1.18.1 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.18.1";</script>
+  <meta name="build" content="1.19.0">
+  <script>console.log("%c ARCADE BUILD 1.19.0 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.19.0";</script>
   <script src="music.js"></script>
 </head>
 <body>
@@ -10406,11 +10406,18 @@ function beginClear(cells,specials,runs){
   if(mode==="blitz"){
     for(const i of cells)if(tg[i]){
       const v=tg[i]===2?10:5;tg[i]=0;
-      if(finale){const pts=v*50*mult*boostMult(); /* Last Hurrah: time gems pay out as points */
+      /* A time gem is worth seconds while the tank has room. Once it is full -
+         or during the Last Hurrah, when seconds are meaningless - it converts
+         to points instead: +5 gem = 1,500 x mult, +10 gem = 2,750 x mult. */
+      const full=extTank>=60;
+      if(finale||full){
+        const pts=(v===10?2750:1500)*mult*boostMult();
         score+=pts;
-        popText(BX+(i%N)*CS+CS/2,BY+((i/N)|0)*CS,"+"+pts,"#22e6ff");}
-      else{extTank=Math.min(60,extTank+v); /* tank caps at 60s; excess is wasted */
-        popText(BX+(i%N)*CS+CS/2,BY+((i/N)|0)*CS,"+"+v+"s",v===10?"#ffd700":"#22e6ff");}
+        popText(BX+(i%N)*CS+CS/2,BY+((i/N)|0)*CS,"+"+pts.toLocaleString(),"#22e6ff");
+      } else {
+        extTank=Math.min(60,extTank+v);
+        popText(BX+(i%N)*CS+CS/2,BY+((i/N)|0)*CS,"+"+v+"s",v===10?"#ffd700":"#22e6ff");
+      }
       AudioFX.timeGem(v===10);
     }
     /* Speed Bonus: quick successive matches pay +100 more each, up to +1000;
@@ -10456,12 +10463,22 @@ function beginClear(cells,specials,runs){
         }
       }
       for(const r of runs)if(!tl.has(r)){
-        const bv=r.len>=5?2500:r.len===4?500:250;
+        /* B3 Lightning values are per creating match: 3-match 250,
+           4-match (Flame) 500, 5-match (Hypercube) 500, L/T (Star) 750 */
+        const bv=r.len>=5?500:r.len===4?500:250;
         r._rv=bv*mult*boostMult();
         base+=bv;runGems+=r.len;
       }
     }
-    base+=Math.max(0,cells.size-runGems)*20;
+    /* Detonation pay, per B3's per-gem formulas: a special that goes off is
+       worth 250 plus a per-gem rate for everything its blast destroyed.
+       Flame 100/gem, Star and Hypercube 250/gem. */
+    const swept=Math.max(0,cells.size-runGems);
+    if(swept){
+      let perGem=100;
+      if(fired&&(fired.has(2)||fired.has(3)))perGem=250;   /* star or hypercube */
+      base+=250+swept*perGem;
+    }
     if(!base)base=cells.size*20; /* prism swaps / Last Hurrah: per-gem payout */
     gained=base*mult*boostMult();
   } else if(mode==="mine"){
