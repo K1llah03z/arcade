@@ -1,4 +1,4 @@
-/* NEON//GRID service worker — full offline support */
+/* K1llah03z Arcade service worker — full offline support */
 /* ── APP VERSION (semver) ─────────────────────────────────
    Bump this when you release, and keep it matching APP_VERSION
    in index.html:
@@ -6,17 +6,17 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.15.1";
+const APP_VERSION = "1.16.3";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
    about to install). Update these alongside APP_VERSION. */
 const RELEASE_NOTES = [
+  "Home screen icon reads Killa's Arcade",
   "Fix: music slider now works on iOS (gain node)",
   "Three volume sliders: music, voice and sound, with icons",
-  "Game-over music now plays, and audio stops when you leave the app",
 ];
-const CACHE = "neon-grid-" + APP_VERSION;
+const CACHE = "k1llah03z-" + APP_VERSION;
 const ASSETS = [
   "./",
   "./index.html",

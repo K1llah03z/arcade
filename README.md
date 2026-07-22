@@ -1,4 +1,4 @@
-# NEON//GRID — Retro Arcade Hub (PWA)
+# K1llah03z Arcade — Retro Arcade Hub (PWA)
 
 A fully offline, installable retro-synthwave arcade in a single HTML file:
 FreeCell Neon (5000 classic deals), Neon Solitaire, Gridfall, Maze Runner,
@@ -27,5 +27,5 @@ After the first visit it works with no internet at all. Scores and saves are
 stored locally on the device (localStorage).
 
 ## Updating
-When you change `index.html`, bump `CACHE` in `sw.js` (e.g. `neon-grid-v2`)
+When you change `index.html`, bump `CACHE` in `sw.js` (e.g. `k1llah03z-v2`)
 so installed apps fetch the new version.
