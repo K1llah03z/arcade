@@ -408,8 +408,8 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 #hiScoresModal button{margin-top:14px;width:100%;padding:9px;border-radius:9px;border:1px solid #7b4dff;background:transparent;color:#0ff;font-family:inherit;font-size:13px;cursor:pointer}
 #hiScoresModal button:active{background:rgba(123,77,255,.25)}
 </style>
-  <meta name="build" content="1.14.1">
-  <script>console.log("%c ARCADE BUILD 1.14.1 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.14.1";</script>
+  <meta name="build" content="1.15.0">
+  <script>console.log("%c ARCADE BUILD 1.15.0 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.15.0";</script>
   <script src="music.js"></script>
 </head>
 <body>
@@ -9243,6 +9243,7 @@ const Music=(function(){
         if(!GM()){loadFailed=true;return;}
         GM().setMuted(!hubOn);
         GM().setVolume(musVol);
+        ask("musicStop","");   /* if the hub started a track, hand over cleanly */
         /* Just ask for the track. If the browser refuses because there has been
            no tap yet, music.js keeps it pending and its gesture handler starts
            it on the next one. Calling unlock() here used to *claim* audio was
@@ -9257,12 +9258,12 @@ const Music=(function(){
   }
   ensureLocal();
 
-  function ask(type,track){
+  function ask(type,track,value){
     if(!inFrame)return false;
     /* GAME_ID lives inside the bridge stub's own IIFE and is not in scope here;
        the stub exposes it as GameBridge.id, which is. */
     const gid=(window.GameBridge&&window.GameBridge.id)||"gem-drop";
-    try{ parent.postMessage({source:"GameBridge",v:1,gameId:gid,type,payload:{track}},"*"); return true; }
+    try{ parent.postMessage({source:"GameBridge",v:1,gameId:gid,type,payload:{track,value}},"*"); return true; }
     catch(e){ console.warn("[gemdrop] music request failed",e); return false; }
   }
   /* the hub's master sound switch also silences the music in here */
@@ -9295,7 +9296,10 @@ const Music=(function(){
     },
     isOn(){ return GM()?GM().isOn():(inFrame?hubOn:on); },
     /* mode themes + game-over stingers */
-    vol(v){ if(GM())GM().setVolume(v); },
+    /* music.js exists twice - once in the hub (loaded in its <head>) and once
+       in here. Whichever one is actually playing has to hear about the slider,
+       so set ours and tell the hub as well. */
+    vol(v){ if(GM())GM().setVolume(v); ask("musicVol","",v); },
     track(m){ wanted=m; route(g=>g.play(m),"music",m); },
     menu(){ wanted="menu"; route(g=>g.play("menu"),"music","menu"); },
     /* the soundtrack ships stingers for classic, blitz, mine, butterfly,
@@ -12335,6 +12339,13 @@ addEventListener("message",(e)=>{
       break;
     case "musicStop":
       if(window.GameMusic) GameMusic.stop();
+      break;
+    /* the in-game slider drives whichever copy of music.js is playing */
+    case "musicVol":
+      if(window.GameMusic){
+        const v=Number(m.payload && m.payload.value);
+        if(isFinite(v)) GameMusic.setVolume(Math.max(0,Math.min(1,v)));
+      }
       break;
     case "level":
       liveLevel.textContent=String(m.payload.level||1);
