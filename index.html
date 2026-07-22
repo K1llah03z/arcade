@@ -431,8 +431,8 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 [data-theme="light"] #installSheet h3,[data-theme="light"] .installsteps li svg{color:#6a2fb5}
 [data-theme="light"] .installsteps .stepnum{background:#6a2fb5;color:#fff}
 </style>
-  <meta name="build" content="1.15.0">
-  <script>console.log("%c ARCADE BUILD 1.15.0 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.15.0";</script>
+  <meta name="build" content="1.15.1">
+  <script>console.log("%c ARCADE BUILD 1.15.1 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.15.1";</script>
   <script src="music.js"></script>
 </head>
 <body>
@@ -11908,20 +11908,25 @@ function initAppShell(){
   window.addEventListener("beforeinstallprompt",e=>{ e.preventDefault(); _bip=e; refreshInstall(); });
   window.addEventListener("appinstalled",()=>{ _bip=null; refreshInstall(); });
   function isStandalone(){
-    return window.matchMedia("(display-mode: standalone)").matches ||
-           window.navigator.standalone===true;
+    try{
+      if(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
+      if(navigator && navigator.standalone===true) return true;
+    }catch(e){}
+    return false;
   }
   function isIOS(){
-    return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
-           (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1); /* iPadOS */
+    try{
+      const ua=(navigator.userAgent||"");
+      return /iphone|ipad|ipod/i.test(ua) ||
+             (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1); /* iPadOS */
+    }catch(e){ return false; }
   }
   function refreshInstall(){
     const panel=document.getElementById("installPanel");
     const state=document.getElementById("installState");
     if(!panel)return;
-    if(isStandalone()){ panel.hidden=true; return; }   /* already a home-screen app */
-    panel.hidden=false;
-    if(state){ state.hidden=true; state.textContent=""; }
+    panel.hidden = isStandalone();   /* hide only when already installed */
+    if(state && !panel.hidden){ state.hidden=true; state.textContent=""; }
   }
   function openInstallSheet(){
     const sh=document.getElementById("installSheet");
@@ -11933,7 +11938,6 @@ function initAppShell(){
     setTimeout(()=>{ sh.hidden=true; },200);
   }
   function setupInstall(){
-    refreshInstall();
     const btn=document.getElementById("installBtn");
     if(btn) btn.onclick=async()=>{
       if(_bip){                                   /* Android / desktop Chrome */
@@ -11961,6 +11965,7 @@ function initAppShell(){
     if(c2)c2.onclick=closeInstallSheet;
     const sh=document.getElementById("installSheet");
     if(sh)sh.addEventListener("click",e=>{ if(e.target===sh)closeInstallSheet(); });
+    try{ refreshInstall(); }catch(e){ /* keep the button usable regardless */ }
   }
 
   /* sound / data controls */
