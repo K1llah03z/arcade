@@ -408,8 +408,8 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 #hiScoresModal button{margin-top:14px;width:100%;padding:9px;border-radius:9px;border:1px solid #7b4dff;background:transparent;color:#0ff;font-family:inherit;font-size:13px;cursor:pointer}
 #hiScoresModal button:active{background:rgba(123,77,255,.25)}
 </style>
-  <meta name="build" content="1.16.4">
-  <script>console.log("%c ARCADE BUILD 1.16.4 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.16.4";</script>
+  <meta name="build" content="1.17.4">
+  <script>console.log("%c ARCADE BUILD 1.17.4 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.17.4";</script>
   <script src="music.js"></script>
 </head>
 <body>
@@ -9540,7 +9540,7 @@ function b3Sprites(x,y,kind,n){ /* flying sprite particles: bolt stars or flame 
 const GEM_IMGS=GEM_SPRITES.map(s=>{const i=new Image();i.src=s;return i;});
 
 
-let grid=[],spec=[],offY=[],vel=[],tg=[],fly=[],dirt=[],treas=[];
+let grid=[],spec=[],offY=[],vel=[],tg=[],fly=[],dirt=[],treas=[],buried=[];
 let state="menu",sel=null,swapA=null,swapB=null,swapT=0;
 let clearing=new Set(),clearT=0,chain=0,score=0,level=1,progress=0,goal=2500,hintAt=0,hintCell=null,shineT=0;
 let particles=[],fx=[],overT=0,overStamp=0;
@@ -9563,7 +9563,7 @@ function saveVol(){try{localStorage.setItem("gemdrop-vol",JSON.stringify({m:musV
 let newBest=false;
 let pendingMode=null,boost=null,runTime=0;
 let finale=false; /* blitz: end-of-time special-gem sendoff */
-let mult=1,matchTally=0,saidTimeUp=false,finaleHold=0,overHold=0,startHold=0,saidGo=false; /* blitz */
+let mult=1,matchTally=0,saidTimeUp=false,finaleHold=0,overHold=0,startHold=0,saidGo=false,mineEndHold=0; /* blitz */
 let caught=0,pendingFlyStep=false;       /* butterflies */
 let spiderX=-1,spiderDrop=0;             /* butterflies: the watcher above */
 let freezeLeft=0,freezeUses=3,gustUses=3;    /* butterfly power-ups */
@@ -9682,7 +9682,7 @@ function makesMatch(x,y,t){
 function newBoard(){
   grid=new Array(N*N).fill(null);spec=new Array(N*N).fill(0);
   offY=new Array(N*N).fill(0);vel=new Array(N*N).fill(0);
-  tg=new Array(N*N).fill(0);fly=new Array(N*N).fill(0);
+  tg=new Array(N*N).fill(0);fly=new Array(N*N).fill(0);buried=new Array(N*N).fill(0);
   dirt=new Array(N*N).fill(0);treas=new Array(N*N).fill(0);
   if(mode==="mine")seedDirt(4);
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
@@ -9709,15 +9709,23 @@ const ARTIFACTS=[
 function seedDirt(rows){seedDirtRows(N-rows,N-1);}
 function seedDirtRows(y0,y1){
   const depth=level*20; /* meters */
+  /* B3 buries a Hypercube in the dirt - "Uncover this buried Hypercube in
+     order to use it." Dig it out and it becomes a real, swappable gem. These
+     only occur between 40m and 120m of depth, so shallow and deep digs have
+     none. */
+  const cubeAt=(depth>=40&&depth<=120)
+    ? idx((Math.random()*N)|0, y0+((Math.random()*(y1-y0+1))|0))
+    : -1;
   for(let y=y0;y<=y1;y++)for(let x=0;x<N;x++){
     const i=idx(x,y);
-    dirt[i]=1;grid[i]=null;spec[i]=0;fly[i]=0;tg[i]=0;
+    dirt[i]=1;grid[i]=null;spec[i]=0;fly[i]=0;tg[i]=0;buried[i]=0;
     const r=Math.random();
     /* 1=gold 2=diamond (140m+) 3=artifact */
     if(r<0.04)treas[i]=3;
     else if(depth>=140&&r<0.13)treas[i]=2;
     else if(r<0.30)treas[i]=1;
     else treas[i]=0;
+    if(i===cubeAt){ buried[i]=1; treas[i]=0; }   /* the cube, not treasure */
   }
 }
 function reshuffle(){
@@ -10077,29 +10085,75 @@ function useGust(){
   }
 }
 let panOff=0; /* camera pan when the mine digs deeper */
+/* Everything on the board moves up `rows` rows, carrying gems, power gems,
+   butterflies, time gems, dirt and whatever is buried in it. Only what runs off
+   the top is lost - nothing is deleted in place. The bottom rows are emptied
+   ready for fresh earth. */
+function mineRise(rows){
+  for(let x=0;x<N;x++){
+    for(let y=0;y<N-rows;y++){
+      const dst=idx(x,y),src=idx(x,y+rows);
+      grid[dst]=grid[src];spec[dst]=spec[src];fly[dst]=fly[src];tg[dst]=tg[src];
+      dirt[dst]=dirt[src];treas[dst]=treas[src];buried[dst]=buried[src];
+      offY[dst]=0;vel[dst]=0;
+    }
+    for(let y=Math.max(0,N-rows);y<N;y++){
+      const i=idx(x,y);
+      grid[i]=null;spec[i]=0;fly[i]=0;tg[i]=0;
+      dirt[i]=0;treas[i]=0;buried[i]=0;offY[i]=0;vel[i]=0;
+    }
+  }
+}
 function mineDescend(allClear){
   if(allClear){
-    /* every dirt square removed: +90s, extra depth, full re-seed */
+    /* every dirt square removed: the board rises and a deep new seam appears */
+    mineRise(4);
     seedDirt(4);
-    timeLeft=Math.min(240,timeLeft+90);
+    timeLeft=Math.min(240,timeLeft+70);
     level+=2;panOff=CS*4;
-    popText(W/2,BY+CS*N*0.55,"ALL CLEAR! +90s","#ffd700");
+    popText(W/2,BY+CS*N*0.55,"ALL CLEAR! +70s","#ffd700");
   } else {
-    /* dirt above the dig line cleared: +30s, remaining dirt rises, new rows below */
-    for(let x=0;x<N;x++)for(let y=N-2;y<N;y++){
-      const src=idx(x,y),dst=idx(x,y-2);
-      dirt[dst]=dirt[src];treas[dst]=treas[src];
-      if(dirt[dst]){grid[dst]=null;spec[dst]=0;fly[dst]=0;tg[dst]=0;}
-      dirt[src]=0;treas[src]=0;
-    }
+    /* Dirt above the dig line is cleared: the whole board rises two rows and
+       new earth appears below. B3 pushes the gems in the top rows off the top -
+       it does not delete gems where the dirt lands, which is what used to
+       happen here and cost you any power gem in those rows. */
+    mineRise(2);
     seedDirtRows(N-2,N-1);
-    timeLeft=Math.min(240,timeLeft+30);
+    timeLeft=Math.min(240,timeLeft+25);
     level++;panOff=CS*2;
-    popText(W/2,BY+CS*N*0.55,"DIG DEEPER! +30s","#ffd700");
+    popText(W/2,BY+CS*N*0.55,"DIG DEEPER! +25s","#ffd700");
   }
   AudioFX.level();GameBridge.levelUp(level);
   if(!mineRose){mineRose=true;popText(W/2,BY+CS*2.0,"BLUE GEMS JOIN THE DIG!","#3aa0ff");}
   state="fall";collapse();
+}
+/* Dirt is a solid mass: clear a square out from under it and the dirt above
+   drops into the hole, carrying whatever is buried in it. Runs bottom-up so a
+   column collapses in one pass. Returns true if anything moved. */
+function dirtGravity(){
+  let moved=false;
+  for(let x=0;x<N;x++){
+    for(let y=N-2;y>=0;y--){
+      const i=idx(x,y);
+      if(!dirt[i])continue;
+      let j=i;
+      /* slide down while the square below is empty of dirt AND of gems */
+      while(true){
+        const y2=((j/N)|0)+1;
+        if(y2>=N)break;
+        const k=idx(x,y2);
+        if(dirt[k]||grid[k]!=null)break;
+        j=k;
+      }
+      if(j!==i){
+        dirt[j]=1;treas[j]=treas[i];buried[j]=buried[i];
+        dirt[i]=0;treas[i]=0;buried[i]=0;
+        grid[j]=null;spec[j]=0;fly[j]=0;tg[j]=0;
+        moved=true;
+      }
+    }
+  }
+  return moved;
 }
 function clearDirtAround(cells){
   let dug=false;
@@ -10113,9 +10167,17 @@ function clearDirtAround(cells){
       dirt[j]=0;dug=true;
       const px=BX+nx*CS+CS/2,py=BY+ny*CS+CS/2;
       burst(px,py,"#8a5a2b",8);
-      collectTreasureAt(j,px,py);
+      if(buried[j]){
+        /* dug out: it drops in as a playable Hypercube */
+        buried[j]=0;
+        grid[j]=PRISM;spec[j]=3;offY[j]=0;vel[j]=0;
+        burst(px,py,"#ffffff",16);
+        popText(px,py,"HYPERCUBE!","#ffffff");
+        AudioFX.forgePrism();
+      } else collectTreasureAt(j,px,py);
     }
   }
+  if(dug)dirtGravity();
   return dug;
 }
 function handSlot(i){ /* screen position of card slot i (mirrors HUD layout) */
@@ -10301,6 +10363,8 @@ function beginClear(cells,specials,runs){
     if(!base)base=cells.size*20; /* prism swaps / Last Hurrah: per-gem payout */
     gained=base*mult*boostMult();
   } else if(mode==="mine"){
+    /* Diamond Mine deliberately pays nothing for clearing gems - all scoring
+       comes from unearthing treasure. Matches are the shovel, not the payday. */
     gained=0;
   } else {
     /* Bejeweled 3 Classic-family scoring: match-3 = 50, match-4 = 100,
@@ -10589,7 +10653,7 @@ function startRun(m){
    /* swap to this mode's theme */
   mode=m;
   score=0;level=1;progress=0;goal=2500;chain=0;sel=null;particles=[];fx=[];swapA=swapB=null;
-  mult=1;matchTally=0;saidTimeUp=false;finaleHold=0;overHold=0;startHold=0;saidGo=false;caught=0;pendingFlyStep=false;spiderX=-1;spiderDrop=0;
+  mult=1;matchTally=0;saidTimeUp=false;finaleHold=0;overHold=0;startHold=0;saidGo=false;mineEndHold=0;caught=0;pendingFlyStep=false;spiderX=-1;spiderDrop=0;
   freezeLeft=0;freezeUses=3;gustUses=3;timeUses=3;drillUses=3;overBtns=null;
   iceShufUses=3;iceFrzUses=3;iceFrzLeft=0;pokShufUses=3;wildUses=3;
   blzTimeUses=3;blzShufUses=3;clsShufUses=3;gemUses=5;
@@ -11046,11 +11110,12 @@ function frame(now){
          never meant to loop), then a tick on each of the last five seconds. */
       if(c!==lastTick&&c>0){
         if(c===30)bjPlay("v30",0.85);
-        else if(c===10)bjLoopStart("warn",0.7,1.05);  /* one pulse a second    */
-        else if(c===5)bjLoopRate(0.62);               /* tighter, same pitch   */
+        else if(c===(mode==="mine"?15:10))bjLoopStart("warn",0.7,1.00); /* mine warns at 15s */
+        else if(c===(mode==="mine"?7:5))bjLoopRate(0.60); /* tighter, same pitch */
         lastTick=c;
       }
-      if(timeLeft>10.5)bjLoopStop();   /* a time extension calls off the alarm */
+      /* a time extension (Lightning tank, or +25s from a dig) calls off the alarm */
+      if(timeLeft>(mode==="mine"?15.5:10.5))bjLoopStop();
       if(timeLeft<=0){
         timeLeft=0;
         if(mode==="blitz"&&!finale){
@@ -11094,7 +11159,23 @@ function frame(now){
                detonation wait for finaleHold to expire (see the watchdog). */
             finaleHold=1.7;
           }
-        } else if(mode==="mine"){bjLoopStop();bjPlay("vTimeUp",1.0);overMsg="TIME'S UP";endRun();}
+        } else if(mode==="mine"&&!saidTimeUp){
+          /* "Time's up" was landing on top of the game-over line. Announce it,
+             let the digging machinery blow itself apart, then end the run. */
+          saidTimeUp=true;
+          bjLoopStop();bjPlay("vTimeUp",1.0);
+          overMsg="TIME'S UP";
+          mineEndHold=1.9;
+          for(let k=0;k<3;k++)setTimeout(()=>{
+            const bx=BX+CS*(1+Math.random()*(N-2)), by=BY+CS*(N-2.2+Math.random()*1.6);
+            burst(bx,by,"#ff9d42",18);
+            bjPlay("boom",0.7);
+          },220+k*420);
+        }
+      }
+      if(mode==="mine"&&mineEndHold>0){
+        mineEndHold-=dt;
+        if(mineEndHold<=0){mineEndHold=0;endRun();}
       }
       }
       /* finale watchdog: whatever state time-up caught us in (mid-swap, swapback,
@@ -11257,6 +11338,15 @@ function frame(now){
         ctx.fillStyle="#ff9dff";
         ctx.beginPath();ctx.moveTo(px+CS/2,py+CS*0.26);ctx.lineTo(px+CS*0.74,py+CS/2);ctx.lineTo(px+CS/2,py+CS*0.74);ctx.lineTo(px+CS*0.26,py+CS/2);ctx.closePath();ctx.fill();
         ctx.fillStyle="#ffffff";ctx.fillRect(px+CS*0.47,py+CS*0.44,CS*0.06,CS*0.12);}
+      if(buried[i]){/* the buried Hypercube: a corner of it showing through */
+        const t=0.5+0.5*Math.sin(shineT*3+x+y);
+        ctx.fillStyle="rgba(255,255,255,"+(0.30+0.35*t)+")";
+        ctx.beginPath();
+        ctx.moveTo(px+CS*0.50,py+CS*0.30);ctx.lineTo(px+CS*0.70,py+CS*0.44);
+        ctx.lineTo(px+CS*0.50,py+CS*0.58);ctx.lineTo(px+CS*0.30,py+CS*0.44);
+        ctx.closePath();ctx.fill();
+        ctx.strokeStyle="rgba(180,230,255,"+(0.4+0.4*t)+")";ctx.lineWidth=1;ctx.stroke();
+      }
     }
   }
 
