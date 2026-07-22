@@ -42,8 +42,48 @@ window.GameMusic = (function () {
     events.push({ t: Date.now(), kind: kind, detail: detail || "" });
     if (events.length > 60) events.shift();
   }
+  /* ---- volume on iOS -------------------------------------------------
+     iOS ignores HTMLMediaElement.volume outright - it is reserved for the
+     hardware buttons - so a slider that sets .volume does nothing there while
+     pause() still works. Routing the element through a Web Audio GainNode
+     gives us a level control iOS does honour. If the graph can't be built
+     (older browser, or the media is cross-origin without CORS) we fall back to
+     .volume, which is correct everywhere except iOS.                        */
+  var AC = null, gainOf = new WeakMap(), graphOK = true;
+  function actx() {
+    if (AC) return AC;
+    try {
+      var C = window.AudioContext || window.webkitAudioContext;
+      if (!C) { graphOK = false; return null; }
+      AC = new C();
+    } catch (e) { graphOK = false; AC = null; }
+    return AC;
+  }
+  function wire(a) {
+    if (!graphOK || gainOf.has(a)) return gainOf.get(a) || null;
+    var c = actx();
+    if (!c) return null;
+    try {
+      var src = c.createMediaElementSource(a);
+      var g = c.createGain();
+      g.gain.value = VOLUME;
+      src.connect(g); g.connect(c.destination);
+      gainOf.set(a, g);
+      return g;
+    } catch (e) { graphOK = false; return null; }   /* fall back to .volume */
+  }
+  function setLevel(a, v) {
+    var g = gainOf.get(a);
+    if (g) { try { g.gain.value = v; return; } catch (e) {} }
+    a.volume = v;            /* non-iOS path, or graph unavailable */
+  }
+  function levelOf(a) {
+    var g = gainOf.get(a);
+    return g ? g.gain.value : a.volume;
+  }
   function el(tag) {
     var a = new Audio();
+    a.crossOrigin = "anonymous";   /* required before src for the graph */
     a.loop = true;
     a.preload = "none";   /* don't pull 10MB off disk until a track is asked for */
     a.volume = 0;
@@ -55,6 +95,12 @@ window.GameMusic = (function () {
           var c = a.error ? a.error.code : 0;
           lastError = { src: a.src, code: c,
             text: ["", "aborted", "network", "decode", "src not supported"][c] || "?" };
+          /* codes 2 (network) and 4 (unsupported) are what a blocked CORS load
+             looks like from here */
+          if (a.crossOrigin && (c === 2 || c === 4) && a.src) {
+            var nm = a.src.split("/").pop().replace(".mp3", "");
+            recoverNoCORS(a, nm);
+          }
         }
         log(ev, (a.src || "").split("/").pop());
       });
@@ -79,17 +125,36 @@ window.GameMusic = (function () {
   }
   /* volume ramps by hand: Audio has no scheduling like Web Audio does */
   function fade(a, to, ms, done) {
-    var from = a.volume, t0 = performance.now();
+    var from = levelOf(a), t0 = performance.now();
     var id = setInterval(function () {
       var k = Math.min(1, (performance.now() - t0) / ms);
       var v = from + (to - from) * k;
-      a.volume = v < 0 ? 0 : v > 1 ? 1 : v;
+      setLevel(a, v < 0 ? 0 : v > 1 ? 1 : v);
       if (k >= 1) { clearInterval(id); if (done) done(); }
     }, 33);
     fades.push(id);
     return id;
   }
 
+  /* If crossOrigin made the load fail (no CORS headers on the host), retry the
+     same track without it. Volume control is then .volume-only - wrong on iOS,
+     but audible everywhere, which beats silence. */
+  function recoverNoCORS(a, name) {
+    if (a._noCors) return false;
+    a._noCors = true;
+    graphOK = false;
+    log("cors-retry", name);
+    var fresh = el(a.dataset ? a.dataset.deck : "r");
+    fresh.crossOrigin = null;
+    var i = deck.indexOf(a);
+    if (i >= 0) deck[i] = fresh; else if (a === stinger) stinger = fresh;
+    fresh.src = BASE + name + ".mp3";
+    fresh.loop = a.loop;
+    fresh.volume = VOLUME;
+    var p = fresh.play();
+    if (p && p.catch) p.catch(function () { pending = name; });
+    return true;
+  }
   function play(name) {
     if (!name) return;
     current = name;
@@ -101,7 +166,7 @@ window.GameMusic = (function () {
     nxt.src = BASE + name + ".mp3";
     nxt.preload = "auto";
     nxt.currentTime = 0;
-    nxt.volume = 0;
+    wire(nxt); setLevel(nxt, 0);
     log("play", name);
     var p = nxt.play();
     if (p && p.catch) p.catch(function (err) {
@@ -141,7 +206,7 @@ window.GameMusic = (function () {
       })(deck[i]);
     }
     stinger.src = BASE + name + ".mp3";
-    stinger.volume = Math.min(1, VOLUME * 1.8);
+    wire(stinger); setLevel(stinger, Math.min(1, VOLUME * 1.8));
     log("sting", name);
     var p = stinger.play();
     if (p && p.catch) p.catch(function (e) {
@@ -154,7 +219,7 @@ window.GameMusic = (function () {
     try { localStorage.setItem("gemdrop-music", on ? "1" : "0"); } catch (e) {}
     if (!on) {
       clearFades();
-      for (var i = 0; i < deck.length; i++) { deck[i].pause(); deck[i].volume = 0; }
+      for (var i = 0; i < deck.length; i++) { deck[i].pause(); setLevel(deck[i], 0); }
       if (stinger) stinger.pause();
     } else if (current) {
       var want = current; current = null; play(want);
@@ -187,10 +252,11 @@ window.GameMusic = (function () {
      is exactly what stranded a refused track until some later interaction. */
   function onGesture() {
     unlocked = true;
+    if (AC && AC.state === "suspended") { try { AC.resume(); } catch (e) {} }
     unlockDecks();
     var d = decks();
     var silent = true;
-    for (var i = 0; i < d.length; i++) if (!d[i].paused && d[i].volume > 0) silent = false;
+    for (var i = 0; i < d.length; i++) if (!d[i].paused && levelOf(d[i]) > 0) silent = false;
     if (!silent) return;
     var want = pending || current;
     if (want) { pending = null; current = null; play(want); }
@@ -233,7 +299,10 @@ window.GameMusic = (function () {
     isOn: function () { return on; },
     setVolume: function (v) {
       VOLUME = Math.max(0, Math.min(1, v));
-      if (deck[live] && !deck[live].paused) deck[live].volume = VOLUME;
+      /* apply to whichever deck is audible - via gain on iOS, .volume elsewhere */
+      for (var i = 0; i < deck.length; i++)
+        if (deck[i] && !deck[i].paused) setLevel(deck[i], VOLUME);
+      if (stinger && !stinger.paused) setLevel(stinger, Math.min(1, VOLUME * 1.8));
     },
     unlock: unlock,
     current: function () { return current; },
@@ -245,11 +314,12 @@ window.GameMusic = (function () {
       return {
         on: on, unlocked: unlocked, current: current, pending: pending,
         volume: VOLUME,
+        levelPath: graphOK ? "gain node (iOS-safe)" : "element.volume",
         decks: d.map(function (a, i) {
           return {
             deck: i, live: i === live,
             src: (a.src || "").split("/").pop(),
-            paused: a.paused, volume: Math.round(a.volume * 100) / 100,
+            paused: a.paused, volume: Math.round(levelOf(a) * 100) / 100,
             time: Math.round(a.currentTime * 10) / 10,
             duration: isFinite(a.duration) ? Math.round(a.duration) : 0,
             readyState: a.readyState, networkState: a.networkState,

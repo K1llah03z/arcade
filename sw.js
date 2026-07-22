@@ -6,13 +6,13 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.15.0";
+const APP_VERSION = "1.15.1";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
    about to install). Update these alongside APP_VERSION. */
 const RELEASE_NOTES = [
-  "Fix: the Gem Drop music slider now controls the music",
+  "Fix: music slider now works on iOS (gain node)",
   "Three volume sliders: music, voice and sound, with icons",
   "Game-over music now plays, and audio stops when you leave the app",
 ];
