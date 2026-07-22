@@ -6,15 +6,15 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.16.3";
+const APP_VERSION = "1.16.4";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
    about to install). Update these alongside APP_VERSION. */
 const RELEASE_NOTES = [
+  "Butterflies: correct sounds for freeing, spawning and the spider",
   "Home screen icon reads Killa's Arcade",
   "Fix: music slider now works on iOS (gain node)",
-  "Three volume sliders: music, voice and sound, with icons",
 ];
 const CACHE = "k1llah03z-" + APP_VERSION;
 const ASSETS = [
