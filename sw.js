@@ -6,15 +6,15 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.25.3";
+const APP_VERSION = "1.26.1";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
    about to install). Update these alongside APP_VERSION. */
 const RELEASE_NOTES = [
-  "Hypercube spins smoothly with a soft glow",
-  "Hypercube blast arcs to each gem in turn",
-  "Star Gem and blast effects use B3's own artwork",
+  "Fixed: music now plays in the installed desktop app",
+  "Swap gems mid-cascade in every mode, any direction",
+  "Every Gem Drop mode has its own painted backdrop",
 ];
 const CACHE = "k1llah03z-" + APP_VERSION;
 const ASSETS = [

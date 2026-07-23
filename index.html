@@ -408,8 +408,8 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 #hiScoresModal button{margin-top:14px;width:100%;padding:9px;border-radius:9px;border:1px solid #7b4dff;background:transparent;color:#0ff;font-family:inherit;font-size:13px;cursor:pointer}
 #hiScoresModal button:active{background:rgba(123,77,255,.25)}
 </style>
-  <meta name="build" content="1.25.2">
-  <script>console.log("%c ARCADE BUILD 1.25.2 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.25.2";</script>
+  <meta name="build" content="1.26.1">
+  <script>console.log("%c ARCADE BUILD 1.26.1 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.26.1";</script>
   <script src="music.js"></script>
 </head>
 <body>
@@ -519,7 +519,7 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
     <button class="theme-toggle" id="hiScoresBtn" type="button" style="margin-top:0;display:none">&#9733; Scores</button>
     <button class="close" id="closeBtn" type="button">Exit [ESC]</button>
   </div>
-  <div class="framewrap"><iframe id="gameFrame" title="Active game" sandbox="allow-scripts"></iframe></div>
+  <div class="framewrap"><iframe id="gameFrame" title="Active game" sandbox="allow-scripts" allow="autoplay; fullscreen"></iframe></div>
   <div id="hiScoresModal" role="dialog" aria-modal="true" aria-label="High scores">
     <div class="hs-panel">
       <h3>&#9733; High Scores</h3>
@@ -9324,8 +9324,34 @@ const Music=(function(){
 
   function route(fn,type,track){
     ensureLocal();
-    if(GM()){fn(GM());return;}
+    if(GM()&&!loadFailed){fn(GM());watchAudible(type,track);return;}
     if(loadFailed&&hubOn)ask(type,track);   /* only bother the hub if we can't */
+  }
+  /* Playback watchdog. loadFailed only covers "music.js never loaded"; on
+     some shells (installed desktop apps, older webviews) the file loads fine
+     but every play() is policy-blocked in this sandboxed frame. If a track
+     has been requested, the player has already seen a user gesture, and
+     nothing is audible after a grace period, hand the music to the hub -
+     it has real user activation from the launch click and owns the cache. */
+  let fbTimer=0;
+  function watchAudible(type,track){
+    if(type!=="music"||!inFrame)return;
+    clearTimeout(fbTimer);
+    fbTimer=setTimeout(()=>{
+      const g=GM();
+      if(!g||loadFailed||!hubOn)return;
+      try{
+        const st=g.state();
+        if(!st.on||!st.current)return;               /* muted or nothing asked */
+        const audible=st.decks.some(d=>!d.paused&&d.volume>0.01&&d.readyState>0);
+        if(!audible&&st.unlocked){
+          console.warn("[gemdrop] local music blocked in this shell - handing playback to the hub");
+          loadFailed=true;                            /* future requests go hubward */
+          g.setMuted(true);                           /* never double-play */
+          ask("music",track||st.current);
+        }
+      }catch(e){}
+    },2500);
   }
   return {
     start(){
@@ -9335,13 +9361,13 @@ const Music=(function(){
       if(!inFrame)start();
     },
     toggle(){
-      if(GM())return GM().toggle();
+      if(GM()&&!loadFailed)return GM().toggle();
       hubOn=!hubOn;
       if(inFrame&&loadFailed)ask(hubOn?"music":"musicStop",wanted);
       else if(!inFrame)return toggle();
       return hubOn;
     },
-    isOn(){ return GM()?GM().isOn():(inFrame?hubOn:on); },
+    isOn(){ return (GM()&&!loadFailed)?GM().isOn():(inFrame?hubOn:on); },
     /* mode themes + game-over stingers */
     /* music.js exists twice - once in the hub (loaded in its <head>) and once
        in here. Whichever one is actually playing has to hear about the slider,
@@ -10886,9 +10912,9 @@ function down(px,py){
     return;
   }
   if(roundFreeze>0)return; /* freeze frame: board locked during round transition */
-  /* Lightning: swaps are allowed while gems are still cascading, as long as
-     both gems involved have settled */
-  const canAct=state==="idle"||(mode==="blitz"&&state==="fall");
+  /* Bejeweled 3 rule, all modes: swaps are allowed while gems are still
+     cascading, as long as both gems involved have settled */
+  const canAct=state==="idle"||state==="fall";
   if(!canAct||finale)return;
   const settled=c2=>{const i2=idx(c2.x,c2.y);return offY[i2]===0&&vel[i2]===0;};
   const c=cellAt(px,py);if(!c||!settled(c))return;
@@ -10902,7 +10928,7 @@ function down(px,py){
 function move(px,py){
   if(dragVol){ setVol(dragVol,px); return; }
   if(roundFreeze>0||!dragFrom)return;
-  if(state!=="idle"&&!(mode==="blitz"&&state==="fall"))return;
+  if(state!=="idle"&&state!=="fall")return;
   const c=cellAt(px,py);if(!c)return;
   const i2=idx(c.x,c.y),i3=idx(dragFrom.x,dragFrom.y);
   if(offY[i2]!==0||vel[i2]!==0||offY[i3]!==0||vel[i3]!==0)return;
@@ -11293,11 +11319,100 @@ function panelBtn(b,ink,dim){
   }
 }
 
+/* ================= PER-MODE BACKGROUNDS =================
+   Each mode gets its own painted backdrop, built once per mode/size on an
+   offscreen canvas (at device resolution) and blitted every frame. All
+   procedural - zero external assets, matching the arcade's rule. */
+let bgCvs=null,bgKey="";
+function bgRand(seed){let s=seed>>>0;return()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296;};}
+function buildModeBG(m){
+  const c=document.createElement("canvas");c.width=Math.max(2,W*DPR);c.height=Math.max(2,H*DPR);
+  const g=c.getContext("2d");g.setTransform(DPR,0,0,DPR,0,0);
+  const R=bgRand({classic:0xC1A5,blitz:0xB117,zen:0x2E43,mine:0x304E,butterfly:0xF17,icestorm:0x1CE5,poker:0x90CE}[m]||7);
+  const vgrad=stops=>{const gr=g.createLinearGradient(0,0,0,H);for(const [p,cc] of stops)gr.addColorStop(p,cc);g.fillStyle=gr;g.fillRect(0,0,W,H);};
+  const glow=(x,y,r,rgb,a)=>{const gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,"rgba("+rgb+","+a+")");gr.addColorStop(1,"rgba("+rgb+",0)");g.fillStyle=gr;g.fillRect(x-r,y-r,r*2,r*2);};
+  const stars=(n,rgb,amax)=>{for(let k=0;k<n;k++){const x=R()*W,y=R()*H,s=0.6+R()*1.6;g.fillStyle="rgba("+rgb+","+(0.15+R()*amax)+")";g.fillRect(x,y,s,s);}};
+  if(m==="classic"){
+    /* violet deep-space nebula */
+    vgrad([[0,"#0d0620"],[0.55,"#150a30"],[1,"#08041a"]]);
+    glow(W*0.22,H*0.20,W*0.55,"255,46,166",0.10);
+    glow(W*0.80,H*0.62,W*0.60,"34,230,255",0.08);
+    glow(W*0.55,H*0.90,W*0.50,"139,92,246",0.10);
+    stars(90,"232,228,255",0.55);
+  } else if(m==="blitz"){
+    /* storm sky: ember horizon, lightning forks */
+    vgrad([[0,"#160408"],[0.55,"#2a0a08"],[0.85,"#3d1404"],[1,"#120303"]]);
+    glow(W*0.5,H*0.85,W*0.7,"255,106,0",0.14);
+    glow(W*0.15,H*0.15,W*0.4,"255,200,87",0.06);
+    g.strokeStyle="rgba(255,220,150,0.16)";g.lineWidth=1.6;
+    for(let b=0;b<3;b++){let x=W*(0.15+R()*0.7),y=-6;g.beginPath();g.moveTo(x,y);
+      while(y<H*0.6){x+=(R()-0.5)*W*0.09;y+=H*(0.06+R()*0.08);g.lineTo(x,y);}g.stroke();}
+    stars(40,"255,220,180",0.35);
+  } else if(m==="zen"){
+    /* calm teal aurora with drifting bokeh */
+    vgrad([[0,"#04160f"],[0.5,"#07271c"],[1,"#031710"]]);
+    for(let b=0;b<3;b++){glow(W*(0.2+b*0.3),H*(0.18+R()*0.18),W*0.5,"80,220,160",0.07);}
+    glow(W*0.5,H*0.95,W*0.8,"34,230,255",0.05);
+    for(let k=0;k<26;k++)glow(R()*W,R()*H,4+R()*16,"180,255,220",0.05+R()*0.08);
+  } else if(m==="mine"){
+    /* cavern wall: strata bands, buried glints */
+    vgrad([[0,"#1a1208"],[0.5,"#241708"],[1,"#0d0804"]]);
+    for(let y=H*0.1;y<H;y+=H*0.11){
+      g.fillStyle="rgba(0,0,0,"+(0.10+R()*0.10)+")";
+      g.beginPath();g.moveTo(0,y);
+      for(let x=0;x<=W;x+=W/8)g.lineTo(x,y+(R()-0.5)*H*0.03);
+      g.lineTo(W,y+H*0.05);g.lineTo(0,y+H*0.05);g.closePath();g.fill();}
+    for(let k=0;k<22;k++){const x=R()*W,y=H*0.3+R()*H*0.7;g.fillStyle="rgba(255,215,0,"+(0.10+R()*0.20)+")";g.fillRect(x,y,2,2);}
+    glow(W*0.5,H*0.08,W*0.5,"255,200,87",0.05);
+  } else if(m==="butterfly"){
+    /* night meadow: grass silhouettes, fireflies, big moon */
+    vgrad([[0,"#061224"],[0.6,"#0a2030"],[1,"#06251c"]]);
+    glow(W*0.78,H*0.14,W*0.16,"220,235,255",0.30);
+    g.fillStyle="rgba(230,240,255,0.85)";g.beginPath();g.arc(W*0.78,H*0.14,Math.min(W,H)*0.045,0,Math.PI*2);g.fill();
+    g.fillStyle="rgba(3,20,12,0.9)";
+    for(let x=0;x<W;x+=5){const h2=H*0.05+Math.sin(x*0.07)*H*0.012+R()*H*0.035;g.fillRect(x,H-h2,3,h2);}
+    for(let k=0;k<18;k++)glow(R()*W,H*(0.55+R()*0.4),3+R()*6,"200,255,140",0.25+R()*0.3);
+    stars(50,"200,220,255",0.4);
+  } else if(m==="icestorm"){
+    /* glacial wall: steel-blue sky, ice shard silhouettes, snowfall */
+    vgrad([[0,"#04101f"],[0.55,"#0a2238"],[1,"#051523"]]);
+    glow(W*0.5,H*0.1,W*0.6,"157,232,255",0.08);
+    g.fillStyle="rgba(120,190,235,0.10)";
+    for(let b=0;b<7;b++){const x=R()*W,w2=W*(0.05+R()*0.09),h2=H*(0.25+R()*0.45);
+      g.beginPath();g.moveTo(x,H);g.lineTo(x+w2*0.5,H-h2);g.lineTo(x+w2,H);g.closePath();g.fill();}
+    for(let k=0;k<70;k++){g.fillStyle="rgba(230,245,255,"+(0.12+R()*0.35)+")";g.fillRect(R()*W,R()*H,1.5,1.5);}
+  } else if(m==="poker"){
+    /* casino felt: green radial pool, faint suit watermarks */
+    const gr=g.createRadialGradient(W/2,H*0.45,0,W/2,H*0.45,Math.max(W,H)*0.75);
+    gr.addColorStop(0,"#0c3a24");gr.addColorStop(0.7,"#072617");gr.addColorStop(1,"#03130b");
+    g.fillStyle=gr;g.fillRect(0,0,W,H);
+    g.fillStyle="rgba(255,255,255,0.035)";
+    g.font="bold "+Math.max(40,W*0.12)+"px serif";g.textAlign="center";g.textBaseline="middle";
+    const suits=["\u2660","\u2665","\u2666","\u2663"];
+    for(let k=0;k<6;k++)g.fillText(suits[k%4],W*(0.12+R()*0.76),H*(0.1+R()*0.8));
+    glow(W*0.5,H*0.05,W*0.5,"255,215,0",0.04);
+  } else {
+    vgrad([[0,"#0d0620"],[1,"#08041a"]]);
+  }
+  /* gentle vignette keeps the board readable on every backdrop */
+  const vg=g.createRadialGradient(W/2,H/2,Math.min(W,H)*0.35,W/2,H/2,Math.max(W,H)*0.75);
+  vg.addColorStop(0,"rgba(0,0,0,0)");vg.addColorStop(1,"rgba(0,0,0,0.45)");
+  g.fillStyle=vg;g.fillRect(0,0,W,H);
+  return c;
+}
+
 let last=performance.now();
 function frame(now){
   const dt=Math.min(0.05,(now-last)/1000);last=now;
   ctx.clearRect(0,0,W,H);
   ctx.fillStyle=NG_P("#05030c");ctx.fillRect(0,0,W,H);
+  /* mode backdrop behind everything during play (dark theme only; the light
+     "classic CRT" theme keeps its flat panel) */
+  if(state!=="menu"&&!NG_CLASSIC()){
+    const key=mode+"|"+W+"x"+H+"|"+DPR;
+    if(bgKey!==key||!bgCvs){bgCvs=buildModeBG(mode);bgKey=key;}
+    ctx.drawImage(bgCvs,0,0,W,H);
+  }
   shineT+=dt;
   const ink=NG_P("#e8e4ff"),dim=NG_P("#9a8fc7");
 
@@ -11698,12 +11813,15 @@ function frame(now){
     }
   }
 
-  if(state==="fall"){
+  /* Gravity runs every frame regardless of state - gems keep dropping while a
+     swap animates instead of freezing mid-air. Matches still only resolve from
+     the fall state once everything has settled (B3's spawn rule). */
+  if(state!=="menu"&&state!=="boost"&&state!=="over"){
     let moving=false;
     for(let i=0;i<N*N;i++){
       if(offY[i]<0){vel[i]+=2600*dt;offY[i]+=vel[i]*dt;if(offY[i]>=0){offY[i]=0;vel[i]=0;AudioFX.drop();}else moving=true;}
     }
-    if(!moving)resolveMatches();
+    if(state==="fall"&&!moving)resolveMatches();
   }
 
   let ax=0,ay=0,bx2=0,by2=0;
@@ -11724,7 +11842,10 @@ function frame(now){
              double click is the sound, not a separate buzzer. */
           AudioFX.swap();pendingFlyStep=false;}
         }
-      } else {swapA=swapB=null;let mid=false;for(let i=0;i<N*N;i++)if(offY[i]<0){mid=true;break;}state=mid?"fall":"idle";}
+      } else {swapA=swapB=null;let mid=false;for(let i=0;i<N*N;i++)if(offY[i]<0){mid=true;break;}
+        /* gems may have landed while the swap-back animated; give them their
+           match check instead of jumping straight to idle */
+        if(mid)state="fall";else resolveMatches();}
     }
   }
 
@@ -12717,6 +12838,12 @@ function launch(entry){
      frame don't count for the hub. Launching a cabinet is a hub click, so it is
      the one reliable moment to unlock audio. */
   if(window.GameMusic){ GameMusic.setMuted(!Sound.on()); GameMusic.unlock(); }
+  /* Installed desktop apps enforce the autoplay permissions policy strictly:
+     an opaque-origin srcdoc frame can never match the default 'self'
+     allowlist, so without this delegation play() inside the cabinet rejects
+     forever - the classic "music works in the browser tab but not in the
+     desktop app" bug. */
+  frame.setAttribute("allow","autoplay; fullscreen");
   if(entry.src.startsWith("embedded:")){
     frame.setAttribute("sandbox","allow-scripts");
     frame.removeAttribute("src");
