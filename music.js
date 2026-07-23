@@ -50,6 +50,13 @@ window.GameMusic = (function () {
      (older browser, or the media is cross-origin without CORS) we fall back to
      .volume, which is correct everywhere except iOS.                        */
   var AC = null, gainOf = new WeakMap(), graphOK = true;
+  /* The graph exists ONLY because iOS ignores .volume. Everywhere else it is
+     pure risk: if the AudioContext can't resume (autoplay policy, sandboxed
+     frames, some desktop shells), tracks "play" silently into a dead graph
+     while plain elements are audible. So: no iOS, no graph. */
+  var IOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+            (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (!IOS) graphOK = false;
   function actx() {
     if (AC) return AC;
     try {
@@ -83,7 +90,7 @@ window.GameMusic = (function () {
   }
   function el(tag) {
     var a = new Audio();
-    a.crossOrigin = "anonymous";   /* required before src for the graph */
+    if (IOS) a.crossOrigin = "anonymous";   /* graph needs CORS; only built on iOS */
     a.loop = true;
     a.preload = "none";   /* don't pull 10MB off disk until a track is asked for */
     a.volume = 0;
@@ -315,6 +322,7 @@ window.GameMusic = (function () {
         on: on, unlocked: unlocked, current: current, pending: pending,
         volume: VOLUME,
         levelPath: graphOK ? "gain node (iOS-safe)" : "element.volume",
+        acState: AC ? AC.state : "none",
         decks: d.map(function (a, i) {
           return {
             deck: i, live: i === live,
