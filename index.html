@@ -9280,6 +9280,31 @@ const Music=(function(){
      problem, no bridge to break. The hub route stays as a fallback for when
      the file can't be fetched at all. */
   let loadTried=false, loadFailed=false, hubOn=true;
+  /* Gestures can land before music.js does - its own gesture listeners don't
+     exist yet, so that activation would otherwise be "spent" invisibly and the
+     one play() in onload would be refused with nothing to retry it. Remember
+     that a gesture happened (activation is sticky for media autoplay once the
+     user has interacted with the document), and after the script lands keep
+     retrying for a few seconds instead of giving up on one refusal. */
+  let sawGesture=false;
+  ["pointerdown","touchend","keydown","click"].forEach(ev=>
+    addEventListener(ev,()=>{sawGesture=true;},{passive:true,capture:true}));
+  let retryTimer=0;
+  function retryUntilAudible(){
+    clearInterval(retryTimer);
+    const t0=Date.now();
+    retryTimer=setInterval(()=>{
+      const g=GM();
+      if(!g||loadFailed||Date.now()-t0>4000){clearInterval(retryTimer);return;}
+      try{
+        const st=g.state();
+        if(!st.on||!(st.pending||st.current||wanted)){clearInterval(retryTimer);return;}
+        const audible=st.decks.some(d=>!d.paused&&d.volume>0.01);
+        if(audible){clearInterval(retryTimer);return;}
+        g.unlock();   /* stateless: replays pending/current if nothing is audible */
+      }catch(e){clearInterval(retryTimer);}
+    },400);
+  }
   function ensureLocal(){
     if(loadTried||GM())return;
     loadTried=true;
@@ -9296,6 +9321,10 @@ const Music=(function(){
            it on the next one. Calling unlock() here used to *claim* audio was
            unlocked before it really was. */
         if(wanted)GM().play(wanted);
+        /* If the player already tapped while the script was in flight, that
+           first play() may still be refused; retry on a short leash rather
+           than waiting for the *next* tap. */
+        if(sawGesture)retryUntilAudible();
       };
       sc.onerror=()=>{ loadFailed=true; if(wanted&&hubOn)ask("music",wanted); };
       document.head.appendChild(sc);
