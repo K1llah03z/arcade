@@ -408,8 +408,8 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 #hiScoresModal button{margin-top:14px;width:100%;padding:9px;border-radius:9px;border:1px solid #7b4dff;background:transparent;color:#0ff;font-family:inherit;font-size:13px;cursor:pointer}
 #hiScoresModal button:active{background:rgba(123,77,255,.25)}
 </style>
-  <meta name="build" content="1.26.1">
-  <script>console.log("%c ARCADE BUILD 1.26.1 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.26.1";</script>
+  <meta name="build" content="1.26.2">
+  <script>console.log("%c ARCADE BUILD 1.26.2 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.26.2";</script>
   <script src="music.js"></script>
 </head>
 <body>
@@ -9357,8 +9357,11 @@ const Music=(function(){
     start(){
       ensureLocal();
       /* Any tap: music.js retries whatever is pending if nothing is audible. */
-      if(GM()){ GM().unlock(); return; }
-      if(!inFrame)start();
+      if(GM()&&!loadFailed){ GM().unlock(); return; }
+      /* fallback route: nudge the hub each tap so a pending track starts
+         (the hub's player dedupes, so repeats are harmless) */
+      if(inFrame){ if(loadFailed&&hubOn&&wanted)ask("music",wanted); return; }
+      start();
     },
     toggle(){
       if(GM()&&!loadFailed)return GM().toggle();
@@ -12837,7 +12840,7 @@ function launch(entry){
   /* Autoplay needs a user gesture in THIS document; taps inside the sandboxed
      frame don't count for the hub. Launching a cabinet is a hub click, so it is
      the one reliable moment to unlock audio. */
-  if(window.GameMusic){ GameMusic.setMuted(!Sound.on()); GameMusic.unlock(); }
+  ensureHubMusic(g=>{ g.setMuted(!Sound.on()); g.unlock(); });
   /* Installed desktop apps enforce the autoplay permissions policy strictly:
      an opaque-origin srcdoc frame can never match the default 'self'
      allowlist, so without this delegation play() inside the cabinet rejects
@@ -12915,6 +12918,30 @@ addEventListener("keydown",e=>{
 });
 
 /* ---------- GameBridge host (postMessage protocol v1) ---------- */
+/* The hub's music.js normally loads from the <head>, but if that request ever
+   failed (flaky first load, stale cache, blocked script) music used to be dead
+   for the whole session with no recovery. Lazy-load it on demand instead:
+   queue the requests, inject the script once, and replay the queue when it
+   lands. Retries on the next request if the load fails. */
+let hubMusicQueue=[],hubMusicLoading=false;
+function ensureHubMusic(cb){
+  if(window.GameMusic)return cb(window.GameMusic);
+  hubMusicQueue.push(cb);
+  if(hubMusicLoading)return;
+  hubMusicLoading=true;
+  const s=document.createElement("script");
+  s.src="music.js";
+  s.onload=()=>{
+    hubMusicLoading=false;
+    const q=hubMusicQueue;hubMusicQueue=[];
+    if(window.GameMusic){
+      GameMusic.setMuted(!Sound.on());
+      q.forEach(f=>{try{f(GameMusic);}catch(e){}});
+    }
+  };
+  s.onerror=()=>{hubMusicLoading=false;hubMusicQueue=[];};   /* next ask retries */
+  document.head.appendChild(s);
+}
 addEventListener("message",(e)=>{
   const m=e.data;
   if(!m || m.source!=="GameBridge" || m.v!==1) return;
@@ -12941,10 +12968,10 @@ addEventListener("message",(e)=>{
        music.js or resolve "music/x.mp3" against the site. The game just asks
        the hub for a track and the hub owns the audio. */
     case "music":
-      if(window.GameMusic && Sound.on()) GameMusic.play(String(m.payload.track||""));
+      ensureHubMusic(g=>{ if(Sound.on()) g.play(String(m.payload.track||"")); });
       break;
     case "musicSting":
-      if(window.GameMusic && Sound.on()) GameMusic.sting(String(m.payload.track||""));
+      ensureHubMusic(g=>{ if(Sound.on()) g.sting(String(m.payload.track||"")); });
       break;
     case "musicStop":
       if(window.GameMusic) GameMusic.stop();
