@@ -55,8 +55,85 @@ window.GameMusic = (function () {
      frames, some desktop shells), tracks "play" silently into a dead graph
      while plain elements are audible. So: no iOS, no graph. */
   var IOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
-            (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+            (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) ||
+            !!window.__FORCE_IOS_AUDIO;   /* test hook: exercise the iOS path anywhere */
   if (!IOS) graphOK = false;
+
+  /* ---- gapless looping on iOS ----------------------------------------
+     Older iOS builds (14.x especially) corrupt audio at an <audio loop>
+     boundary when the element is routed through Web Audio: the seek back to
+     zero desyncs the pipeline and playback comes back crackly and stays that
+     way. The fix is to never let the element loop. The track streams for its
+     first pass so it starts instantly; meanwhile the file decodes into an
+     AudioBuffer in the background, and playback hands off to a looping
+     AudioBufferSourceNode - hardware-level, sample-accurate looping with no
+     seek, no gap, and no fade. Leading/trailing MP3 encoder padding is
+     trimmed by scanning the decoded samples, so the loop point sits exactly
+     where the music actually ends and restarts. If decode fails (memory
+     pressure on old hardware) the element keeps looping like before. */
+  var BL = { buf:null, name:"", node:null, gain:null, ls:0, le:0,
+             startedAt:0, resumeOff:-1, active:false, decoding:"" };
+  function blFindLoop(b) {
+    var ch = b.getChannelData(0), n = b.length, th = 0.0012, i = 0, j = n - 1;
+    while (i < n && Math.abs(ch[i]) < th) i++;
+    while (j > i && Math.abs(ch[j]) < th) j--;
+    if (j - i < b.sampleRate) { i = 0; j = n - 1; }   /* sanity: keep >=1s */
+    return [i / b.sampleRate, (j + 1) / b.sampleRate];
+  }
+  function blStop() {
+    if (BL.node) { try { BL.node.stop(); } catch (e) {} }
+    if (BL.gain) { try { BL.gain.disconnect(); } catch (e) {} }
+    BL.node = null; BL.gain = null; BL.active = false;
+  }
+  function blStart(off) {
+    var c = actx(); if (!c || !BL.buf) return false;
+    blStop();
+    try {
+      var s = c.createBufferSource();
+      s.buffer = BL.buf; s.loop = true; s.loopStart = BL.ls; s.loopEnd = BL.le;
+      var g = c.createGain(); g.gain.value = on ? VOLUME : 0;
+      s.connect(g); g.connect(c.destination);
+      if (!(off >= BL.ls && off < BL.le)) off = BL.ls;
+      s.start(0, off);
+      BL.node = s; BL.gain = g; BL.active = true;
+      BL.startedAt = c.currentTime - (off - BL.ls);
+      log("loop-buffer", BL.name);
+      return true;
+    } catch (e) { blStop(); return false; }
+  }
+  function blOffsetNow() {
+    var c = actx(); if (!c || !BL.active) return BL.ls;
+    var len = BL.le - BL.ls;
+    return BL.ls + ((c.currentTime - BL.startedAt) % len);
+  }
+  function blDecode(name) {
+    if (!IOS || BL.decoding === name || (BL.buf && BL.name === name)) return;
+    var c = actx(); if (!c) return;
+    BL.decoding = name;
+    fetch(BASE + name + ".mp3").then(function (r) {
+      if (!r.ok) throw new Error("http " + r.status);
+      return r.arrayBuffer();
+    }).then(function (ab) {
+      /* callback form: promise decodeAudioData is unreliable on older iOS */
+      c.decodeAudioData(ab, function (b) {
+        BL.decoding = "";
+        if (current !== name) return;         /* switched modes mid-decode */
+        BL.buf = b; BL.name = name;
+        var lp = blFindLoop(b); BL.ls = lp[0]; BL.le = lp[1];
+        blHandoff();
+      }, function () { BL.decoding = ""; log("decode-fail", name); });
+    }).catch(function () { BL.decoding = ""; log("fetch-fail", name); });
+  }
+  function blHandoff() {
+    if (!on || !BL.buf || BL.name !== current || BL.active) return;
+    var a = deck[live];
+    if (!a || !a.src || a.paused || a.src.indexOf(BASE + BL.name + ".mp3") === -1) return;
+    /* pick up exactly where the stream is; both timelines start at the same
+       zero, so the one-time join is inaudible - and every loop after it is
+       sample-perfect */
+    var off = a.currentTime;
+    if (blStart(off)) { a.loop = false; a.pause(); setLevel(a, 0); }
+  }
   function actx() {
     if (AC) return AC;
     try {
@@ -166,6 +243,8 @@ window.GameMusic = (function () {
     if (!name) return;
     current = name;
     if (!on) return;                      /* remember it, start when unmuted */
+    if (BL.active && BL.name === name) return;   /* already looping gaplessly */
+    if (BL.active) blStop();                     /* mode switch: drop old loop */
     var d = decks();
     var cur = d[live], nxt = d[1 - live];
     if (cur.src && cur.src.indexOf(BASE + name + ".mp3") !== -1 && !cur.paused) return;
@@ -191,11 +270,13 @@ window.GameMusic = (function () {
     fade(nxt, VOLUME, FADE_MS);
     if (cur.src && !cur.paused) fade(cur, 0, FADE_MS, function () { cur.pause(); });
     live = 1 - live;
+    blDecode(name);            /* iOS: prepare the sample-accurate loop */
   }
 
   function stop() {
     clearFades();
     current = null;
+    blStop();
     for (var i = 0; i < deck.length; i++) {
       (function (a) { if (a.src && !a.paused) fade(a, 0, FADE_MS, function () { a.pause(); }); })(deck[i]);
     }
@@ -205,6 +286,7 @@ window.GameMusic = (function () {
   function sting(name) {
     if (!on) return;
     decks();
+    blStop();
     /* A game-over sting replaces the theme rather than sitting on top of it,
        the way B3 does it. The menu track comes back when the player exits. */
     for (var i = 0; i < deck.length; i++) {
@@ -228,6 +310,7 @@ window.GameMusic = (function () {
       clearFades();
       for (var i = 0; i < deck.length; i++) { deck[i].pause(); setLevel(deck[i], 0); }
       if (stinger) stinger.pause();
+      blStop();
     } else if (current) {
       var want = current; current = null; play(want);
     }
@@ -262,7 +345,7 @@ window.GameMusic = (function () {
     if (AC && AC.state === "suspended") { try { AC.resume(); } catch (e) {} }
     unlockDecks();
     var d = decks();
-    var silent = true;
+    var silent = !BL.active;
     for (var i = 0; i < d.length; i++) if (!d[i].paused && levelOf(d[i]) > 0) silent = false;
     if (!silent) return;
     var want = pending || current;
@@ -280,6 +363,8 @@ window.GameMusic = (function () {
   function goAway() {
     var d = decks();
     resumeOnReturn = false;
+    if (BL.active) { BL.resumeOff = blOffsetNow(); blStop(); resumeOnReturn = true; }
+    else BL.resumeOff = -1;
     for (var i = 0; i < d.length; i++) {
       if (d[i].src && !d[i].paused) { resumeOnReturn = true; d[i].pause(); }
     }
@@ -288,6 +373,9 @@ window.GameMusic = (function () {
   function comeBack() {
     if (!on || !resumeOnReturn) return;
     resumeOnReturn = false;
+    if (BL.resumeOff >= 0 && BL.buf && BL.name === current) {
+      blStart(BL.resumeOff); BL.resumeOff = -1; return;
+    }
     var a = decks()[live];
     if (a && a.src) { var p = a.play(); if (p && p.catch) p.catch(function () {}); }
   }
@@ -309,6 +397,7 @@ window.GameMusic = (function () {
       /* apply to whichever deck is audible - via gain on iOS, .volume elsewhere */
       for (var i = 0; i < deck.length; i++)
         if (deck[i] && !deck[i].paused) setLevel(deck[i], VOLUME);
+      if (BL.gain) { try { BL.gain.gain.value = VOLUME; } catch (e) {} }
       if (stinger && !stinger.paused) setLevel(stinger, Math.min(1, VOLUME * 1.8));
     },
     unlock: unlock,
@@ -323,6 +412,9 @@ window.GameMusic = (function () {
         volume: VOLUME,
         levelPath: graphOK ? "gain node (iOS-safe)" : "element.volume",
         acState: AC ? AC.state : "none",
+        gaplessLoop: { active: BL.active, track: BL.name,
+                       loopStart: Math.round(BL.ls*1000)/1000,
+                       loopEnd: Math.round(BL.le*1000)/1000 },
         decks: d.map(function (a, i) {
           return {
             deck: i, live: i === live,
