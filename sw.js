@@ -6,15 +6,15 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.29.1";
+const APP_VERSION = "1.30.0";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
    about to install). Update these alongside APP_VERSION. */
 const RELEASE_NOTES = [
+  "Hypercube now uses the mobile game's own 15-frame spin",
   "Last Hurrah fires in waves: flames, stars, then hypercubes",
-  "Backgrounds now come from the mobile game itself",
-  "Gem Drop board uses B3's own stone texture",
+  "Backgrounds come from the mobile game itself",
 ];
 const CACHE = "k1llah03z-" + APP_VERSION;
 const ASSETS = [
