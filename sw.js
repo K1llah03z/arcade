@@ -6,15 +6,15 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.26.7";
+const APP_VERSION = "1.29.1";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
    about to install). Update these alongside APP_VERSION. */
 const RELEASE_NOTES = [
-  "Footer now reads K1llah03z Arcade",
-  "Per-mode painted backgrounds",
-  "Swap while gems are still cascading",
+  "Last Hurrah fires in waves: flames, stars, then hypercubes",
+  "Backgrounds now come from the mobile game itself",
+  "Gem Drop board uses B3's own stone texture",
 ];
 const CACHE = "k1llah03z-" + APP_VERSION;
 const ASSETS = [
