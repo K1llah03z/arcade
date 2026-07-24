@@ -408,8 +408,8 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
 #hiScoresModal button{margin-top:14px;width:100%;padding:9px;border-radius:9px;border:1px solid #7b4dff;background:transparent;color:#0ff;font-family:inherit;font-size:13px;cursor:pointer}
 #hiScoresModal button:active{background:rgba(123,77,255,.25)}
 </style>
-  <meta name="build" content="1.26.3">
-  <script>console.log("%c ARCADE BUILD 1.26.3 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.26.3";</script>
+  <meta name="build" content="1.26.7">
+  <script>console.log("%c ARCADE BUILD 1.26.7 ","background:#123;color:#5fe9ff;font-weight:700");window.BUILD="1.26.7";</script>
   <script src="music.js"></script>
 </head>
 <body>
@@ -495,7 +495,7 @@ footer{margin-top:40px;font-size:10px;letter-spacing:.2em;color:var(--ink-dim);t
     </section>
   </main>
 
-  <footer>Neon//Grid Hub <span id="hubVersion"></span> &middot; GameBridge protocol v1 &middot; all audio &amp; art generated at runtime</footer>
+  <footer>K1llah03z Arcade <span id="hubVersion"></span> &middot; GameBridge protocol v1 &middot; all audio &amp; art generated at runtime</footer>
 </div>
 
 <!-- ===================== BOTTOM TAB BAR ===================== -->
@@ -12421,7 +12421,7 @@ function importData(){
   const box=document.getElementById("dataBox");
   let p;
   try{p=JSON.parse(box.value);}catch(e){notify("That doesn't parse as a backup.");return;}
-  if(!p||p.neonGrid!==1||!p.store){notify("Not a Neon//Grid backup.");return;}
+  if(!p||p.neonGrid!==1||!p.store){notify("Not a K1llah03z Arcade backup.");return;}
   if(!confirm("Import this backup? It replaces your current scores, saves and favorites."))return;
   Store.save(p.store);
   Faves.save(Array.isArray(p.faves)?p.faves:[]);
