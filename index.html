@@ -9713,8 +9713,23 @@ function timeGemRoll(){
   if(r<o[1]+o[0])return 1;                 /* +5s  */
   return 0;
 }
-function spawnType(){
-  if(mode!=="mine")return rnd(TYPES);
+/* Soft cascade bias: on refill drops (not the initial board, and not the
+   avoid-instant-match reroll), give some chance of echoing a color that's
+   already sitting next to the empty cell, so chains keep going more often
+   without ever guaranteeing a match. x/y are only passed by the refill call
+   in collapse(); other callers (initial board, reroll check) omit them and
+   get the old flat random behavior. */
+const CASCADE_BIAS=0.15;
+function spawnType(x,y){
+  if(mode!=="mine"){
+    if(x!=null&&y!=null&&Math.random()<CASCADE_BIAS){
+      const cands=[];
+      if(x>0){const li=idx(x-1,y);if(grid[li]!=null)cands.push(grid[li]);}
+      if(y>0){const ai=idx(x,y-1);if(grid[ai]!=null)cands.push(grid[ai]);}
+      if(cands.length)return cands[rnd(cands.length)];
+    }
+    return rnd(TYPES);
+  }
   /* Bejeweled: starts with red/yellow/green/white; purple after the first legal
      move; blue after the board rises 20m; orange never appears */
   const pool=[0,2,3,6];
@@ -10866,7 +10881,7 @@ function collapse(){
       const i=idx(x,y);
       if(dirt[i])break;
       if(grid[i]==null){
-        grid[i]=spawnType();spec[i]=0;fly[i]=0;
+        grid[i]=spawnType(x,y);spec[i]=0;fly[i]=0;
         /* flat ~10% time-gem chance on refill drops; 1 in 4 is a +10 gem.
            Spawned gems must settle before they can match (matches only
            resolve once falling completes), per the spawn-logic rule. */
