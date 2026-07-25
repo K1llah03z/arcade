@@ -11911,14 +11911,14 @@ function frame(now){
   if(state!=="menu"&&state!=="boost"&&state!=="over"){
     let moving=false;
     for(let i=0;i<N*N;i++){
-      if(offY[i]<0){vel[i]+=2600*dt;offY[i]+=vel[i]*dt;if(offY[i]>=0){offY[i]=0;vel[i]=0;AudioFX.drop();}else moving=true;}
+      if(offY[i]<0){vel[i]+=1800*dt;offY[i]+=vel[i]*dt;if(offY[i]>=0){offY[i]=0;vel[i]=0;AudioFX.drop();}else moving=true;}
     }
     if(state==="fall"&&!moving)resolveMatches();
   }
 
   let ax=0,ay=0,bx2=0,by2=0;
   if(state==="swap"||state==="swapback"){
-    swapT+=dt*6;const prog=Math.min(1,swapT);
+    swapT+=dt*4;const prog=Math.min(1,swapT);
     const e=prog<0.5?2*prog*prog:1-Math.pow(-2*prog+2,2)/2;
     ax=(swapB.x-swapA.x)*CS*e;ay=(swapB.y-swapA.y)*CS*e;bx2=-ax;by2=-ay;
     if(prog>=1){
