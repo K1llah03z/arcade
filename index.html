@@ -10272,10 +10272,12 @@ function shatterIceColumn(x){
   for(const c of cols)iceTank+=Math.max(1,N*0.5)|0; /* crushed columns fill the tank fast */
   /* one slab = one combo credit, whether single or double-wide */
   colComboN=(colComboT>0)?colComboN+1:1;colComboT=2.5;
-  /* Bejeweled values: 1,500 base per column; combos after the first two pay
-     5,000 then +1,000 per extra column, capped at 15,000 */
+  /* Bejeweled 3 values: ColDestroyBonus 1,500 per column; ColCountBonus combo
+     table "0,0,5000,6000,...,15000" is indexed by columns in the combo, so the
+     first bonus lands at the 2nd column (5,000) and climbs +1,000 per column,
+     capped at 15,000. */
   let bonus=1500*(cols.length>1?2:1);
-  if(colComboN>=3)bonus+=Math.min(15000,5000+1000*(colComboN-3));
+  if(colComboN>=2)bonus+=Math.min(15000,5000+1000*(colComboN-2));
   bonus*=iceMult*boostMult();
   score+=bonus;
   if(colComboN>=2){
@@ -10706,7 +10708,7 @@ function beginClear(cells,specials,runs){
     /* Bejeweled 3 Classic-family scoring: match-3 = 50, match-4 = 100,
        match-5+ = 500 base, times the current level and the cascade count.
        Gems swept up by special-gem blasts pay 20 x level each. */
-    const mm=(mode==="butterfly"?5*flyMoveMult:1)*(mode==="icestorm"?2*iceMult:1)*boostMult();
+    const mm=(mode==="butterfly"?5*flyMoveMult:1)*(mode==="icestorm"?iceMult:1)*boostMult();
     let base=0,runGems=0;
     if(runs)for(const r of runs){
       const bv=(r.len>=5?500:r.len===4?100:50);
