@@ -7,6 +7,20 @@
    stream it with <audio> instead and let the browser handle looping. <audio>
    also plays happily from file:// , which fetch + decodeAudioData does not.
 
+   EXCEPT on iOS. The old iOS workaround routed the <audio> element through a
+   Web Audio GainNode (createMediaElementSource) because iOS ignores
+   HTMLMediaElement.volume. That graph is what caused the mobile warble: the
+   media element's clock and the AudioContext's clock drift apart, and every
+   30-60s WebKit "corrects" the drift by resampling - heard as the music
+   going slow and fast at once, settling, then doing it again (worst while a
+   game's own SFX context is running alongside). So on iOS we now skip the
+   element entirely and play music as decoded Web Audio buffers: one clock,
+   no drift, gapless loops, real gain fades. A modern iPhone decodes a 3-min
+   mp3 in well under a second and holds a few tracks comfortably; we cap the
+   cache at 4 decoded tracks. If fetch/decode ever fails we fall back to the
+   plain <audio> element (volume then fixed at 1.0 on iOS - audible beats
+   silent).
+
    Usage:
      GameMusic.play("classic")        switch track, crossfading from the old one
      GameMusic.sting("lose_classic")  one-shot over the top (game-over stinger)
@@ -31,7 +45,7 @@ window.GameMusic = (function () {
   var live = 0;           /* which deck is currently the audible one */
   var unlocked = false;   /* browsers block playback until a user gesture */
   var pending = null;     /* track requested before that gesture arrived */
-  var stinger = null;   /* built in decks() so it gets unlocked too */
+  var stinger = null;     /* built in decks() so it gets unlocked too */
   var fades = [];
 
   try { var saved = localStorage.getItem("gemdrop-music"); if (saved !== null) on = saved === "1"; }
@@ -42,55 +56,141 @@ window.GameMusic = (function () {
     events.push({ t: Date.now(), kind: kind, detail: detail || "" });
     if (events.length > 60) events.shift();
   }
-  /* ---- volume on iOS -------------------------------------------------
-     iOS ignores HTMLMediaElement.volume outright - it is reserved for the
-     hardware buttons - so a slider that sets .volume does nothing there while
-     pause() still works. Routing the element through a Web Audio GainNode
-     gives us a level control iOS does honour. If the graph can't be built
-     (older browser, or the media is cross-origin without CORS) we fall back to
-     .volume, which is correct everywhere except iOS.                        */
-  var AC = null, gainOf = new WeakMap(), graphOK = true;
-  /* The graph exists ONLY because iOS ignores .volume. Everywhere else it is
-     pure risk: if the AudioContext can't resume (autoplay policy, sandboxed
-     frames, some desktop shells), tracks "play" silently into a dead graph
-     while plain elements are audible. So: no iOS, no graph. */
+
   var IOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
             (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  if (!IOS) graphOK = false;
+
+  var AC = null;
   function actx() {
     if (AC) return AC;
     try {
       var C = window.AudioContext || window.webkitAudioContext;
-      if (!C) { graphOK = false; return null; }
+      if (!C) return null;
       AC = new C();
-    } catch (e) { graphOK = false; AC = null; }
+    } catch (e) { AC = null; }
     return AC;
   }
-  function wire(a) {
-    if (!graphOK || gainOf.has(a)) return gainOf.get(a) || null;
+  /* iOS parks a context in "suspended" before the first gesture and in
+     "interrupted" after a phone call / Siri / route change - resume from
+     any not-running state, not just "suspended". */
+  function acAwake() {
+    if (AC && AC.state !== "running") { try { AC.resume(); } catch (e) {} }
+  }
+
+  /* ---- iOS: decoded-buffer engine ---------------------------------- */
+  var BUF = IOS ? { bufs: {}, order: [], cur: null, sting: null,
+                    loading: null, token: 0, fellBack: false } : null;
+  function useBuffers() { return !!BUF && !BUF.fellBack; }
+
+  function loadBuf(name, cb) {
     var c = actx();
-    if (!c) return null;
+    if (!c) return cb(null, "no AudioContext");
+    if (BUF.bufs[name]) return cb(BUF.bufs[name], null);
+    fetch(BASE + name + ".mp3")
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.arrayBuffer();
+      })
+      .then(function (ab) {
+        return new Promise(function (res, rej) {
+          /* callback form: oldest webkit has no promise decodeAudioData */
+          c.decodeAudioData(ab, res, rej);
+        });
+      })
+      .then(function (b) {
+        BUF.bufs[name] = b;
+        BUF.order.push(name);
+        while (BUF.order.length > 4) delete BUF.bufs[BUF.order.shift()];
+        cb(b, null);
+      })
+      .catch(function (err) {
+        cb(null, (err && (err.message || err.name)) || "load failed");
+      });
+  }
+
+  function fadeOutNode(node, t, f) {
     try {
-      var src = c.createMediaElementSource(a);
+      node.gain.gain.cancelScheduledValues(t);
+      node.gain.gain.setValueAtTime(node.gain.gain.value, t);
+      node.gain.gain.linearRampToValueAtTime(0.0001, t + f);
+      node.src.stop(t + f + 0.05);
+    } catch (e) { try { node.src.stop(); } catch (e2) {} }
+  }
+  function killNode(node) {
+    try { node.gain.gain.cancelScheduledValues(0); node.gain.gain.value = 0; } catch (e) {}
+    try { node.src.stop(); } catch (e) {}
+  }
+  function stopBuf(fadeMs) {
+    BUF.token++;          /* invalidate any load still in flight */
+    BUF.loading = null;
+    if (!BUF.cur) return;
+    if (AC) fadeOutNode(BUF.cur, AC.currentTime, (fadeMs || FADE_MS) / 1000);
+    else killNode(BUF.cur);
+    BUF.cur = null;
+  }
+
+  function playBuf(name) {
+    var c = actx();
+    if (!c) { BUF.fellBack = true; return playEl(name); }
+    acAwake();
+    if (BUF.cur && BUF.cur.name === name) return;   /* already on it */
+    if (BUF.loading === name) return;               /* already fetching it */
+    BUF.loading = name;
+    var my = ++BUF.token;
+    log("play", name);
+    loadBuf(name, function (b, err) {
+      if (BUF.loading === name) BUF.loading = null;
+      if (!b) {
+        lastError = { src: BASE + name + ".mp3", code: 0, text: "buffer: " + err };
+        log("buf-fallback", name);
+        BUF.fellBack = true;   /* stream via <audio> instead; iOS then plays at
+                                  fixed volume, which beats silence */
+        if (current === name && on) playEl(name);
+        return;
+      }
+      if (my !== BUF.token || current !== name || !on) return;  /* superseded */
+      var t = c.currentTime, f = FADE_MS / 1000;
+      if (BUF.cur) fadeOutNode(BUF.cur, t, f);
+      var src = c.createBufferSource();
+      src.buffer = b;
+      src.loop = true;        /* buffer loops are gapless, unlike mp3 <audio> */
       var g = c.createGain();
-      g.gain.value = VOLUME;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(VOLUME, t + f);
       src.connect(g); g.connect(c.destination);
-      gainOf.set(a, g);
-      return g;
-    } catch (e) { graphOK = false; return null; }   /* fall back to .volume */
+      try { src.start(t); } catch (e) {}
+      BUF.cur = { name: name, src: src, gain: g, startedAt: t, dur: b.duration };
+      log("playing", name + ".mp3");
+    });
   }
-  function setLevel(a, v) {
-    var g = gainOf.get(a);
-    if (g) { try { g.gain.value = v; return; } catch (e) {} }
-    a.volume = v;            /* non-iOS path, or graph unavailable */
+
+  function stingBuf(name) {
+    var c = actx();
+    if (!c) return;
+    acAwake();
+    /* the sting replaces the theme rather than sitting on top of it */
+    if (BUF.cur) { BUF.token++; BUF.loading = null;
+                   fadeOutNode(BUF.cur, c.currentTime, 0.4); BUF.cur = null; }
+    log("sting", name);
+    loadBuf(name, function (b, err) {
+      if (!b) { lastError = { src: BASE + name + ".mp3", code: 0, text: "sting: " + err }; return; }
+      if (!on) return;
+      if (BUF.sting) killNode(BUF.sting);
+      var src = c.createBufferSource();
+      src.buffer = b;
+      var g = c.createGain();
+      g.gain.value = Math.min(1, VOLUME * 1.8);
+      src.connect(g); g.connect(c.destination);
+      try { src.start(c.currentTime); } catch (e) {}
+      BUF.sting = { name: name, src: src, gain: g, startedAt: c.currentTime, dur: b.duration };
+    });
   }
-  function levelOf(a) {
-    var g = gainOf.get(a);
-    return g ? g.gain.value : a.volume;
-  }
+
+  /* ---- everywhere else: plain <audio> elements ---------------------- */
+  function setLevel(a, v) { a.volume = v; }
+  function levelOf(a) { return a.volume; }
   function el(tag) {
     var a = new Audio();
-    if (IOS) a.crossOrigin = "anonymous";   /* graph needs CORS; only built on iOS */
     a.loop = true;
     a.preload = "none";   /* don't pull 10MB off disk until a track is asked for */
     a.volume = 0;
@@ -102,12 +202,6 @@ window.GameMusic = (function () {
           var c = a.error ? a.error.code : 0;
           lastError = { src: a.src, code: c,
             text: ["", "aborted", "network", "decode", "src not supported"][c] || "?" };
-          /* codes 2 (network) and 4 (unsupported) are what a blocked CORS load
-             looks like from here */
-          if (a.crossOrigin && (c === 2 || c === 4) && a.src) {
-            var nm = a.src.split("/").pop().replace(".mp3", "");
-            recoverNoCORS(a, nm);
-          }
         }
         log(ev, (a.src || "").split("/").pop());
       });
@@ -143,29 +237,15 @@ window.GameMusic = (function () {
     return id;
   }
 
-  /* If crossOrigin made the load fail (no CORS headers on the host), retry the
-     same track without it. Volume control is then .volume-only - wrong on iOS,
-     but audible everywhere, which beats silence. */
-  function recoverNoCORS(a, name) {
-    if (a._noCors) return false;
-    a._noCors = true;
-    graphOK = false;
-    log("cors-retry", name);
-    var fresh = el(a.dataset ? a.dataset.deck : "r");
-    fresh.crossOrigin = null;
-    var i = deck.indexOf(a);
-    if (i >= 0) deck[i] = fresh; else if (a === stinger) stinger = fresh;
-    fresh.src = BASE + name + ".mp3";
-    fresh.loop = a.loop;
-    fresh.volume = VOLUME;
-    var p = fresh.play();
-    if (p && p.catch) p.catch(function () { pending = name; });
-    return true;
-  }
   function play(name) {
     if (!name) return;
     current = name;
     if (!on) return;                      /* remember it, start when unmuted */
+    if (useBuffers()) return playBuf(name);
+    playEl(name);
+  }
+
+  function playEl(name) {
     var d = decks();
     var cur = d[live], nxt = d[1 - live];
     if (cur.src && cur.src.indexOf(BASE + name + ".mp3") !== -1 && !cur.paused) return;
@@ -173,16 +253,12 @@ window.GameMusic = (function () {
     nxt.src = BASE + name + ".mp3";
     nxt.preload = "auto";
     nxt.currentTime = 0;
-    wire(nxt); setLevel(nxt, 0);
+    setLevel(nxt, 0);
     log("play", name);
     var p = nxt.play();
     if (p && p.catch) p.catch(function (err) {
       lastError = { src: nxt.src, code: 0, text: "play() rejected: " + (err && err.name) };
       log("rejected", name);
-      /* The browser refused, almost always because this document hasn't had a
-         user gesture yet. Un-arm so the next tap retries instead of the track
-         being lost - otherwise unlock() sees unlocked===true, returns early,
-         and nothing ever plays that track again. */
       /* Refused - almost always "no user gesture in this document yet".
          Remember the track; the gesture handler below retries it on the next
          tap. No flags to get stuck in the wrong state. */
@@ -196,6 +272,7 @@ window.GameMusic = (function () {
   function stop() {
     clearFades();
     current = null;
+    if (BUF) stopBuf();
     for (var i = 0; i < deck.length; i++) {
       (function (a) { if (a.src && !a.paused) fade(a, 0, FADE_MS, function () { a.pause(); }); })(deck[i]);
     }
@@ -204,6 +281,7 @@ window.GameMusic = (function () {
   /* short one-shot laid over the music - the mode's game-over sting */
   function sting(name) {
     if (!on) return;
+    if (useBuffers()) return stingBuf(name);
     decks();
     /* A game-over sting replaces the theme rather than sitting on top of it,
        the way B3 does it. The menu track comes back when the player exits. */
@@ -213,7 +291,7 @@ window.GameMusic = (function () {
       })(deck[i]);
     }
     stinger.src = BASE + name + ".mp3";
-    wire(stinger); setLevel(stinger, Math.min(1, VOLUME * 1.8));
+    setLevel(stinger, Math.min(1, VOLUME * 1.8));
     log("sting", name);
     var p = stinger.play();
     if (p && p.catch) p.catch(function (e) {
@@ -225,6 +303,10 @@ window.GameMusic = (function () {
     on = !m;
     try { localStorage.setItem("gemdrop-music", on ? "1" : "0"); } catch (e) {}
     if (!on) {
+      if (BUF) {
+        stopBuf(120);
+        if (BUF.sting) { killNode(BUF.sting); BUF.sting = null; }
+      }
       clearFades();
       for (var i = 0; i < deck.length; i++) { deck[i].pause(); setLevel(deck[i], 0); }
       if (stinger) stinger.pause();
@@ -259,7 +341,14 @@ window.GameMusic = (function () {
      is exactly what stranded a refused track until some later interaction. */
   function onGesture() {
     unlocked = true;
-    if (AC && AC.state === "suspended") { try { AC.resume(); } catch (e) {} }
+    acAwake();
+    if (useBuffers()) {
+      /* buffer engine: nothing to unlock beyond the context; if a track was
+         asked for but nothing is live, (re)start it - playBuf dedupes */
+      var wantB = pending || current;
+      if (!BUF.cur && wantB) { pending = null; play(wantB); }
+      return;
+    }
     unlockDecks();
     var d = decks();
     var silent = true;
@@ -278,8 +367,17 @@ window.GameMusic = (function () {
      session open after the app is gone from view. */
   var resumeOnReturn = false;
   function goAway() {
-    var d = decks();
     resumeOnReturn = false;
+    if (useBuffers()) {
+      /* suspending the context freezes the source in place; resume picks the
+         loop back up exactly where it left off */
+      if (BUF.cur && AC && AC.state === "running") {
+        resumeOnReturn = true;
+        try { AC.suspend(); } catch (e) {}
+      }
+      return;
+    }
+    var d = decks();
     for (var i = 0; i < d.length; i++) {
       if (d[i].src && !d[i].paused) { resumeOnReturn = true; d[i].pause(); }
     }
@@ -288,6 +386,7 @@ window.GameMusic = (function () {
   function comeBack() {
     if (!on || !resumeOnReturn) return;
     resumeOnReturn = false;
+    if (useBuffers()) { acAwake(); return; }
     var a = decks()[live];
     if (a && a.src) { var p = a.play(); if (p && p.catch) p.catch(function () {}); }
   }
@@ -306,7 +405,18 @@ window.GameMusic = (function () {
     isOn: function () { return on; },
     setVolume: function (v) {
       VOLUME = Math.max(0, Math.min(1, v));
-      /* apply to whichever deck is audible - via gain on iOS, .volume elsewhere */
+      if (BUF && AC) {
+        if (BUF.cur) {
+          try {
+            var g = BUF.cur.gain.gain, t = AC.currentTime;
+            g.cancelScheduledValues(t);
+            g.setValueAtTime(g.value, t);
+            g.linearRampToValueAtTime(VOLUME, t + 0.05);
+          } catch (e) {}
+        }
+        if (BUF.sting) { try { BUF.sting.gain.gain.value = Math.min(1, VOLUME * 1.8); } catch (e) {} }
+      }
+      /* element path: apply to whichever deck is audible */
       for (var i = 0; i < deck.length; i++)
         if (deck[i] && !deck[i].paused) setLevel(deck[i], VOLUME);
       if (stinger && !stinger.paused) setLevel(stinger, Math.min(1, VOLUME * 1.8));
@@ -317,11 +427,34 @@ window.GameMusic = (function () {
     lastError: function () { return lastError; },
     events: function () { return events.slice(); },
     state: function () {
+      if (useBuffers()) {
+        var c = AC, now = c ? c.currentTime : 0, ds = [];
+        if (BUF.cur) {
+          var pos = BUF.cur.dur ? (now - BUF.cur.startedAt) % BUF.cur.dur : 0;
+          ds.push({
+            deck: 0, live: true,
+            src: BUF.cur.name + ".mp3",
+            paused: !(c && c.state === "running"),
+            volume: Math.round((BUF.cur.gain ? BUF.cur.gain.gain.value : 0) * 100) / 100,
+            time: Math.round(pos * 10) / 10,
+            duration: Math.round(BUF.cur.dur || 0),
+            readyState: 4, networkState: 1, error: 0
+          });
+        }
+        return {
+          on: on, unlocked: unlocked, current: current, pending: pending,
+          volume: VOLUME,
+          levelPath: "webaudio buffers (iOS)",
+          acState: c ? c.state : "none",
+          loading: BUF.loading, cached: BUF.order.slice(),
+          decks: ds, lastError: lastError
+        };
+      }
       var d = decks();
       return {
         on: on, unlocked: unlocked, current: current, pending: pending,
         volume: VOLUME,
-        levelPath: graphOK ? "gain node (iOS-safe)" : "element.volume",
+        levelPath: "element.volume",
         acState: AC ? AC.state : "none",
         decks: d.map(function (a, i) {
           return {
