@@ -12332,9 +12332,21 @@ function frame(now){
         const p=(Math.sin(shineT*10)+1)/2;
         ctx.fillStyle="rgba(255,106,0,"+(0.05+p*0.08)+")";
         ctx.fillRect(BX-6,BY-6,CS*N+12,CS*N+12);
-        ctx.textAlign="center";ctx.fillStyle="#ff6a00";
-        ctx.font="bold "+Math.max(11,W*0.018)+"px ui-monospace,Menlo,monospace";
-        ctx.fillText("BLAZING SPEED "+Math.ceil(blazing)+"s",W/2,by+18);
+        ctx.fillStyle="#ff6a00";
+        if(isMobileLayout){
+          /* mobile: the countdown sits directly ABOVE the SPEED +1000 row
+             (same left edge, one line up). Desktop keeps the centered spot
+             by the timer bar. */
+          const sf=Math.max(12,W*0.022);
+          const srow=Math.max(sf+2, hudY - sf - 6);   /* y of the SPEED row */
+          ctx.textAlign="left";ctx.textBaseline="top";
+          ctx.font="bold "+sf+"px ui-monospace,Menlo,monospace";
+          ctx.fillText("BLAZING SPEED "+Math.ceil(blazing)+"s",12,Math.max(2,srow-sf-4));
+        } else {
+          ctx.textAlign="center";
+          ctx.font="bold "+Math.max(11,W*0.018)+"px ui-monospace,Menlo,monospace";
+          ctx.fillText("BLAZING SPEED "+Math.ceil(blazing)+"s",W/2,by+18);
+        }
       }
     }
   } else if(mode==="poker"){
