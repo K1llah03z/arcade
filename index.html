@@ -12499,8 +12499,14 @@ function frame(now){
          settles back to idle. (Verified against B3 on-device.) Blazing Speed still
          just slows it when the clock is actually running. */
       const clockFrozen=(mode==="blitz"&&(state==="clear"||state==="fall"));
+      /* Blazing Speed's own 7s window burns in REAL time: once it's lit,
+         cascades and power-gem detonations do NOT pause it - you spend the
+         window, you don't stretch it. The main clock still freezes while a
+         match resolves, and the SPEED meter below still pauses during
+         clear/fall while you're building TOWARD Blazing. */
+      if(mode==="blitz"&&blazing>0)blazing=Math.max(0,blazing-dt);
       if(!clockFrozen){
-        if(mode==="blitz"&&blazing>0){blazing=Math.max(0,blazing-dt);timeLeft-=dt*0.4;}
+        if(mode==="blitz"&&blazing>0)timeLeft-=dt*0.4;
         else timeLeft-=dt;
       }
       /* The SPEED meter drains on real time once you've stalled. It only pauses
