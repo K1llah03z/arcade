@@ -12262,14 +12262,29 @@ function frame(now){
     ctx.fillStyle="#ff9d42";ctx.fillText("SPEED",12,sy);
     /* the count is always shown and stays put once it locks at +1000 */
     ctx.fillStyle="#ffd54a";ctx.fillText("+"+speedBonus,12+ctx.measureText("SPEED  ").width,sy);
-    /* once locked at +1000 the real meter appears below and fills toward Blazing Speed */
+    /* once locked at +1000 the real meter appears and fills toward Blazing Speed.
+       On mobile there's no room BELOW the text before the board starts, so the
+       bar would render under the gems - put it inline to the right of "+1000"
+       instead. On desktop keep it on its own line below. */
     if(speedBonus>=1000){
-      const mw=Math.min(150,W*0.34),mh=7,mx=12,my=sy+Math.max(18,W*0.032);
-      ctx.fillStyle="rgba(255,255,255,0.15)";ctx.fillRect(mx,my,mw,mh);
-      const g=ctx.createLinearGradient(mx,0,mx+mw,0);
-      g.addColorStop(0,"#ffcf6a");g.addColorStop(1,"#ff3b00");
-      ctx.fillStyle=g;ctx.fillRect(mx,my,mw*Math.min(1,speedFill),mh);
-      ctx.strokeStyle="rgba(255,106,0,0.8)";ctx.lineWidth=1;ctx.strokeRect(mx,my,mw,mh);
+      const mh=7;
+      if(isMobileLayout){
+        const tx=12+ctx.measureText("SPEED  ").width+ctx.measureText("+"+speedBonus+"  ").width;
+        const mw=Math.max(60,Math.min(150,W-12-tx));
+        const my=sy+Math.max(1,(Math.max(12,W*0.022)-mh)/2);
+        ctx.fillStyle="rgba(255,255,255,0.15)";ctx.fillRect(tx,my,mw,mh);
+        const g=ctx.createLinearGradient(tx,0,tx+mw,0);
+        g.addColorStop(0,"#ffcf6a");g.addColorStop(1,"#ff3b00");
+        ctx.fillStyle=g;ctx.fillRect(tx,my,mw*Math.min(1,speedFill),mh);
+        ctx.strokeStyle="rgba(255,106,0,0.8)";ctx.lineWidth=1;ctx.strokeRect(tx,my,mw,mh);
+      } else {
+        const mw=Math.min(150,W*0.34),mx=12,my=sy+Math.max(18,W*0.032);
+        ctx.fillStyle="rgba(255,255,255,0.15)";ctx.fillRect(mx,my,mw,mh);
+        const g=ctx.createLinearGradient(mx,0,mx+mw,0);
+        g.addColorStop(0,"#ffcf6a");g.addColorStop(1,"#ff3b00");
+        ctx.fillStyle=g;ctx.fillRect(mx,my,mw*Math.min(1,speedFill),mh);
+        ctx.strokeStyle="rgba(255,106,0,0.8)";ctx.lineWidth=1;ctx.strokeRect(mx,my,mw,mh);
+      }
     }
   }
   if(mode==="blitz"||mode==="mine"){
