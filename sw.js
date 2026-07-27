@@ -6,7 +6,7 @@
      1.0.x -> 1.1.0  MINOR  new feature or game added
      1.x.x -> 2.0.0  MAJOR  big redesign / breaking change
    Changing this string is what triggers the update banner. */
-const APP_VERSION = "1.30.10";
+const APP_VERSION = "1.30.11";
 /* ── RELEASE NOTES ────────────────────────────────────────
    Shown in the update banner. Keep 2-4 short lines; newest
    version only (users see the notes for the update they're
@@ -14,6 +14,7 @@ const APP_VERSION = "1.30.10";
 const RELEASE_NOTES = [
   "Fixed music warbling slow/fast on iPhone and iPad",
   "Music loops are now gapless on iOS",
+  "Blazing Speed's 7s window no longer pauses during cascades",
 ];
 const CACHE = "k1llah03z-" + APP_VERSION;
 const ASSETS = [
