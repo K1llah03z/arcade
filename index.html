@@ -11246,21 +11246,15 @@ function beginClear(cells,specials,runs){
   }
   GameBridge.reportScore(score);
   if(fired.has(3)){
-    /* faithful B3 hypercube: an energy tendril (ELECTRO_PATH / _PATH2, WAV057/058)
-       zaps out to each detonating gem, so the number of zaps scales with how many
-       gems the cube clears. Falls back to the synth if the clips won't decode. */
+    /* exactly as in the earlier build (index_240): a "prism" launch burst
+       (energize+blast) fires a few times up front, then one ELECTRO_PATH zap
+       (WAV057, at a quiet 0.22) per detonating gem so the count scales with
+       how many gems the cube clears. Synth prismzap is the fallback. */
     const ng2=cells.size;
-    const zaps=Math.min(14,Math.max(2,ng2));
-    if(BJ["cubezap"]&&!BJBAD["cubezap"]){
-      for(let z=0;z<zaps;z++){
-        const k=(z%2)?"cubezap2":"cubezap";
-        setTimeout(()=>bjPlay(k,0.7),(z/zaps)*430+Math.random()*30);
-      }
-    } else {
-      const hits=Math.min(5,Math.max(2,ng2>>2));
-      for(let z=0;z<hits;z++)setTimeout(()=>b3play("prism"),z*28+Math.random()*18);
-      for(let z=0;z<zaps;z++)setTimeout(()=>b3play("prismzap"),170+(z/zaps)*330+Math.random()*40);
-    }
+    const hits=Math.min(5,Math.max(2,ng2>>2));
+    for(let z=0;z<hits;z++)setTimeout(()=>b3play("prism"),z*28+Math.random()*18);
+    const zaps=Math.min(12,ng2);
+    for(let z=0;z<zaps;z++)setTimeout(()=>{ if(!(BJ["cubezap"]&&!BJBAD["cubezap"]&&bjPlay("cubezap",0.22))) b3play("prismzap"); },170+(z/zaps)*330+Math.random()*40);
   }
   else if(fired.has(4)){if(!bjPlay("stardet",0.8))b3play("cross");setTimeout(()=>{if(!bjPlay("flamedet",0.8))b3play("radiant");},70);}
   else if(fired.has(2)){if(!bjPlay("stardet",0.8))b3play("cross");}
