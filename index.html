@@ -9928,7 +9928,7 @@ function timeGemRoll(){
    without ever guaranteeing a match. x/y are only passed by the refill call
    in collapse(); other callers (initial board, reroll check) omit them and
    get the old flat random behavior. */
-const CASCADE_BIAS=0.08;
+const CASCADE_BIAS=0.04;
 function spawnType(x,y){
   if(mode!=="mine"){
     if(x!=null&&y!=null&&Math.random()<CASCADE_BIAS){
@@ -11497,7 +11497,7 @@ function down(px,py){
   /* Bejeweled 3 rule, all modes: swaps are allowed while gems are still
      cascading, as long as both gems involved have settled */
   const canAct=state==="idle"||state==="fall"||state==="clear";
-  if(!canAct||finale||coinPend)return;
+  if(!canAct||finale||coinPend||lvlUpT>0)return;   /* Classic/Zen: board is locked through the level-complete portal until the next level appears */
   const settled=c2=>{const i2=idx(c2.x,c2.y);return offY[i2]===0&&vel[i2]===0&&grid[i2]!=null&&!clearing.has(i2);};
   const c=cellAt(px,py);if(!c||!settled(c))return;
   dragFrom=c;
