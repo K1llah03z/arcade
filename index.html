@@ -9863,11 +9863,28 @@ let clearing=new Set(),clearT=0,clearDelay={},prismBlast=null,chain=0,score=0,le
 let particles=[],fx=[],overT=0,overStamp=0;
 let mode="classic",timeLeft=0,lastTick=-1,shuffleFlash=0;
 let lvlUpT=0,lvlUpLevel=1,lvlUpSwapped=false,bgLevel=0,lvlUpPortalStarted=false;   /* Classic/Zen level-complete portal + per-level background */
-/* per-mode bests; srcdoc iframes may lack storage, so fall back to session-only */
+/* Per-mode bests. In the arcade the game runs in a sandboxed srcdoc iframe with
+   an opaque origin, where localStorage throws — so the real persistence path is
+   the hub, via GameBridge (see persistSaves/onState below). localStorage is kept
+   only as a fallback for running this file standalone. */
 let bests={};
 try{bests=JSON.parse(localStorage.getItem("gemdrop-bests")||"{}");}catch(e){bests={};}
-for(const [o,n] of [["dig","mine"],["moths","butterfly"],["frost","icestorm"]]){if(bests[o]!=null){if(bests[n]==null||bests[o]>bests[n])bests[n]=bests[o];delete bests[o];}}
-function saveBest(){try{localStorage.setItem("gemdrop-bests",JSON.stringify(bests));}catch(e){}}
+function migrateBests(b){
+  if(!b||typeof b!=="object")return {};
+  for(const [o,n] of [["dig","mine"],["moths","butterfly"],["frost","icestorm"]]){if(b[o]!=null){if(b[n]==null||b[o]>b[n])b[n]=b[o];delete b[o];}}
+  return b;
+}
+migrateBests(bests);
+/* Keep the highest of what we have and whatever the hub hands back, so a best
+   set before the hub's state arrives is never clobbered by the older blob. */
+function mergeBests(incoming){
+  const b=migrateBests(incoming);
+  for(const k in b){ const v=Number(b[k]); if(isFinite(v)&&(bests[k]==null||v>bests[k])) bests[k]=v; }
+}
+function saveBest(){
+  try{localStorage.setItem("gemdrop-bests",JSON.stringify(bests));}catch(e){}
+  try{ if(typeof persistSaves==="function") persistSaves(); }catch(e){}
+}
 /* volume: music rides the streaming player, sound effects ride a master gain
    in front of the sample bank. Stored like bests - srcdoc frames may have no
    localStorage, in which case the setting just lasts the session. */
@@ -11548,10 +11565,22 @@ const SAVE_VER=3;
    on "ready" via onState. */
 let modeSaves={};
 try{ const _raw=localStorage.getItem("gemdrop-saves"); if(_raw) modeSaves=JSON.parse(_raw)||{}; }catch(e){}
-if(window.GameBridge) GameBridge.onState=(s)=>{ if(s&&typeof s==="object"&&!Array.isArray(s)) modeSaves=s; };
+/* The blob handed to the hub carries BOTH the in-progress saves and the
+   per-mode high scores: {v:4, saves:{...}, bests:{...}}. Older blobs are a bare
+   map of mode -> snapshot, so unwrap either shape. */
+if(window.GameBridge) GameBridge.onState=(s)=>{
+  if(!s||typeof s!=="object"||Array.isArray(s))return;
+  if(s.saves&&typeof s.saves==="object"&&!Array.isArray(s.saves)){
+    modeSaves=s.saves;
+    if(s.bests&&typeof s.bests==="object") mergeBests(s.bests);
+  }else{
+    modeSaves=s;   /* legacy: saves only */
+  }
+};
 function persistSaves(){
   try{ localStorage.setItem("gemdrop-saves",JSON.stringify(modeSaves)); }catch(e){}
-  try{ if(window.GameBridge&&GameBridge.save) GameBridge.save(modeSaves); }catch(e){}
+  try{ localStorage.setItem("gemdrop-bests",JSON.stringify(bests)); }catch(e){}
+  try{ if(window.GameBridge&&GameBridge.save) GameBridge.save({v:4,saves:modeSaves,bests:bests}); }catch(e){}
 }
 function snapshotGame(){
   return {v:SAVE_VER,at:Date.now(),mode,score,level,progress,goal,chain:0,mult,runTime,bgLevel,boost,
