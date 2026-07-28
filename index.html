@@ -9925,12 +9925,12 @@ let mineMoved=false,mineRose=false,artifactCountdown=4; /* ArtifactSkipTileCount
 const TIMEGEM_ODDS=[
   null,
   [0.04722, 0.00700],  /* level 1 */
-  [0.02269, 0.00613],  /* level 2 */
-  [0.01780, 0.00527],  /* level 3 */
-  [0.01451, 0.00440],  /* level 4 */
-  [0.01195, 0.00353],  /* level 5 */
-  [0.00985, 0.00267],  /* level 6 */
-  [0.00810, 0.00180],  /* level 7 */
+  [0.02532, 0.00613],  /* level 2 */
+  [0.01952, 0.00527],  /* level 3 */
+  [0.01695, 0.00440],  /* level 4 */
+  [0.01438, 0.00353],  /* level 5 */
+  [0.01181, 0.00267],  /* level 6 */
+  [0.00924, 0.00180],  /* level 7 */
   [0.00667, 0.00093]   /* level 8 (cap) */
 ];
 function timeGemRoll(){
@@ -10173,7 +10173,7 @@ function newBoard(){
     if(cells[1]!=null)spec[cells[1]]=1;
     if(cells[2]!=null)spec[cells[2]]=1;
   }
-  if((mode==="classic"||mode==="poker")&&!findMove())newBoard();
+  if(!findMove())newBoard();   /* never deal a dead opening board in any mode */
 }
 /* All 46 Diamond Mine artifacts: name, points, and the depth band they turn up
    in. If nothing matches the current depth the game falls back to the shallow
@@ -10264,6 +10264,38 @@ function seedDirtRows(y0,y1){
     else treas[i]=0;
     if(i===cubeAt){ buried[i]=1; treas[i]=0; dirt[i]=1; }  /* the cube, in soft dirt */
   }
+}
+/* ===== AHM ("Always Have Moves") - B3's engine repairs the QUEUED drop
+   sequence, not the board. If the incoming refill would leave the settled
+   board with no legal move, quietly recolor one of the gems still falling in
+   (they're above the top of the board, so the player never sees the change).
+   Gems already on the board are never touched. Classic is exempt: it's the
+   one mode that's allowed to dead-end, exactly like B3. */
+function ahmColors(){
+  if(mode!=="mine"){const a=[];for(let t=0;t<TYPES;t++)a.push(t);return a;}
+  const pool=[0,2,3,6];if(mineMoved)pool.push(5);if(mineRose)pool.push(4);
+  return pool;
+}
+function ensureMoveAHM(fresh){
+  if(mode==="classic")return;
+  if(!fresh.length||findMove())return;
+  const colors=ahmColors();
+  const order=fresh.slice();
+  for(let k=order.length-1;k>0;k--){const j=rnd(k+1);[order[k],order[j]]=[order[j],order[k]];}
+  for(const i of order){
+    if(grid[i]==null||grid[i]===PRISM||spec[i])continue;
+    const old=grid[i];
+    for(const t of colors){
+      if(t===old)continue;
+      grid[i]=t;
+      /* keep the recolor only if it creates a MOVE without creating a free
+         instant match on landing */
+      if(!findMatchRuns().cells.size&&findMove())return;
+    }
+    grid[i]=old;
+  }
+  /* couldn't fix it with one falling gem (vanishingly rare) - the settle-time
+     reshuffle fallback still catches it */
 }
 function reshuffle(){
   const items=[];
@@ -10431,35 +10463,6 @@ function findMove(){
     }
   }
   return null;
-}
-/* B3 never auto-shuffles a stuck board. In the real binary, Board::Scramble is
-   only reachable from the Scrambler boost (Board::UseTool) and Diamond Mine's
-   continue; the modes themselves return false from AllowNoMoreMoves. Instead,
-   Board::FillInBlanks handles a full settled board with no move by picking up
-   to TWO random plain gems (up to 64 random probes each, skipping specials /
-   flagged pieces), setting their colour to -1 and flagging them to refresh -
-   they quietly re-drop with a new colour, repeating each wave until a move
-   exists. No banner, no sound, layout preserved. This reproduces that. */
-function ensureMoveB3(){
-  let waves=0;
-  while(!findMove()&&waves++<64){
-    for(let n=0;n<2;n++){
-      let pick=-1;
-      for(let t=0;t<64;t++){                        /* B3: up to 64 random probes */
-        const i=rnd(N*N);
-        if(grid[i]!=null&&grid[i]!==PRISM&&!spec[i]&&!fly[i]&&!dirt[i]&&!tg[i]){pick=i;break;}
-      }
-      if(pick<0)break;
-      const x=pick%N,y=(pick/N)|0,old=grid[pick];
-      let c,att=0;
-      do{c=spawnType();}while((c===old||makesMatch(x,y,c))&&++att<24); /* new colour, no instant match */
-      if(c===old||makesMatch(x,y,c))continue;
-      grid[pick]=c;
-      offY[pick]=-CS;vel[pick]=0;                   /* the refreshed gem re-drops, like B3's flagged pieces */
-    }
-  }
-  if(!findMove())reshuffle();  /* pathological board (heavy dirt/specials) - last-resort fallback */
-  else if(waves>0)state="fall"; /* let the refreshed gems settle */
 }
 function burst(x,y,col,n){
   let cnt=(n||10),spd=1,lifeMul=1;
@@ -11371,7 +11374,7 @@ function resolveMatches(){
     }
     if(!findMove()){
       if(mode==="classic"){bjPlay("nomoremoves",0.95);overMsg="NO MOVES LEFT";endRun();}   /* the "No More Moves!" announcer is a Classic game-over line only */
-      else ensureMoveB3();   /* B3 never shuffles: it silently refreshes up to 2 random gems per wave until a move exists */
+      else reshuffle();   /* every endless mode just quietly reshuffles - no voice */
     }
     autoSave();   /* board has settled - snapshot this mode's game so it can be resumed */
     return;
@@ -11427,6 +11430,7 @@ function prismSwap(){
   }
 }
 function collapse(){
+  const freshSpawns=[];   /* AHM: gems spawned this refill, still off-screen */
   for(let x=0;x<N;x++){
     /* gravity within segments (dirt blocks falling) */
     let write=N-1;
@@ -11452,9 +11456,11 @@ function collapse(){
            resolve once falling completes), per the spawn-logic rule. */
         tg[i]=timeGemRoll();
         offY[i]=-(y+1)*CS-CS*0.5;vel[i]=0;
+        freshSpawns.push(i);
       }
     }
   }
+  ensureMoveAHM(freshSpawns);   /* repair the queued drops, never the board */
   state="fall";
 }
 
@@ -12536,18 +12542,21 @@ function frame(now){
     if(mode==="blitz"||mode==="mine"){
       if(startHold<=0){
       if(roundFreeze>0)roundFreeze=Math.max(0,roundFreeze-dt);
-      /* B3 Lightning: the clock NEVER pauses for swaps or cascades. In the real
-         binary, SpeedBoard::Update advances the elapsed-time accumulator
-         ([this+0x42c]) on every logic tick with no check of swap/fall/cascade
-         state anywhere around it - matches and detonations burn clock. The only
-         stillness check is CanTimeUp -> Board::IsBoardStill(): time may HIT ZERO
-         mid-cascade, but the expiry event (Last Hurrah / tank release with an
-         empty tank) waits for the board to settle. That's why B3's clock reads
-         0:00 while your final cascade keeps scoring. Blazing Speed just slows
-         the drain while it's lit. */
+      /* B3 Lightning: the clock FREEZES while a match is resolving - cascades and
+         special-gem detonations pause the timer, then it resumes once the board
+         settles back to idle. (Verified against B3 on-device.) Blazing Speed still
+         just slows it when the clock is actually running. */
+      const clockFrozen=(mode==="blitz"&&(state==="clear"||state==="fall"));
+      /* Blazing Speed's own 7s window burns in REAL time: once it's lit,
+         cascades and power-gem detonations do NOT pause it - you spend the
+         window, you don't stretch it. The main clock still freezes while a
+         match resolves, and the SPEED meter below still pauses during
+         clear/fall while you're building TOWARD Blazing. */
       if(mode==="blitz"&&blazing>0)blazing=Math.max(0,blazing-dt);
-      if(mode==="blitz"&&blazing>0)timeLeft-=dt*0.4;
-      else timeLeft-=dt;
+      if(!clockFrozen){
+        if(mode==="blitz"&&blazing>0)timeLeft-=dt*0.4;
+        else timeLeft-=dt;
+      }
       /* The SPEED meter drains on real time once you've stalled. It only pauses
          while gems are actually clearing/falling from a match (productive) - a wrong
          move is just a stall, so it keeps draining. */
@@ -12584,13 +12593,14 @@ function frame(now){
       if(timeLeft<=0){
         timeLeft=0;
         if(mode==="blitz"&&!finale){
-          /* B3's CanTimeUp: with banked time (SpeedBoard override checks the
-             bonus pool first) the expiry processes immediately - the tank release
-             fires even mid-cascade. With an EMPTY tank it defers to
-             Board::IsBoardStill(), so the Last Hurrah (and the "time's up"
-             announce) wait for the cascade to finish while the clock sits at
-             0:00 - the famous B3 free cascade. */
-          const settled=(state!=="clear"&&state!=="fall");
+          if(extTank<=0&&!saidTimeUp){
+            /* Kill the alarm first. It was only stopped at endRun(), so it kept
+               pulsing every 0.62s right through the Last Hurrah - on top of the
+               announcer, who is 6dB quieter than it, plus RANKUP and the music.
+               That is why "time's up" was inaudible rather than missing. */
+            bjLoopStop();
+            saidTimeUp=true;bjPlay("vTimeUp",1.0);
+          }
           if(extTank>0){
             /* TANK RELEASE: banked seconds dump into the main clock and the
                score multiplier climbs one step (x2 after the first release,
@@ -12611,15 +12621,7 @@ function frame(now){
             sel=null;dragFrom=null;
             popText(W/2,BY+CS,"ROUND CLEARED! x"+mult+" MULTIPLIER","#ffd700");
             AudioFX.level();
-          } else if(settled){
-            if(!saidTimeUp){
-              /* Kill the alarm first. It was only stopped at endRun(), so it kept
-                 pulsing every 0.62s right through the Last Hurrah - on top of the
-                 announcer, who is 6dB quieter than it, plus RANKUP and the music.
-                 That is why "time's up" was inaudible rather than missing. */
-              bjLoopStop();
-              saidTimeUp=true;bjPlay("vTimeUp",1.0);
-            }
+          } else {
             /* LAST HURRAH: leftover time gems become special gems (+5 -> Flame,
                +10 -> Star), then every special on the board detonates (handled
                by the finale watchdog below, so it can never stall regardless of
@@ -12631,8 +12633,6 @@ function frame(now){
                detonation wait for finaleHold to expire (see the watchdog). */
             finaleHold=1.7;
           }
-          /* else: mid-cascade at 0:00 with an empty tank - keep resolving; the
-             expiry re-fires next frame once the board is still. */
         } else if(mode==="mine"&&!saidTimeUp&&state!=="clear"&&state!=="fall"&&panOff<=0&&clearing.size===0){
           /* Only call time when the board has actually SETTLED. If a dig-line clear
              or descent is still animating, wait - the descent adds time (+25/+70)
