@@ -11023,8 +11023,9 @@ function beginClear(cells,specials,runs){
   playPraise(chain);   /* B3: praise escalates THROUGH a cascade - Good, then Excellent, then Awesome... one tier per cascade step */
   if(mode==="mine"&&chain===1&&!mineMoved){mineMoved=true;popText(W/2,BY+CS*1.2,"PURPLE GEMS JOIN THE DIG!","#b163ff");}
   /* blazing speed: each MATCH detonates like a single Flame gem (one 3x3 at the
-     match's center) - not a 3x3 around every gem, which cleared half the board */
-  if(mode==="blitz"&&blazing>0){
+     match's center) - not a 3x3 around every gem, which cleared half the board.
+     Only the PLAYER'S match explodes - cascades that fall in afterward don't. */
+  if(mode==="blitz"&&blazing>0&&pmove){
     const centers=[];
     if(runs&&runs.length){
       for(const r of runs){
