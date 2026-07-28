@@ -10432,6 +10432,35 @@ function findMove(){
   }
   return null;
 }
+/* B3 never auto-shuffles a stuck board. In the real binary, Board::Scramble is
+   only reachable from the Scrambler boost (Board::UseTool) and Diamond Mine's
+   continue; the modes themselves return false from AllowNoMoreMoves. Instead,
+   Board::FillInBlanks handles a full settled board with no move by picking up
+   to TWO random plain gems (up to 64 random probes each, skipping specials /
+   flagged pieces), setting their colour to -1 and flagging them to refresh -
+   they quietly re-drop with a new colour, repeating each wave until a move
+   exists. No banner, no sound, layout preserved. This reproduces that. */
+function ensureMoveB3(){
+  let waves=0;
+  while(!findMove()&&waves++<64){
+    for(let n=0;n<2;n++){
+      let pick=-1;
+      for(let t=0;t<64;t++){                        /* B3: up to 64 random probes */
+        const i=rnd(N*N);
+        if(grid[i]!=null&&grid[i]!==PRISM&&!spec[i]&&!fly[i]&&!dirt[i]&&!tg[i]){pick=i;break;}
+      }
+      if(pick<0)break;
+      const x=pick%N,y=(pick/N)|0,old=grid[pick];
+      let c,att=0;
+      do{c=spawnType();}while((c===old||makesMatch(x,y,c))&&++att<24); /* new colour, no instant match */
+      if(c===old||makesMatch(x,y,c))continue;
+      grid[pick]=c;
+      offY[pick]=-CS;vel[pick]=0;                   /* the refreshed gem re-drops, like B3's flagged pieces */
+    }
+  }
+  if(!findMove())reshuffle();  /* pathological board (heavy dirt/specials) - last-resort fallback */
+  else if(waves>0)state="fall"; /* let the refreshed gems settle */
+}
 function burst(x,y,col,n){
   let cnt=(n||10),spd=1,lifeMul=1;
   if(mode==="zen"){cnt=Math.ceil(cnt*0.5);spd=0.68;lifeMul=1.15;} /* Zen: fewer, slower, softer detonations */
@@ -11342,7 +11371,7 @@ function resolveMatches(){
     }
     if(!findMove()){
       if(mode==="classic"){bjPlay("nomoremoves",0.95);overMsg="NO MOVES LEFT";endRun();}   /* the "No More Moves!" announcer is a Classic game-over line only */
-      else reshuffle();   /* every endless mode just quietly reshuffles - no voice */
+      else ensureMoveB3();   /* B3 never shuffles: it silently refreshes up to 2 random gems per wave until a move exists */
     }
     autoSave();   /* board has settled - snapshot this mode's game so it can be resumed */
     return;
