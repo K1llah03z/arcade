@@ -10427,7 +10427,7 @@ function detonate(cells){
         Math.hypot(a%N-x,((a/N)|0)-y)-Math.hypot(b%N-x,((b/N)|0)-y));
       const gain=0.5/Math.sqrt(Math.max(1,targets.length)); /* stop 15 zaps clipping */
       const sweepMs=targets.length*90, sweepCT=targets.length*0.36;
-      detonAnim=Math.max(detonAnim,sweepCT+Math.max(0,targets.length-1)*0.20+0.25);   /* hypercube sweep freeze-frame */
+      detonAnim=Math.max(detonAnim,Math.min(1.30,0.35+targets.length*0.08));   /* hypercube sweep freeze-frame */
       bjPlay("elzap1",0.7);   /* 57: the detonation discharge - fires once */
       targets.forEach((j,k)=>{
         clearDelay[j]=sweepCT + k*0.20;   /* gems shatter only AFTER the whole zap sweep */
@@ -11457,7 +11457,7 @@ function prismSwap(){
     if(mode==="mine")prismBlast=new Set(cells);   /* dig dirt at full special power */
     beginClear(cells,[],[]);
     const sweepCT=targets.length*0.36;
-    if(mode==="blitz")detonFreeze=Math.max(detonFreeze,sweepCT+Math.max(0,targets.length-1)*0.20+0.25);   /* hypercube-swap freeze-frame: pause timer+blazing for the zap sweep */
+    if(mode==="blitz")detonFreeze=Math.max(detonFreeze,Math.min(1.30,0.35+targets.length*0.08));   /* hypercube-swap freeze-frame: pause timer+blazing for the zap sweep */
     targets.forEach((j,k)=>{ clearDelay[j]=sweepCT + k*0.20; });   /* shatter AFTER the sweep */
     return;
   }
