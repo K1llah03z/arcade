@@ -11457,6 +11457,7 @@ function prismSwap(){
     if(mode==="mine")prismBlast=new Set(cells);   /* dig dirt at full special power */
     beginClear(cells,[],[]);
     const sweepCT=targets.length*0.36;
+    if(mode==="blitz")detonFreeze=Math.max(detonFreeze,sweepCT+Math.max(0,targets.length-1)*0.20+0.25);   /* hypercube-swap freeze-frame: pause timer+blazing for the zap sweep */
     targets.forEach((j,k)=>{ clearDelay[j]=sweepCT + k*0.20; });   /* shatter AFTER the sweep */
     return;
   }
