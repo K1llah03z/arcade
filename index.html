@@ -11211,7 +11211,7 @@ function beginClear(cells,specials,runs){
           /* locked at +1000: +1000/match. The Blazing meter fills by how big the
              match is and what power gem it made - flame < star < hypercube < supernova. */
           let bestSp=0; if(specials)for(const sd of specials)bestSp=Math.max(bestSp,sd.sp);
-          const fillAmt=0.075;  /* B3-accurate flat ramp (Board::GetSpeedBonusRamp=0.075); ~14 matches to full */   /* none · flame · star · hypercube · supernova */
+          const fillAmt=0.075;  /* B3 ramp per fast match (Board::GetSpeedBonusRamp=0.075); fights the continuous 0.993/frame decay below */   /* none · flame · star · hypercube · supernova */
           speedFill=Math.min(1,speedFill+fillAmt);
           score+=1000*mult*boostMult();
           speedSnd = quick ? Math.min(9,speedSnd+1) : 1;
@@ -12596,8 +12596,14 @@ function frame(now){
       /* The SPEED meter drains on real time once you've stalled. It only pauses
          while gems are actually clearing/falling from a match (productive) - a wrong
          move is just a stall, so it keeps draining. */
-      if(mode==="blitz"&&speedBonus>=1000&&speedFill>0&&state!=="clear"&&state!=="fall"&&performance.now()-lastSpeedAt>1800){
-        speedFill=Math.max(0,speedFill-dt*0.075);   /* B3 Board::GetSpeedBonusRamp = 0.075 (byte-verified) */
+      if(mode==="blitz"&&speedBonus>=1000&&speedFill>0){
+        /* B3-accurate Blazing decay: the meter multiplies by 0.993 EVERY 60fps frame
+           (byte-verified), so it drains proportionally FASTER the fuller it is. That is
+           the "wall": the meter plateaus wherever your fill rate (0.075 per fast match)
+           balances the decay, and only a SUSTAINED, accelerating match rate pushes it to
+           1.0 to pulse Blazing. Below the 0.005 floor it resets to 0. */
+        speedFill*=Math.pow(0.993, dt*60);
+        if(speedFill<0.005)speedFill=0;
       }
       const c=Math.ceil(timeLeft);
       if(mode==="blitz"){
