@@ -9910,8 +9910,7 @@ let pokShufBtn={x:0,y:0,r:16},wildBtn={x:0,y:0,r:16};
 let blzTimeUses=3,blzShufUses=3;             /* blitz power-ups */
 let blzTimeBtn={x:0,y:0,r:16},blzShufBtn={x:0,y:0,r:16};
 let clsShufUses=3,gemUses=5;                 /* classic power-ups */
-let extTank=0,speedBonus=0,speedFill=0,speedStreak=0,speedSnd=0,lastSpeedAt=0,ignition=0,blazing=0,roundFreeze=0,detonFreeze=0; /* blitz: lightning mechanics */
-let NO_TIMEOUT=false;   /* DEBUG: when true, the Lightning clock never drains (verify all 8 levels). Toggle in console: NO_TIMEOUT=true */
+let extTank=0,speedBonus=0,speedFill=0,speedStreak=0,speedSnd=0,lastSpeedAt=0,ignition=0,blazing=0,roundFreeze=0; /* blitz: lightning mechanics */
 let mineMoved=false,mineRose=false,artifactCountdown=4; /* ArtifactSkipTileCount */          /* diamond mine: gem-type progression */
 /* gem indices: 0 red, 1 orange, 2 yellow, 3 green, 4 blue, 5 purple, 6 white */
 /* Time gem drop rates, per spawned gem, thinning out as the round multiplier
@@ -9924,18 +9923,15 @@ let mineMoved=false,mineRose=false,artifactCountdown=4; /* ArtifactSkipTileCount
    multiplier climbs (extending gets harder each round); +10s is always rare.
    Format [+5 chance, +10 chance]. */
 const TIMEGEM_ODDS=[
-  /* LIVE-VERIFIED off-device (B3 Classic 3.7.0, CurvedVal::GetOutVal). Game samples
-     the curve at input = (level - 1): level 1 = input 0 (confirmed live ->
-     0.047222 / 0.007000), levels 2..8 = inputs 1..7. [+5 chance, +10 chance]. */
   null,
-  [0.047222, 0.007000],  /* level 1 (input 0) */
-  [0.023911, 0.005894],  /* level 2 (input 1) */
-  [0.019358, 0.004810],  /* level 3 (input 2) */
-  [0.016043, 0.003786],  /* level 4 (input 3) */
-  [0.013028, 0.002862],  /* level 5 (input 4) */
-  [0.010448, 0.002076],  /* level 6 (input 5) */
-  [0.008437, 0.001467],  /* level 7 (input 6) */
-  [0.007132, 0.001073]   /* level 8 (input 7, cap) */
+  [0.04722, 0.00700],  /* level 1 */
+  [0.02269, 0.00613],  /* level 2 */
+  [0.01780, 0.00527],  /* level 3 */
+  [0.01451, 0.00440],  /* level 4 */
+  [0.01195, 0.00353],  /* level 5 */
+  [0.00985, 0.00267],  /* level 6 */
+  [0.00810, 0.00180],  /* level 7 */
+  [0.00667, 0.00093]   /* level 8 (cap) */
 ];
 function timeGemRoll(){
   if(mode!=="blitz"||finale)return 0;      /* none during the Last Hurrah */
@@ -10357,7 +10353,6 @@ function findMatchRuns(){
 function detonate(cells){
   clearDelay={};   /* per-gem stagger, populated by the hypercube */
   const fired=new Set();
-  let detonAnim=0;
   const queue=[...cells];
   while(queue.length){
     const i=queue.pop();
@@ -10376,7 +10371,7 @@ function detonate(cells){
         if(Math.random()<0.55)b3Sprites(BX+k2*CS+CS/2,BY+y*CS+CS/2,"bolt",1);
         if(Math.random()<0.55)b3Sprites(BX+x*CS+CS/2,BY+k2*CS+CS/2,"bolt",1);
       }
-      bjPlay("electro",0.5);detonAnim=Math.max(detonAnim,0.55);
+      bjPlay("electro",0.5);
     }
     else if(s===3){fx.push({type:"whirl",x:cx,y:cy,t:0,life:0.75});fx.push({type:"ring",x:cx,y:cy,t:0,life:0.5});b3Sprites(cx,cy,"bolt",12);}
     else if(s===4){ /* supernova: the star's energy cross, but THREE wide - a triple T */
@@ -10390,7 +10385,7 @@ function detonate(cells){
         if(y+d>=0&&y+d<N&&Math.random()<0.4)b3Sprites(BX+k2*CS+CS/2,BY+(y+d)*CS+CS/2,"bolt",1);
         if(x+d>=0&&x+d<N&&Math.random()<0.4)b3Sprites(BX+(x+d)*CS+CS/2,BY+k2*CS+CS/2,"bolt",1);
       }
-      bjPlay("electro",0.6);detonAnim=Math.max(detonAnim,0.70);
+      bjPlay("electro",0.6);
     }
     if(s===4){
       /* Supernova acts like a Star (row+column cross) but THREE wide - it clears
@@ -10431,7 +10426,6 @@ function detonate(cells){
         Math.hypot(a%N-x,((a/N)|0)-y)-Math.hypot(b%N-x,((b/N)|0)-y));
       const gain=0.5/Math.sqrt(Math.max(1,targets.length)); /* stop 15 zaps clipping */
       const sweepMs=targets.length*90, sweepCT=targets.length*0.36;
-      detonAnim=Math.max(detonAnim,Math.min(1.30,0.35+targets.length*0.08));
       bjPlay("elzap1",0.7);   /* 57: the detonation discharge - fires once */
       targets.forEach((j,k)=>{
         clearDelay[j]=sweepCT + k*0.20;   /* gems shatter only AFTER the whole zap sweep */
@@ -10447,7 +10441,6 @@ function detonate(cells){
       });
     }
   }
-  if(mode==="blitz"&&detonAnim>0)detonFreeze=Math.max(detonFreeze,detonAnim);
   return fired;
 }
 
@@ -11211,13 +11204,13 @@ function beginClear(cells,specials,runs){
           /* locked at +1000: +1000/match. The Blazing meter fills by how big the
              match is and what power gem it made - flame < star < hypercube < supernova. */
           let bestSp=0; if(specials)for(const sd of specials)bestSp=Math.max(bestSp,sd.sp);
-          const fillAmt=(0.10-0.06*speedFill);  /* B3 LIVE-verified taper: ~0.10 when empty easing to ~0.04 near full - fills fast early, crawls near the top; ~14 fast matches to full */   /* none · flame · star · hypercube · supernova */
+          const fillAmt=[0.07,0.16,0.22,0.28,0.40][bestSp];   /* none · flame · star · hypercube · supernova */
           speedFill=Math.min(1,speedFill+fillAmt);
           score+=1000*mult*boostMult();
           speedSnd = quick ? Math.min(9,speedSnd+1) : 1;
           bjPlay("spm"+speedSnd,0.85)||bjPlay("sp5",0.7);
-          if(speedFill>=1){   /* B3: meter PULSES at full and re-arms - repeats ~every 14 fast matches */
-            blazing=Math.max(blazing,7);speedFill=0;
+          if(speedFill>=1&&blazing<=0){
+            blazing=7;speedFill=0;
             popText(W/2,BY+CS,"BLAZING SPEED!","#ff6a00");
             bjPlay("vBlaze",1.0);bjPlay("blaze",0.85);
             b3play("prism");
@@ -11461,7 +11454,6 @@ function prismSwap(){
     if(mode==="mine")prismBlast=new Set(cells);   /* dig dirt at full special power */
     beginClear(cells,[],[]);
     const sweepCT=targets.length*0.36;
-    if(mode==="blitz")detonFreeze=Math.max(detonFreeze,Math.min(1.30,0.35+targets.length*0.08));
     targets.forEach((j,k)=>{ clearDelay[j]=sweepCT + k*0.20; });   /* shatter AFTER the sweep */
     return;
   }
@@ -11682,9 +11674,9 @@ function hasResume(id){
 }
 function restoreGame(s){
   mode=s.mode; layout();
-  score=s.score;level=s.level;progress=s.progress;goal=s.goal;mult=s.mult||1;runTime=s.runTime||0;bgLevel=s.bgLevel||0;boost=s.boost||null;chain=0;finale=false;finaleChain=false;   /* resumed games are never mid-Last-Hurrah; clear finale so time gems can spawn */
+  score=s.score;level=s.level;progress=s.progress;goal=s.goal;mult=s.mult||1;runTime=s.runTime||0;bgLevel=s.bgLevel||0;boost=s.boost||null;chain=0;
   timeLeft=s.timeLeft||0;lastTick=s.lastTick!=null?s.lastTick:-1;panOff=s.panOff||0;
-  extTank=s.extTank||0;speedBonus=s.speedBonus||0;speedFill=s.speedFill||0;speedStreak=s.speedStreak||0;speedSnd=s.speedSnd||0;lastSpeedAt=0;ignition=s.ignition||0;blazing=s.blazing||0;roundFreeze=0;detonFreeze=0;
+  extTank=s.extTank||0;speedBonus=s.speedBonus||0;speedFill=s.speedFill||0;speedStreak=s.speedStreak||0;speedSnd=s.speedSnd||0;lastSpeedAt=0;ignition=s.ignition||0;blazing=s.blazing||0;roundFreeze=0;
   mineMoved=!!s.mineMoved;mineRose=!!s.mineRose;artifactCountdown=s.artifactCountdown!=null?s.artifactCountdown:4;
   spiderX=s.spiderX!=null?s.spiderX:-1;spiderDrop=s.spiderDrop||0;caught=s.caught||0;pendingFlyStep=!!s.pendingFlyStep;
   skulls=s.skulls||0;skullBar=s.skullBar||0;skullCD=s.skullCD||0;handsPlayed=s.handsPlayed||0;scoreDisp=s.scoreDisp!=null?s.scoreDisp:s.score;handName=s.handName||"";handFlash=0;
@@ -11718,7 +11710,7 @@ function startRun(m){
   freezeLeft=0;freezeUses=3;gustUses=3;timeUses=3;drillUses=3;overBtns=null;
   iceShufUses=3;iceFrzUses=3;iceFrzLeft=0;pokShufUses=3;wildUses=3;
   blzTimeUses=3;blzShufUses=3;clsShufUses=3;gemUses=5;
-  extTank=0;speedBonus=0;speedFill=0;speedStreak=0;speedSnd=0;lastSpeedAt=0;ignition=0;blazing=0;roundFreeze=0;detonFreeze=0;
+  extTank=0;speedBonus=0;speedFill=0;speedStreak=0;speedSnd=0;lastSpeedAt=0;ignition=0;blazing=0;roundFreeze=0;
   mult=1;
   bjPrewarm("elzap1");bjPrewarm("elzap2");bjPrewarm("glassbrk");   /* hypercube detonation, all modes */
   ["flamecreate","starcreate","cubecreate","flamedet","stardet","gemshatter","cubedet","cubezap","cubezap2"].forEach(k=>bjPrewarm(k)); /* real B3 power-gem create/detonate */
@@ -12579,28 +12571,24 @@ function frame(now){
     if(mode==="blitz"||mode==="mine"){
       if(startHold<=0){
       if(roundFreeze>0)roundFreeze=Math.max(0,roundFreeze-dt);
-      /* B3 Lightning "freeze frame" (matches Classic 3.7.0 behaviour):
-         Star-gem, Hypercube and Supernova detonations briefly pause BOTH the
-         countdown AND the Blazing-Speed meter for the detonation animation
-         (duration set in detonate()/prismSwap() -> detonFreeze). Ordinary
-         matches, cascades and swaps do NOT pause the clock. */
-      if(detonFreeze>0){
-        detonFreeze=Math.max(0,detonFreeze-dt);      /* timer + blazing held during the blast */
-      } else if(NO_TIMEOUT&&mode==="blitz"){
-        timeLeft=Math.max(timeLeft,30);   /* DEBUG: hold the clock so the round never ends */
-      } else {
-        if(mode==="blitz"&&blazing>0)blazing=Math.max(0,blazing-dt);
-        if(mode==="blitz"&&blazing>0)timeLeft-=dt*0.4;
-        else timeLeft-=dt;
-      }
+      /* B3 Lightning: the clock NEVER pauses for swaps or cascades. In the real
+         binary, SpeedBoard::Update advances the elapsed-time accumulator
+         ([this+0x42c]) on every logic tick with no check of swap/fall/cascade
+         state anywhere around it - matches and detonations burn clock. The only
+         stillness check is CanTimeUp -> Board::IsBoardStill(): time may HIT ZERO
+         mid-cascade, but the expiry event (Last Hurrah / tank release with an
+         empty tank) waits for the board to settle. That's why B3's clock reads
+         0:00 while your final cascade keeps scoring. Blazing Speed just slows
+         the drain while it's lit. */
+      if(mode==="blitz"&&blazing>0)blazing=Math.max(0,blazing-dt);
+      if(mode==="blitz"&&blazing>0)timeLeft-=dt*0.4;
+      else timeLeft-=dt;
       /* The SPEED meter drains on real time once you've stalled. It only pauses
          while gems are actually clearing/falling from a match (productive) - a wrong
          move is just a stall, so it keeps draining. */
-      /* B3 LIVE-verified: the Blazing meter does NOT decay and does NOT drain on a stall.
-         It HOLDS its value indefinitely between matches (Frida: it sat flat at 0.471 /
-         0.620 / 0.856 for seconds while I was NOT matching). The ONLY time it clears is
-         the pulse when it reaches 1.0 (handled in the fill code above, speedFill=0).
-         So there is deliberately no decay or stall-reset here. */
+      if(mode==="blitz"&&speedBonus>=1000&&speedFill>0&&state!=="clear"&&state!=="fall"&&performance.now()-lastSpeedAt>1800){
+        speedFill=Math.max(0,speedFill-dt*0.075);   /* B3 Board::GetSpeedBonusRamp = 0.075 (byte-verified) */
+      }
       const c=Math.ceil(timeLeft);
       if(mode==="blitz"){
         /* B3 Lightning final-seconds warning:
