@@ -9911,6 +9911,7 @@ let blzTimeUses=3,blzShufUses=3;             /* blitz power-ups */
 let blzTimeBtn={x:0,y:0,r:16},blzShufBtn={x:0,y:0,r:16};
 let clsShufUses=3,gemUses=5;                 /* classic power-ups */
 let extTank=0,speedBonus=0,speedFill=0,speedStreak=0,speedSnd=0,lastSpeedAt=0,ignition=0,blazing=0,roundFreeze=0,detonFreeze=0; /* blitz: lightning mechanics */
+let NO_TIMEOUT=false;   /* DEBUG: when true, the Lightning clock never drains (verify all 8 levels). Toggle in console: NO_TIMEOUT=true */
 let mineMoved=false,mineRose=false,artifactCountdown=4; /* ArtifactSkipTileCount */          /* diamond mine: gem-type progression */
 /* gem indices: 0 red, 1 orange, 2 yellow, 3 green, 4 blue, 5 purple, 6 white */
 /* Time gem drop rates, per spawned gem, thinning out as the round multiplier
@@ -11681,7 +11682,7 @@ function hasResume(id){
 }
 function restoreGame(s){
   mode=s.mode; layout();
-  score=s.score;level=s.level;progress=s.progress;goal=s.goal;mult=s.mult||1;runTime=s.runTime||0;bgLevel=s.bgLevel||0;boost=s.boost||null;chain=0;
+  score=s.score;level=s.level;progress=s.progress;goal=s.goal;mult=s.mult||1;runTime=s.runTime||0;bgLevel=s.bgLevel||0;boost=s.boost||null;chain=0;finale=false;finaleChain=false;   /* resumed games are never mid-Last-Hurrah; clear finale so time gems can spawn */
   timeLeft=s.timeLeft||0;lastTick=s.lastTick!=null?s.lastTick:-1;panOff=s.panOff||0;
   extTank=s.extTank||0;speedBonus=s.speedBonus||0;speedFill=s.speedFill||0;speedStreak=s.speedStreak||0;speedSnd=s.speedSnd||0;lastSpeedAt=0;ignition=s.ignition||0;blazing=s.blazing||0;roundFreeze=0;detonFreeze=0;
   mineMoved=!!s.mineMoved;mineRose=!!s.mineRose;artifactCountdown=s.artifactCountdown!=null?s.artifactCountdown:4;
@@ -12585,6 +12586,8 @@ function frame(now){
          matches, cascades and swaps do NOT pause the clock. */
       if(detonFreeze>0){
         detonFreeze=Math.max(0,detonFreeze-dt);      /* timer + blazing held during the blast */
+      } else if(NO_TIMEOUT&&mode==="blitz"){
+        timeLeft=Math.max(timeLeft,30);   /* DEBUG: hold the clock so the round never ends */
       } else {
         if(mode==="blitz"&&blazing>0)blazing=Math.max(0,blazing-dt);
         if(mode==="blitz"&&blazing>0)timeLeft-=dt*0.4;
