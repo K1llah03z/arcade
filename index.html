@@ -11211,7 +11211,7 @@ function beginClear(cells,specials,runs){
           /* locked at +1000: +1000/match. The Blazing meter fills by how big the
              match is and what power gem it made - flame < star < hypercube < supernova. */
           let bestSp=0; if(specials)for(const sd of specials)bestSp=Math.max(bestSp,sd.sp);
-          const fillAmt=0.075;  /* B3 ramp per fast match (Board::GetSpeedBonusRamp=0.075); fights the continuous 0.993/frame decay below */   /* none · flame · star · hypercube · supernova */
+          const fillAmt=(0.10-0.06*speedFill);  /* B3 LIVE-verified taper: ~0.10 when empty easing to ~0.04 near full - fills fast early, crawls near the top; ~14 fast matches to full */   /* none · flame · star · hypercube · supernova */
           speedFill=Math.min(1,speedFill+fillAmt);
           score+=1000*mult*boostMult();
           speedSnd = quick ? Math.min(9,speedSnd+1) : 1;
@@ -12596,14 +12596,12 @@ function frame(now){
       /* The SPEED meter drains on real time once you've stalled. It only pauses
          while gems are actually clearing/falling from a match (productive) - a wrong
          move is just a stall, so it keeps draining. */
-      if(mode==="blitz"&&speedBonus>=1000&&speedFill>0){
-        /* B3-accurate Blazing decay: the meter multiplies by 0.993 EVERY 60fps frame
-           (byte-verified), so it drains proportionally FASTER the fuller it is. That is
-           the "wall": the meter plateaus wherever your fill rate (0.075 per fast match)
-           balances the decay, and only a SUSTAINED, accelerating match rate pushes it to
-           1.0 to pulse Blazing. Below the 0.005 floor it resets to 0. */
-        speedFill*=Math.pow(0.993, dt*60);
-        if(speedFill<0.005)speedFill=0;
+      /* B3 LIVE-verified: the Blazing meter does NOT decay - it HOLDS its value between
+         matches (Frida showed it sitting flat at 0.471 / 0.620 / 0.856 for seconds with
+         zero drain). It only clears on a full stall, mirroring EndSpeedBonus: if you stop
+         matching fast for >2.5s the meter resets to 0 (the score bonus phase stays). */
+      if(mode==="blitz"&&speedBonus>=1000&&speedFill>0&&performance.now()-lastSpeedAt>2500){
+        speedFill=0;
       }
       const c=Math.ceil(timeLeft);
       if(mode==="blitz"){
