@@ -9923,15 +9923,18 @@ let mineMoved=false,mineRose=false,artifactCountdown=4; /* ArtifactSkipTileCount
    multiplier climbs (extending gets harder each round); +10s is always rare.
    Format [+5 chance, +10 chance]. */
 const TIMEGEM_ODDS=[
+  /* LIVE-VERIFIED off-device (B3 Classic 3.7.0, CurvedVal::GetOutVal). Game samples
+     the curve at input = (level - 1): level 1 = input 0 (confirmed live ->
+     0.047222 / 0.007000), levels 2..8 = inputs 1..7. [+5 chance, +10 chance]. */
   null,
-  [0.04722, 0.00700],  /* level 1 */
-  [0.02269, 0.00613],  /* level 2 */
-  [0.01780, 0.00527],  /* level 3 */
-  [0.01451, 0.00440],  /* level 4 */
-  [0.01195, 0.00353],  /* level 5 */
-  [0.00985, 0.00267],  /* level 6 */
-  [0.00810, 0.00180],  /* level 7 */
-  [0.00667, 0.00093]   /* level 8 (cap) */
+  [0.047222, 0.007000],  /* level 1 (input 0) */
+  [0.023911, 0.005894],  /* level 2 (input 1) */
+  [0.019358, 0.004810],  /* level 3 (input 2) */
+  [0.016043, 0.003786],  /* level 4 (input 3) */
+  [0.013028, 0.002862],  /* level 5 (input 4) */
+  [0.010448, 0.002076],  /* level 6 (input 5) */
+  [0.008437, 0.001467],  /* level 7 (input 6) */
+  [0.007132, 0.001073]   /* level 8 (input 7, cap) */
 ];
 function timeGemRoll(){
   if(mode!=="blitz"||finale)return 0;      /* none during the Last Hurrah */
@@ -10372,7 +10375,7 @@ function detonate(cells){
         if(Math.random()<0.55)b3Sprites(BX+k2*CS+CS/2,BY+y*CS+CS/2,"bolt",1);
         if(Math.random()<0.55)b3Sprites(BX+x*CS+CS/2,BY+k2*CS+CS/2,"bolt",1);
       }
-      bjPlay("electro",0.5);detonAnim=Math.max(detonAnim,0.55);   /* star cross freeze-frame */
+      bjPlay("electro",0.5);detonAnim=Math.max(detonAnim,0.55);
     }
     else if(s===3){fx.push({type:"whirl",x:cx,y:cy,t:0,life:0.75});fx.push({type:"ring",x:cx,y:cy,t:0,life:0.5});b3Sprites(cx,cy,"bolt",12);}
     else if(s===4){ /* supernova: the star's energy cross, but THREE wide - a triple T */
@@ -10386,7 +10389,7 @@ function detonate(cells){
         if(y+d>=0&&y+d<N&&Math.random()<0.4)b3Sprites(BX+k2*CS+CS/2,BY+(y+d)*CS+CS/2,"bolt",1);
         if(x+d>=0&&x+d<N&&Math.random()<0.4)b3Sprites(BX+(x+d)*CS+CS/2,BY+k2*CS+CS/2,"bolt",1);
       }
-      bjPlay("electro",0.6);detonAnim=Math.max(detonAnim,0.70);   /* supernova freeze-frame */
+      bjPlay("electro",0.6);detonAnim=Math.max(detonAnim,0.70);
     }
     if(s===4){
       /* Supernova acts like a Star (row+column cross) but THREE wide - it clears
@@ -10427,7 +10430,7 @@ function detonate(cells){
         Math.hypot(a%N-x,((a/N)|0)-y)-Math.hypot(b%N-x,((b/N)|0)-y));
       const gain=0.5/Math.sqrt(Math.max(1,targets.length)); /* stop 15 zaps clipping */
       const sweepMs=targets.length*90, sweepCT=targets.length*0.36;
-      detonAnim=Math.max(detonAnim,Math.min(1.30,0.35+targets.length*0.08));   /* hypercube sweep freeze-frame */
+      detonAnim=Math.max(detonAnim,Math.min(1.30,0.35+targets.length*0.08));
       bjPlay("elzap1",0.7);   /* 57: the detonation discharge - fires once */
       targets.forEach((j,k)=>{
         clearDelay[j]=sweepCT + k*0.20;   /* gems shatter only AFTER the whole zap sweep */
@@ -11457,7 +11460,7 @@ function prismSwap(){
     if(mode==="mine")prismBlast=new Set(cells);   /* dig dirt at full special power */
     beginClear(cells,[],[]);
     const sweepCT=targets.length*0.36;
-    if(mode==="blitz")detonFreeze=Math.max(detonFreeze,Math.min(1.30,0.35+targets.length*0.08));   /* hypercube-swap freeze-frame: pause timer+blazing for the zap sweep */
+    if(mode==="blitz")detonFreeze=Math.max(detonFreeze,Math.min(1.30,0.35+targets.length*0.08));
     targets.forEach((j,k)=>{ clearDelay[j]=sweepCT + k*0.20; });   /* shatter AFTER the sweep */
     return;
   }
@@ -12577,10 +12580,9 @@ function frame(now){
       if(roundFreeze>0)roundFreeze=Math.max(0,roundFreeze-dt);
       /* B3 Lightning "freeze frame" (matches Classic 3.7.0 behaviour):
          Star-gem, Hypercube and Supernova detonations briefly pause BOTH the
-         countdown AND the Blazing-Speed meter for the length of the detonation
-         animation (duration set in detonate() -> detonFreeze). Ordinary
-         matches, cascades and gem swaps do NOT pause the clock - it keeps
-         running through those. */
+         countdown AND the Blazing-Speed meter for the detonation animation
+         (duration set in detonate()/prismSwap() -> detonFreeze). Ordinary
+         matches, cascades and swaps do NOT pause the clock. */
       if(detonFreeze>0){
         detonFreeze=Math.max(0,detonFreeze-dt);      /* timer + blazing held during the blast */
       } else {
