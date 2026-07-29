@@ -11211,13 +11211,13 @@ function beginClear(cells,specials,runs){
           /* locked at +1000: +1000/match. The Blazing meter fills by how big the
              match is and what power gem it made - flame < star < hypercube < supernova. */
           let bestSp=0; if(specials)for(const sd of specials)bestSp=Math.max(bestSp,sd.sp);
-          const fillAmt=[0.07,0.16,0.22,0.28,0.40][bestSp];   /* none · flame · star · hypercube · supernova */
+          const fillAmt=0.075;  /* B3-accurate flat ramp (Board::GetSpeedBonusRamp=0.075); ~14 matches to full */   /* none · flame · star · hypercube · supernova */
           speedFill=Math.min(1,speedFill+fillAmt);
           score+=1000*mult*boostMult();
           speedSnd = quick ? Math.min(9,speedSnd+1) : 1;
           bjPlay("spm"+speedSnd,0.85)||bjPlay("sp5",0.7);
-          if(speedFill>=1&&blazing<=0){
-            blazing=7;speedFill=0;
+          if(speedFill>=1){   /* B3: meter PULSES at full and re-arms - repeats ~every 14 fast matches */
+            blazing=Math.max(blazing,7);speedFill=0;
             popText(W/2,BY+CS,"BLAZING SPEED!","#ff6a00");
             bjPlay("vBlaze",1.0);bjPlay("blaze",0.85);
             b3play("prism");
