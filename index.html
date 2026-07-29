@@ -12596,13 +12596,11 @@ function frame(now){
       /* The SPEED meter drains on real time once you've stalled. It only pauses
          while gems are actually clearing/falling from a match (productive) - a wrong
          move is just a stall, so it keeps draining. */
-      /* B3 LIVE-verified: the Blazing meter does NOT decay - it HOLDS its value between
-         matches (Frida showed it sitting flat at 0.471 / 0.620 / 0.856 for seconds with
-         zero drain). It only clears on a full stall, mirroring EndSpeedBonus: if you stop
-         matching fast for >2.5s the meter resets to 0 (the score bonus phase stays). */
-      if(mode==="blitz"&&speedBonus>=1000&&speedFill>0&&performance.now()-lastSpeedAt>2500){
-        speedFill=0;
-      }
+      /* B3 LIVE-verified: the Blazing meter does NOT decay and does NOT drain on a stall.
+         It HOLDS its value indefinitely between matches (Frida: it sat flat at 0.471 /
+         0.620 / 0.856 for seconds while I was NOT matching). The ONLY time it clears is
+         the pulse when it reaches 1.0 (handled in the fill code above, speedFill=0).
+         So there is deliberately no decay or stall-reset here. */
       const c=Math.ceil(timeLeft);
       if(mode==="blitz"){
         /* B3 Lightning final-seconds warning:
