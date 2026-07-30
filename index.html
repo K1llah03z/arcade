@@ -10089,7 +10089,7 @@ const HAND_COUNTDOWN=[0.50,0.45,0.30,0.25,0.20,0.10,0.00]; /* how much each hand
 const POK_CD_MULT_PER_HAND=0.1;                          /* countdown grows 10% per hand played */
 const SKULL_CAP=5;                                       /* SkullMax - a full skull table ends the game */
 const POK_SPECIAL_BONUS={1:100,2:250,4:500};             /* FlameBonus 100 · StarBonus 250 · SuperBonus 500 */
-let skulls=0,skullBar=0,skullCD=0,handsPlayed=0;          /* poker skull state */
+let skulls=0,skullBar=0,skullCD=0,handsPlayed=0,splitBonus=0;          /* poker skull state + banked split-card bonus */
 let pokReqShown=0,pokRowPos=[];                           /* requirement-rise animation + row screen positions */
 let coinPend=null;                                        /* deferred Skull Coin flip: {win, t} */
 let scoreDisp=0,_chipTick=0,pendCardDeal=false;          /* poker: score rattles up with POKERCHIPS; deal the new hand when it finishes */
@@ -11045,9 +11045,15 @@ function dealCard(colors,px,py){ /* matched gem(s) fly into the hand */
   colors=[...new Set(colors)].slice(0,2);
   const slot=handSlot(hand.length);
   fx.push({type:"cardfly",x0:px,y0:py,x1:slot.x,y1:slot.y,
-           cols:colors.map(c=>GEMS[c].c),t:0,life:0.45});
+           cols:colors.map(c=>c==="W"?"#ffd700":GEMS[c].c),t:0,life:0.45});
   hand.push(colors);cardFlip[hand.length-1]=0.42;bjPlay("cardflip",0.9)||AudioFX.card();
-  if(colors.length===2)popText(px,py-10,"SPLIT CARD","#a2f5ff");
+  if(colors[0]==="W")popText(px,py-10,"WILD CARD!","#ffd700");
+  if(colors.length===2){
+    /* split card bonus: +100 per two-color card, BANKED now and paid out only
+       when the hand finishes (evalHand) */
+    popText(px,py-10,"SPLIT CARD","#a2f5ff");
+    splitBonus+=100;
+  }
   if(hand.length>=5)setTimeout(evalHand,480);
 }
 function rankHand(cols){ /* score one concrete 5-color hand */
@@ -11085,6 +11091,13 @@ function evalHand(){
     const req=skulls;
     const payout=best.val*boostMult();
     handFlash=1.6;
+    /* banked card bonuses (split cards + flaming/sparkling gem cards) pay out
+       when the hand finishes, win or bust */
+    if(splitBonus>0){
+      score+=splitBonus;GameBridge.reportScore(score);
+      popText(W/2,BY+CS*2.6,"CARD BONUS +"+splitBonus,"#a2f5ff");
+      splitBonus=0;
+    }
     if(best.idx>=req){
       score+=payout;
       handName=best.name+"  +"+payout.toLocaleString();
@@ -11396,7 +11409,24 @@ function beginClear(cells,specials,runs){
     if(rb&&rb!==ra)cols.push(rb.t);
     if(!cols.length)cols.push(runs[0].t);
     const cell=ra?sa:(rb?sb:sa), x=cell%N,y=(cell/N)|0;
-    dealCard(cols,BX+x*CS+CS/2,BY+y*CS+CS/2);   /* 1 colour, or 2 on a split card */
+    /* B3 Poker special-gem cards: the special CREATED by the move flags the
+       card and banks bonus points (paid when the hand finishes):
+         Flame (4-match)      -> Flaming card            +100
+         Star (L/T)           -> Sparkling card          +250
+         Supernova (6+)       -> Flaming + Sparkling     +250
+         Hypercube (5-match)  -> WILD card               +0 (best color) */
+    let dealCols=cols,gemBonus=0,gemLabel=null;
+    if(specials&&specials.length)for(const s of specials){
+      if(s.sp===3)dealCols=["W"];
+      else if(s.sp===1){gemBonus+=100;gemLabel="FLAMING CARD";}
+      else if(s.sp===2){gemBonus+=250;gemLabel="SPARKLING CARD";}
+      else if(s.sp===4){gemBonus+=250;gemLabel="FLAMING + SPARKLING";}
+    }
+    dealCard(dealCols,BX+x*CS+CS/2,BY+y*CS+CS/2);   /* 1 colour, 2 on a split card, or WILD */
+    if(gemBonus>0){
+      splitBonus+=gemBonus;
+      popText(BX+x*CS+CS/2,BY+y*CS-CS*0.7,gemLabel+" +"+gemBonus,"#ffb84d");
+    }
   }
   GameBridge.reportScore(score);
   if(fired.has(3)){
@@ -11496,10 +11526,13 @@ function prismSwap(){
     for(let j=0;j<N*N;j++)if(grid[j]!=null)cells.add(j);
     /* ice storm: swapping two prisms destroys every ice column */
     if(mode==="icestorm")for(let k=0;k<N;k++)shatterIceColumn(k);
+    /* poker: a double-cube swap is still a cube swap - it deals a WILD card */
+    if(mode==="poker")dealCard(["W"],BX+(oi%N)*CS+CS/2,BY+((oi/N)|0)*CS+CS/2);
     GameBridge.achievement("gemdrop-double-prism");
   } else {
     for(let j=0;j<N*N;j++)if(grid[j]===t)cells.add(j);
-    if(mode==="poker"&&t>=0)dealCard([t],BX+(oi%N)*CS+CS/2,BY+((oi/N)|0)*CS+CS/2);
+    /* B3 Poker: a swapped Hypercube deals a WILD card, not the eaten color */
+    if(mode==="poker"&&t>=0)dealCard(["W"],BX+(oi%N)*CS+CS/2,BY+((oi/N)|0)*CS+CS/2);
   }
   /* B3 hypercube: the cube discharges, then lightning reaches each gem in turn.
      Measured off the real game at ~55ms between hits, radiating outward from
@@ -11727,7 +11760,7 @@ function snapshotGame(){
   return {v:SAVE_VER,at:Date.now(),mode,score,level,progress,goal,chain:0,mult,runTime,bgLevel,boost,
     timeLeft,lastTick,panOff,extTank,speedBonus,speedFill,speedStreak,speedSnd,ignition,blazing,roundFreeze,
     mineMoved,mineRose,artifactCountdown,spiderX,spiderDrop,caught,pendingFlyStep,
-    skulls,skullBar,skullCD,handsPlayed,scoreDisp,handName,
+    skulls,skullBar,skullCD,handsPlayed,splitBonus,scoreDisp,handName,
     iceMult,iceRemoved,iceStage,iceStageT,iceSpawnT,colComboN,lastShatterX,
     freezeUses,gustUses,timeUses,drillUses,iceShufUses,iceFrzUses,iceFrzLeft,pokShufUses,wildUses,
     blzTimeUses,blzShufUses,clsShufUses,gemUses,freezeLeft,
@@ -11755,7 +11788,7 @@ function restoreGame(s){
   extTank=s.extTank||0;speedBonus=s.speedBonus||0;speedFill=s.speedFill||0;speedStreak=s.speedStreak||0;speedSnd=s.speedSnd||0;lastSpeedAt=0;ignition=s.ignition||0;blazing=s.blazing||0;roundFreeze=0;specHold=false;prismHold=false;
   mineMoved=!!s.mineMoved;mineRose=!!s.mineRose;artifactCountdown=s.artifactCountdown!=null?s.artifactCountdown:4;
   spiderX=s.spiderX!=null?s.spiderX:-1;spiderDrop=s.spiderDrop||0;caught=s.caught||0;pendingFlyStep=!!s.pendingFlyStep;
-  skulls=s.skulls||0;skullBar=s.skullBar||0;skullCD=s.skullCD||0;handsPlayed=s.handsPlayed||0;scoreDisp=s.scoreDisp!=null?s.scoreDisp:s.score;handName=s.handName||"";handFlash=0;
+  skulls=s.skulls||0;skullBar=s.skullBar||0;skullCD=s.skullCD||0;handsPlayed=s.handsPlayed||0;splitBonus=s.splitBonus||0;scoreDisp=s.scoreDisp!=null?s.scoreDisp:s.score;handName=s.handName||"";handFlash=0;
   iceMult=s.iceMult||1;iceRemoved=s.iceRemoved||0;iceStage=s.iceStage||1;iceStageT=s.iceStageT||0;iceSpawnT=s.iceSpawnT||0;
   colComboN=s.colComboN||0;colComboT=0;lastShatterX=s.lastShatterX!=null?s.lastShatterX:-1;
   freezeUses=s.freezeUses!=null?s.freezeUses:3;gustUses=s.gustUses!=null?s.gustUses:3;timeUses=s.timeUses!=null?s.timeUses:3;drillUses=s.drillUses!=null?s.drillUses:3;freezeLeft=s.freezeLeft||0;
@@ -11797,7 +11830,7 @@ function startRun(m){
   ["vGood","vExcellent","vAwesome","vSpectacular","vExtraordinary","vUnbelievable"].forEach(k=>bjPrewarm(k));
   mineMoved=false;mineRose=false;artifactCountdown=4;
   hand=[];handFlash=0;runTime=0;overMsg="";finale=false;finaleChain=false;cardFlip=[0,0,0,0,0];
-  skulls=0;skullBar=0;skullCD=0;handsPlayed=0;pokReqShown=0;coinPend=null;scoreDisp=0;_chipTick=0;pendCardDeal=false;   /* poker skull mechanic */
+  skulls=0;skullBar=0;skullCD=0;handsPlayed=0;splitBonus=0;pokReqShown=0;coinPend=null;scoreDisp=0;_chipTick=0;pendCardDeal=false;   /* poker skull mechanic */
   iceH=new Array(N).fill(0);iceLink=new Array(N).fill(-1);
   iceMult=1;iceRemoved=0;iceDanger=new Array(N).fill(0);
   iceStage=1;iceStageT=0;iceSpawnT=0;
