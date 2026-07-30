@@ -12617,13 +12617,13 @@ function frame(now){
     if(mode==="blitz"||mode==="mine"){
       if(startHold<=0){
       if(roundFreeze>0)roundFreeze=Math.max(0,roundFreeze-dt);
-      /* Lightning main clock: pauses for the SWAP and the player's own match
-         resolving (chain 1) - but NEVER for cascades. Once a chain re-matches
-         on its own (chain 2+), the clock burns through it. Star / Hypercube /
-         Supernova detonations (specHold) still freeze the clock wherever they
-         happen in a chain. The expiry event still waits for the board to
-         settle, so a final cascade at 0:00 keeps scoring either way. */
-      const clockFrozen=(mode==="blitz"&&(state==="swap"||((state==="clear"||state==="fall")&&(chain<=1||specHold))));
+      /* Lightning main clock: burns through the swap and the player's own match
+         (chain 1) - but PAUSES for cascades. Once the board re-matches on its
+         own (chain 2+), the chain resolves on frozen time. Star / Hypercube /
+         Supernova detonations (specHold) also freeze the clock wherever they
+         happen. The expiry event still waits for the board to settle, so a
+         final cascade at 0:00 keeps scoring either way. */
+      const clockFrozen=(mode==="blitz"&&(state==="clear"||state==="fall")&&(chain>=2||specHold));
       /* Blazing Speed's 7s window burns in REAL time even while the main clock
          is frozen - you spend the window, you don't stretch it. The ONE thing
          that pauses it is a Star / Hypercube / Supernova detonation resolving
