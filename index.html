@@ -10280,24 +10280,61 @@ function ahmColors(){
   const pool=[0,2,3,6];if(mineMoved)pool.push(5);if(mineRose)pool.push(4);
   return pool;
 }
+/* countMoves: same scan as findMove() but counts every available move instead
+   of returning the first. A hypercube on the board counts as 2 - it can swap
+   with anything, so it's worth more than a single ordinary move. */
+function countMoves(){
+  let c=0;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const a=at(x,y);
+    if(a==null)continue;
+    if(a===PRISM){c+=2;continue;}
+    for(const [dx,dy] of [[1,0],[0,1]]){
+      const x2=x+dx,y2=y+dy;if(x2>=N||y2>=N)continue;
+      const b=at(x2,y2);
+      if(b==null||b===PRISM)continue;
+      set(x,y,b);set(x2,y2,a);
+      if(makesMatch(x2,y2,a)||makesMatch(x,y,b))c++;
+      set(x,y,a);set(x2,y2,b);
+    }
+  }
+  return c;
+}
+/* AHM aims for a RICHNESS FLOOR, not mere survival. Guaranteeing only "1 move
+   exists" lets the board decay until all the action funnels into one corner
+   (refills only land where matches happen, so stale regions never get new
+   gems). Instead, every refill wave recolors as many still-falling gems as
+   needed to bring the settled board up to AHM_MIN_MOVES available moves -
+   greedily, each recolor picking the color that adds the most moves without
+   creating a free instant match. Still invisible: only off-screen gems are
+   touched. */
+const AHM_MIN_MOVES=4;
 function ensureMoveAHM(fresh){
-  if(mode==="classic")return;
-  if(!fresh.length||findMove())return;
+  if(mode==="classic")return;   /* Classic is allowed to dead-end, like B3 */
+  if(!fresh.length)return;
+  let have=countMoves();
+  if(have>=AHM_MIN_MOVES)return;
   const colors=ahmColors();
   const order=fresh.slice();
   for(let k=order.length-1;k>0;k--){const j=rnd(k+1);[order[k],order[j]]=[order[j],order[k]];}
   for(const i of order){
+    if(have>=AHM_MIN_MOVES)break;
     if(grid[i]==null||grid[i]===PRISM||spec[i])continue;
     const old=grid[i];
+    let bestT=-1,bestC=have;
     for(const t of colors){
       if(t===old)continue;
       grid[i]=t;
-      /* keep the recolor only if it creates a MOVE without creating a free
-         instant match on landing */
-      if(!findMatchRuns().cells.size&&findMove())return;
+      if(!findMatchRuns().cells.size){
+        const c=countMoves();
+        if(c>bestC){bestC=c;bestT=t;}
+      }
     }
-    grid[i]=old;
+    if(bestT>=0){grid[i]=bestT;have=bestC;}
+    else grid[i]=old;
   }
+  /* if the floor is unreachable from this wave's drops the board still has
+     whatever it has; a fully dead board falls through to ensureMoveB3 */
 }
 function reshuffle(){
   const items=[];
