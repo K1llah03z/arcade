@@ -9911,6 +9911,7 @@ let blzTimeUses=3,blzShufUses=3;             /* blitz power-ups */
 let blzTimeBtn={x:0,y:0,r:16},blzShufBtn={x:0,y:0,r:16};
 let clsShufUses=3,gemUses=5;                 /* classic power-ups */
 let extTank=0,speedBonus=0,speedFill=0,speedStreak=0,speedSnd=0,lastSpeedAt=0,ignition=0,blazing=0,roundFreeze=0; /* blitz: lightning mechanics */
+let specHold=false,prismHold=false; /* blitz: a Star/Hypercube detonation freezes the clock + Blazing window while it resolves */
 let mineMoved=false,mineRose=false,artifactCountdown=4; /* ArtifactSkipTileCount */          /* diamond mine: gem-type progression */
 /* gem indices: 0 red, 1 orange, 2 yellow, 3 green, 4 blue, 5 purple, 6 white */
 /* Time gem drop rates, per spawned gem, thinning out as the round multiplier
@@ -10164,6 +10165,7 @@ function newBoard(){
     if(dirt[i])continue;
     let t;do{t=spawnType();}while((x>=2&&at(x-1,y)===t&&at(x-2,y)===t)||(y>=2&&at(x,y-1)===t&&at(x,y-2)===t));
     set(x,y,t);offY[i]=-(N-y+rnd(4))*CS*0.9;
+    tg[i]=timeGemRoll();   /* Lightning: the OPENING board carries time gems too, not just refills */
   }
   if(mode==="butterfly")spawnButterfly(); /* each game begins with one butterfly */
   if(boost==="head"){
@@ -11110,6 +11112,12 @@ function beginClear(cells,specials,runs){
   const preBlast=new Set(cells);
   const fired=detonate(cells);
   lastFired=fired;   /* which special types went off (chain detection for the finale) */
+  /* Blitz: a STAR (2), HYPERCUBE (3) or SUPERNOVA (4) detonation freezes the
+     main clock and the Blazing Speed window while it resolves. prismHold covers
+     the SWAPPED hypercube path: prismSwap() consumes the cube's spec before
+     detonate() ever sees it, so fired can't detect that case. A follow-up
+     cascade clear with no special going off releases the hold. */
+  if(mode==="blitz"){specHold=prismHold||fired.has(2)||fired.has(3)||fired.has(4);prismHold=false;}
   /* anything detonate() added is blast damage - it breaks two layers of rock */
   const blastCells=new Set();
   for(const i of cells)if(!preBlast.has(i))blastCells.add(i);
@@ -11369,7 +11377,7 @@ function resolveMatches(){
       /* Hand the endgame to the watchdog so it plays as three separate beats:
          the announcer alone, then the Last Hurrah, then game over. Ending the
          run straight from here is what made them all land at once. */
-      state="idle";
+      state="idle";specHold=false;
       return;
     }
     /* diamond mine: fully excavated -> descend */
@@ -11386,7 +11394,7 @@ function resolveMatches(){
       const again=findMatchRuns();
       if(again.cells.size){beginClear(again.cells,again.specials,again.runs);return;}
     }
-    state="idle";
+    state="idle";specHold=false;
     /* B3 fires the level-up only once the cascade has fully settled (not mid-chain).
        Catch up any levels the chain earned, but play LEVEL COMPLETE just once. */
     if(mode!=="icestorm"&&mode!=="blitz"&&mode!=="poker"&&mode!=="butterfly"&&mode!=="mine"){
@@ -11452,6 +11460,7 @@ function prismSwap(){
       }, sweepMs + k*72);
     });
     if(mode==="mine")prismBlast=new Set(cells);   /* dig dirt at full special power */
+    if(mode==="blitz")prismHold=true;   /* swapped hypercube: freeze the clock through the discharge */
     beginClear(cells,[],[]);
     const sweepCT=targets.length*0.36;
     targets.forEach((j,k)=>{ clearDelay[j]=sweepCT + k*0.20; });   /* shatter AFTER the sweep */
@@ -11676,7 +11685,7 @@ function restoreGame(s){
   mode=s.mode; layout();
   score=s.score;level=s.level;progress=s.progress;goal=s.goal;mult=s.mult||1;runTime=s.runTime||0;bgLevel=s.bgLevel||0;boost=s.boost||null;chain=0;
   timeLeft=s.timeLeft||0;lastTick=s.lastTick!=null?s.lastTick:-1;panOff=s.panOff||0;
-  extTank=s.extTank||0;speedBonus=s.speedBonus||0;speedFill=s.speedFill||0;speedStreak=s.speedStreak||0;speedSnd=s.speedSnd||0;lastSpeedAt=0;ignition=s.ignition||0;blazing=s.blazing||0;roundFreeze=0;
+  extTank=s.extTank||0;speedBonus=s.speedBonus||0;speedFill=s.speedFill||0;speedStreak=s.speedStreak||0;speedSnd=s.speedSnd||0;lastSpeedAt=0;ignition=s.ignition||0;blazing=s.blazing||0;roundFreeze=0;specHold=false;prismHold=false;
   mineMoved=!!s.mineMoved;mineRose=!!s.mineRose;artifactCountdown=s.artifactCountdown!=null?s.artifactCountdown:4;
   spiderX=s.spiderX!=null?s.spiderX:-1;spiderDrop=s.spiderDrop||0;caught=s.caught||0;pendingFlyStep=!!s.pendingFlyStep;
   skulls=s.skulls||0;skullBar=s.skullBar||0;skullCD=s.skullCD||0;handsPlayed=s.handsPlayed||0;scoreDisp=s.scoreDisp!=null?s.scoreDisp:s.score;handName=s.handName||"";handFlash=0;
@@ -11710,7 +11719,7 @@ function startRun(m){
   freezeLeft=0;freezeUses=3;gustUses=3;timeUses=3;drillUses=3;overBtns=null;
   iceShufUses=3;iceFrzUses=3;iceFrzLeft=0;pokShufUses=3;wildUses=3;
   blzTimeUses=3;blzShufUses=3;clsShufUses=3;gemUses=5;
-  extTank=0;speedBonus=0;speedFill=0;speedStreak=0;speedSnd=0;lastSpeedAt=0;ignition=0;blazing=0;roundFreeze=0;
+  extTank=0;speedBonus=0;speedFill=0;speedStreak=0;speedSnd=0;lastSpeedAt=0;ignition=0;blazing=0;roundFreeze=0;specHold=false;prismHold=false;
   mult=1;
   bjPrewarm("elzap1");bjPrewarm("elzap2");bjPrewarm("glassbrk");   /* hypercube detonation, all modes */
   ["flamecreate","starcreate","cubecreate","flamedet","stardet","gemshatter","cubedet","cubezap","cubezap2"].forEach(k=>bjPrewarm(k)); /* real B3 power-gem create/detonate */
@@ -12580,9 +12589,15 @@ function frame(now){
          empty tank) waits for the board to settle. That's why B3's clock reads
          0:00 while your final cascade keeps scoring. Blazing Speed just slows
          the drain while it's lit. */
-      if(mode==="blitz"&&blazing>0)blazing=Math.max(0,blazing-dt);
-      if(mode==="blitz"&&blazing>0)timeLeft-=dt*0.4;
-      else timeLeft-=dt;
+      /* Star / Hypercube / Supernova detonation in Blitz: clock AND the Blazing
+         window hold their breath while the blast resolves (clear+fall), then
+         resume. Ordinary matches and cascades still burn clock as before. */
+      const specFrozen=(mode==="blitz"&&specHold&&(state==="clear"||state==="fall"));
+      if(mode==="blitz"&&blazing>0&&!specFrozen)blazing=Math.max(0,blazing-dt);
+      if(!specFrozen){
+        if(mode==="blitz"&&blazing>0)timeLeft-=dt*0.4;
+        else timeLeft-=dt;
+      }
       /* The SPEED meter drains on real time once you've stalled. It only pauses
          while gems are actually clearing/falling from a match (productive) - a wrong
          move is just a stall, so it keeps draining. */
