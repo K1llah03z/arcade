@@ -12617,21 +12617,20 @@ function frame(now){
     if(mode==="blitz"||mode==="mine"){
       if(startHold<=0){
       if(roundFreeze>0)roundFreeze=Math.max(0,roundFreeze-dt);
-      /* B3 Lightning: the clock NEVER pauses for swaps or cascades. In the real
-         binary, SpeedBoard::Update advances the elapsed-time accumulator
-         ([this+0x42c]) on every logic tick with no check of swap/fall/cascade
-         state anywhere around it - matches and detonations burn clock. The only
-         stillness check is CanTimeUp -> Board::IsBoardStill(): time may HIT ZERO
-         mid-cascade, but the expiry event (Last Hurrah / tank release with an
-         empty tank) waits for the board to settle. That's why B3's clock reads
-         0:00 while your final cascade keeps scoring. Blazing Speed just slows
-         the drain while it's lit. */
-      /* Star / Hypercube / Supernova detonation in Blitz: clock AND the Blazing
-         window hold their breath while the blast resolves (clear+fall), then
-         resume. Ordinary matches and cascades still burn clock as before. */
+      /* Lightning main clock: FREEZES while a match is resolving - every clear
+         and the falling gems after it pause the timer, then it resumes once the
+         board settles. (Restored: play-tested against real B3 scoring; the
+         no-pause decompile reading made rounds run measurably short.) The
+         expiry event still waits for the board to settle, so a final cascade
+         at 0:00 keeps scoring either way. */
+      const clockFrozen=(mode==="blitz"&&(state==="clear"||state==="fall"));
+      /* Blazing Speed's 7s window burns in REAL time even while the main clock
+         is frozen - you spend the window, you don't stretch it. The ONE thing
+         that pauses it is a Star / Hypercube / Supernova detonation resolving
+         (specHold), so a big blast never eats your Blazing window. */
       const specFrozen=(mode==="blitz"&&specHold&&(state==="clear"||state==="fall"));
       if(mode==="blitz"&&blazing>0&&!specFrozen)blazing=Math.max(0,blazing-dt);
-      if(!specFrozen){
+      if(!clockFrozen){
         if(mode==="blitz"&&blazing>0)timeLeft-=dt*0.4;
         else timeLeft-=dt;
       }
