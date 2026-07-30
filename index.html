@@ -11161,8 +11161,16 @@ function commitSwap(){
   [fly[ia],fly[ib]]=[fly[ib],fly[ia]];
 }
 function beginClear(cells,specials,runs){
-  chain++;
   const pmove=playerMove;playerMove=false;   /* was this match the player's move? (independent of cascade count) */
+  /* A player's own swap-match is the START of a new chain, NOT a continuation of
+     whatever cascade was still settling from the previous move. Bejeweled 3 lets
+     you swap mid-cascade, so if the player swaps fast the leftover `chain` value
+     is still high - and without this reset, chain++ would climb the COMBO/praise
+     ladder and the announcer would call a fast swap a deep cascade. Resetting to
+     0 here makes the player's match land as chain 1 (plain shatter, no combo
+     callout); only the gems that fall in AFTER it (pmove===false) build the chain. */
+  if(pmove)chain=0;
+  chain++;
   playPraise(chain);   /* B3: praise escalates THROUGH a cascade - Good, then Excellent, then Awesome... one tier per cascade step */
   if(mode==="mine"&&chain===1&&!mineMoved){mineMoved=true;popText(W/2,BY+CS*1.2,"PURPLE GEMS JOIN THE DIG!","#b163ff");}
   /* blazing speed: each MATCH detonates like a single Flame gem (one 3x3 at the
