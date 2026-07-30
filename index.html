@@ -3381,7 +3381,7 @@ function computeBoardBox(){
   /* READABILITY FLOOR: tiles never shrink below u=17 (34px wide) just because
      a big level has more of them. If the board no longer fits the screen at
      that size, it becomes pannable - drag anywhere to slide it around. */
-  const u=Math.max(fit,17);
+  const u=Math.max(fit,21);
   box.u=u;box.tw=u*2;box.th=u*2.6;box.lift=u*0.33;
   box.ox=(W-cols*box.tw)/2;box.oy=topH+(H-barH-topH-rows*box.th)/2;
   box.panMaxX=Math.max(0,(cols*box.tw-(W-30))/2+u);
