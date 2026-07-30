@@ -3224,6 +3224,7 @@ function buildLevel(level,keepScore){
   game.sel=null;game.undoStack=[];game.hintPair=null;game.hintT=0;
   game.chain=0;game.chainT=0;game.won=false;Party.stop();
   if(!keepScore)game.score=0;
+  box.panX=0;box.panY=0;   /* fresh level starts centered */
   computeBoardBox();
 }
 function newRun(){
@@ -3367,7 +3368,7 @@ function tapTile(t){
 }
 
 /* ---------- Layout / rendering geometry ---------- */
-let box={u:20,tw:40,th:52,ox:0,oy:0,lift:7,minX:0,minY:0};
+let box={u:20,tw:40,th:52,ox:0,oy:0,lift:7,minX:0,minY:0,panX:0,panY:0,panMaxX:0,panMaxY:0};
 function computeBoardBox(){
   const alive=game.tiles;
   if(!alive.length)return;
@@ -3376,13 +3377,21 @@ function computeBoardBox(){
   box.minX=mnx;box.minY=mny;
   const cols=(mxx-mnx)/2+1, rows=(mxy-mny)/2+1;
   const barH=86, topH=64;
-  const u=Math.min((W-30)/(cols*2+1),(H-barH-topH)/(rows*2.6+1));
+  const fit=Math.min((W-30)/(cols*2+1),(H-barH-topH)/(rows*2.6+1));
+  /* READABILITY FLOOR: tiles never shrink below u=17 (34px wide) just because
+     a big level has more of them. If the board no longer fits the screen at
+     that size, it becomes pannable - drag anywhere to slide it around. */
+  const u=Math.max(fit,17);
   box.u=u;box.tw=u*2;box.th=u*2.6;box.lift=u*0.33;
   box.ox=(W-cols*box.tw)/2;box.oy=topH+(H-barH-topH-rows*box.th)/2;
+  box.panMaxX=Math.max(0,(cols*box.tw-(W-30))/2+u);
+  box.panMaxY=Math.max(0,(rows*box.th-(H-barH-topH))/2+u);
+  box.panX=Math.max(-box.panMaxX,Math.min(box.panMaxX,box.panX||0));
+  box.panY=Math.max(-box.panMaxY,Math.min(box.panMaxY,box.panY||0));
 }
 function tileXY(t){
-  return{x:box.ox+((t.x-box.minX)/2)*box.tw - t.z*box.lift,
-         y:box.oy+((t.y-box.minY)/2)*box.th - t.z*box.lift*1.2};
+  return{x:box.ox+box.panX+((t.x-box.minX)/2)*box.tw - t.z*box.lift,
+         y:box.oy+box.panY+((t.y-box.minY)/2)*box.th - t.z*box.lift*1.2};
 }
 
 /* ---------- Face art (all vector) ---------- */
@@ -3698,6 +3707,26 @@ cvs.addEventListener("pointerdown",e=>{
   }
   if(game.state!==S.PLAYING||game.won)return;
   for(const b of PPBTNS)if(x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h){b.fn();return;}
+  /* big boards pan: the tap is decided on pointerup - a drag slides the board,
+     a press-and-release picks the tile */
+  mjDrag={x0:x,y0:y,px:box.panX,py:box.panY,moved:false};
+});
+let mjDrag=null;
+cvs.addEventListener("pointermove",e=>{
+  if(!mjDrag)return;
+  const dx=e.clientX-mjDrag.x0,dy=e.clientY-mjDrag.y0;
+  if(Math.abs(dx)>6||Math.abs(dy)>6)mjDrag.moved=true;
+  if(mjDrag.moved&&(box.panMaxX>0||box.panMaxY>0)){
+    box.panX=Math.max(-box.panMaxX,Math.min(box.panMaxX,mjDrag.px+dx));
+    box.panY=Math.max(-box.panMaxY,Math.min(box.panMaxY,mjDrag.py+dy));
+  }
+});
+cvs.addEventListener("pointerup",e=>{
+  if(!mjDrag)return;
+  const wasDrag=mjDrag.moved;mjDrag=null;
+  if(wasDrag)return;                       /* it was a pan, not a pick */
+  if(game.state!==S.PLAYING||game.won)return;
+  const x=e.clientX,y=e.clientY;
   // topmost tile hit
   const alive=game.tiles.filter(t=>!t.gone)
     .sort((a,b)=>b.z-a.z||b.y-a.y||b.x-a.x);
@@ -3707,6 +3736,7 @@ cvs.addEventListener("pointerdown",e=>{
   }
   game.sel=null;
 });
+cvs.addEventListener("pointercancel",()=>{mjDrag=null;});
 addEventListener("keydown",e=>{
   if(e.key==="p"||e.key==="P"){
     if(game.state===S.PLAYING)game.set(S.PAUSED);
